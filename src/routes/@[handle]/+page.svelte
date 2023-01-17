@@ -50,7 +50,7 @@
 	onMount(() => {
 		load_enigmatick()
 
-        fetch('http://192.168.37.221:8010/@' + $page.params.handle).then((x) => {
+        fetch('/user/' + $page.params.handle).then((x) => {
             x.json().then((y) => {
                 console.log(y)
             })

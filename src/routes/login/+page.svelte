@@ -12,6 +12,7 @@
 		get_external_identity_key,
 		init_sse,
 		update_keystore_olm_sessions,
+		load_instance_information,
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm'
@@ -25,21 +26,26 @@
 
 	function load_enigmatick() {
 		init_wasm().then(() => {
-			if (get(wasmState)) {
-				get_wasm_state().then(() => {
-					import_wasm_state(get(wasmState))
-					console.log('loaded state from store')
-				})
-			}
-			console.log('init WASM')
-		})
+			load_instance_information().then((instance) => {
+				console.log(instance?.domain)
+				console.log(instance?.url)
+				
+				if (get(wasmState)) {
+					get_wasm_state().then(() => {
+						import_wasm_state(get(wasmState))
+						console.log('loaded state from store')
+					})
+				}
+				console.log('init WASM')
+			})	
 
-		init_olm().then(() => {
-			if (get(olmState)) {
-				import_olm_state(get(olmState))
-				console.log('loaded olm state from store')
-			}
-			console.log('init OLM')
+			init_olm().then(() => {
+				if (get(olmState)) {
+					import_olm_state(get(olmState))
+					console.log('loaded olm state from store')
+				}
+				console.log('init OLM')
+			})
 		})
 	}
 

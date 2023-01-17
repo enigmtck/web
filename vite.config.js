@@ -13,7 +13,19 @@ export default defineConfig({
 		cors: false,
 		proxy: {
 			'/events': {
-				target: 'http://192.168.37.221:8010/',
+				target: 'http://172.16.227.130:8010/',
+				changeOrigin: true,
+				secure: false,
+				ws: false
+			},
+			'/api': {
+				target: 'http://172.16.227.130:8010/',
+				changeOrigin: true,
+				secure: false,
+				ws: false
+			},
+			'/user': {
+				target: 'http://172.16.227.130:8010/',
 				changeOrigin: true,
 				secure: false,
 				ws: false
