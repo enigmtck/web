@@ -223,7 +223,7 @@
 </script>
 
 {#if username}
-<div>Logged in as: {username}</div>
+<div>Logged in as: <a href="/@{username}">{username}</a></div>
 {/if}
 
 <form id="login" method="POST" on:submit|preventDefault={handleLogin}>
