@@ -12,6 +12,7 @@
 		get_external_identity_key,
 		init_sse,
 		update_keystore_olm_sessions,
+		upload_avatar,
 		load_instance_information,
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
@@ -49,22 +50,23 @@
 		})
 	}
 
+	let username = get(appData).username
+
 	onMount(() => {
 		load_enigmatick()
 
-		const sse = new EventSource("/events")
-		sse.onmessage = (event) => {
-			//console.log("event: " + event.data)
-		}
-
-		return () => {
-			if(sse.readyState === 1) {
-				sse.close();
+		if (username) {
+			const sse = new EventSource("/api/user/" + username + "/events")
+			sse.onmessage = (event) => {
+				console.log("event: " + event.data)
+			}
+			return () => {
+				if(sse.readyState === 1) {
+					sse.close();
+				}
 			}
 		}
 	})
-
-	let username = get(appData).username
 
 	function handleLogin(event: any) {
 		let data = new FormData(event.target)
@@ -80,6 +82,13 @@
 				console.log(get(wasmState))
 
 				olmState.set(get_olm_state().export())
+
+				if (username) {
+					const sse = new EventSource("/api/user/" + username + "/events")
+					sse.onmessage = (event) => {
+						console.log("event: " + event.data)
+					}
+				}
 			})
 		})
 	}
@@ -188,6 +197,8 @@
 				}
 			})
 		});
+
+		
 	}
 
 	function handleSend(event: any, recipient: string, identity_key?: string, session_key?: string) {
@@ -226,10 +237,45 @@
 		init_sse()
 	}
 
+	let  avatar: string | ArrayBuffer | null, fileinput: HTMLInputElement;
+	
+	const onFileSelected =(e: Event) => {
+		console.log("type :" + e.type)
+		let target = e.target as HTMLInputElement;
+		if (target.files !== null) {
+			let image = target.files[0];
+			let reader = new FileReader();
+			reader.readAsArrayBuffer(image);
+			reader.onload = (e: ProgressEvent<FileReader>) => {
+				if (e.target !== null) {
+					avatar = e.target.result !== null ? e.target.result : null
+					console.log(avatar)
+					let b = new Uint8Array(avatar as ArrayBuffer)
+
+					console.log("ba: " + b)
+
+					upload_avatar(b, (avatar as ArrayBuffer).byteLength)
+					/* fetch('/api/user/avatar', {
+						method: 'POST',
+						body: avatar
+					}).then((x) => console.log("maybe this time? " + x)) */
+				}
+			}
+		}
+	}
 </script>
 
 {#if username}
 <div>Logged in as: <a href="/@{username}">{username}</a></div>
+
+<div>
+	<!-- {#if avatar}
+        <img class="avatar" src="{avatar}" alt="d" />
+    {/if} -->
+	<img class="upload" src="https://static.thenounproject.com/png/625182-200.png" alt="" on:click={()=>{fileinput.click();}} />
+    <div class="chan" on:click={()=>{fileinput.click();}}>Choose Image</div>
+    <input style="display:none" type="file" accept=".jpg, .jpeg, .png" on:change={(e)=>onFileSelected(e)} bind:this={fileinput} >
+</div>
 {/if}
 
 <form id="login" method="POST" on:submit|preventDefault={handleLogin}>

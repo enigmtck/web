@@ -1,7 +1,6 @@
 <script lang="ts">
 
     import { page } from '$app/stores';
-    console.log($page.params)
 
 	import { onMount, setContext } from 'svelte'
 	import { get } from 'svelte/store'
@@ -65,30 +64,44 @@
 
 	onMount(() => {
 		load_enigmatick()
-
-		console.log($page.params)
-        fetch('/user/' + $page.params.handle).then((x) => {
-            x.json().then((y: UserProfile) => {
-                console.log(y)
-				profile = y
-            })
-        })
 	})
+
+    function handleProfile(event: any) {
+		let data = new FormData(event.target)
+        console.log("looking up: " + data.get('address'))
+    }
 
 	let username = get(appData).username
 </script>
 
-{#if username}
-<div>{username}</div>
-{/if}
-
-{#if profile}
-<div>
-	<span>{profile.name}</span>
-	<span>{profile.summary}</span>
+<div class="page">
+    <div class="component">
+        <form id="login" method="POST" on:submit|preventDefault={handleProfile}>
+            <label>
+                <input type="text" id="address" name="address" placeholder="@address@server.url"/>
+            </label>
+        </form>
+    </div>
 </div>
-{/if}
 
 <style>
-	span { display: inline-block; width: 100%; }
+    .page {
+        display: block;
+        width: 100%;
+    }
+
+    .component {
+        display: block;
+        width: 500px;
+        margin: 0 auto 0 auto;
+    }
+
+    input {
+        width: 100%;
+        padding: 15px;
+        border-radius: 10px;
+        border: 0;
+        outline: 1px solid #CCC;
+        font-size: large;
+    }
 </style>
