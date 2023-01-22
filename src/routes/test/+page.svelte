@@ -270,7 +270,7 @@
 
 					console.log('ba: ' + b);
 
-					upload_avatar(b, (avatar as ArrayBuffer).byteLength);
+					upload_avatar(b, (avatar as ArrayBuffer).byteLength, "");
 					/* fetch('/api/user/avatar', {
 						method: 'POST',
 						body: avatar

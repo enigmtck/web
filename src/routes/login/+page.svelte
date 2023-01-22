@@ -54,7 +54,7 @@
 	function handleLogin(event: any) {
 		let data = new FormData(event.target);
 
-		authenticate(
+		/* authenticate(
 			String(data.get('username')),
 			String(data.get('password')),
 			String(data.get('passphrase'))
@@ -80,7 +80,7 @@
 					console.log('logged in');
 				});
 			});
-		});
+		}); */
 	}
 </script>
 
@@ -114,7 +114,6 @@
 		justify-content: center;
 		width: 100vw;
 		height: 100vh;
-		background: #e9cccf;
 
 		h1 {
 			font-family: 'Open Sans';
@@ -124,6 +123,11 @@
 			color: darkred;
 			margin: 0;
 			width: 100%;
+
+			@media screen and (max-width: 600px) {
+				font-size: 13vw;
+				margin: 0 0 30px 0;
+			}
 		}
 
 		form {
