@@ -42,7 +42,7 @@
 	let username = get(appData).username;
 
 	if (username) {
-		goto('/profile').then(() => {
+		goto('/@' + username).then(() => {
 			console.log('logged in');
 		});
 	}
@@ -54,7 +54,7 @@
 	function handleLogin(event: any) {
 		let data = new FormData(event.target);
 
-		/* authenticate(
+		authenticate(
 			String(data.get('username')),
 			String(data.get('password')),
 			String(data.get('passphrase'))
@@ -76,11 +76,11 @@
 
 				olmState.set(get_olm_state().export());
 
-				goto('/profile').then(() => {
+				goto('/@' + username).then(() => {
 					console.log('logged in');
 				});
 			});
-		}); */
+		});
 	}
 </script>
 
@@ -102,7 +102,9 @@
 			<input name="passphrase" type="password" placeholder="Decrypts the retrieved configuration" />
 		</label>
 
-		<button>AUTHENTICATE</button>
+		<div>
+			<button>Authenticate</button>
+		</div>
 	</form>
 </main>
 
@@ -134,6 +136,8 @@
 			display: flex;
 			flex-direction: column;
 			width: 300px;
+			border-top: 1px solid #ccc;
+			padding-top: 10px;
 
 			label {
 				width: 100%;
@@ -157,23 +161,30 @@
 				}
 			}
 
-			button {
-				border: 1px solid darkred;
-				border-radius: 7px;
-				background: #fafafa;
-				color: darkred;
-				font-family: 'Open Sans';
-				font-size: 16px;
-				font-weight: 400;
-				padding: 7px;
-				margin: 10px 0;
-			}
+			div {
+				text-align: center;
+				border-top: 1px solid #ccc;
+				margin-top: 10px;
 
-			button:hover {
-				color: white;
-				background: darkred;
-				transition-duration: 0.5s;
-				cursor: pointer;
+				button {
+					border-radius: 7px;
+					background: darkred;
+					color: whitesmoke;
+					transition-duration: 1s;
+					border: 0;
+					font-family: 'Open Sans';
+					font-size: 18px;
+					font-weight: 600;
+					padding: 5px 15px;
+					margin: 15px 0;
+				}
+
+				button:hover {
+					color: darkred;
+					background: whitesmoke;
+					transition-duration: 1s;
+					cursor: pointer;
+				}
 			}
 		}
 	}

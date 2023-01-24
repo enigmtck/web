@@ -10,7 +10,6 @@
 		get_inbox,
 		get_processing_queue,
 		get_external_identity_key,
-		init_sse,
 		update_keystore_olm_sessions,
 		upload_avatar,
 		load_instance_information,
@@ -249,10 +248,6 @@
 		});
 	}
 
-	function handleInitSse(event: any) {
-		init_sse();
-	}
-
 	let avatar: string | ArrayBuffer | null, fileinput: HTMLInputElement;
 
 	const onFileSelected = (e: Event) => {
@@ -339,8 +334,6 @@
 <button on:click|preventDefault={handleInbox}>Inbox</button>
 
 <button on:click|preventDefault={handleQueue}>Queue</button>
-
-<button on:click|preventDefault={handleInitSse}>Init SSE</button>
 
 <br />
 

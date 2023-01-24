@@ -7,9 +7,10 @@
 	import { get } from 'svelte/store';
 	import { wasmState, olmState, appData } from '../../stores';
 	import init_wasm, {
-		send_updated_summary,
+		update_summary,
 		load_instance_information,
 		upload_avatar,
+		upload_banner,
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
@@ -17,6 +18,7 @@
 		import_state as import_olm_state,
 		get_state as get_olm_state
 	} from 'enigmatick_olm';
+	import { goto } from '$app/navigation';
 
 	function load_enigmatick() {
 		init_olm().then(() => {
@@ -29,28 +31,41 @@
 	}
 
 	type Image = {
-		type: string
-		mediaType?: string
-		url: string
-	}
+		type: string;
+		mediaType?: string;
+		url: string;
+	};
 
 	type UserProfile = {
-		'@context': string
-		type: string
-		name: string
-		summary: string
-		id: string
-		preferredUsername: string
-		inbox: string
-		outbox: string
-		followers: string
-		following: string
-		liked: string
-		publicKey: object
-		icon: Image
+		'@context': string;
+		type: string;
+		name: string;
+		summary: string;
+		id: string;
+		preferredUsername: string;
+		inbox: string;
+		outbox: string;
+		followers: string;
+		following: string;
+		liked: string;
+		publicKey: object;
+		icon: Image;
+		image?: Image;
+		url: string;
 	};
 
 	let profile: UserProfile | null = null;
+
+	function load_profile() {
+		if ($page.params.handle) {
+			fetch('/user/' + $page.params.handle).then((x) => {
+				x.json().then((y: UserProfile) => {
+					console.log(y);
+					profile = y;
+				});
+			});
+		}
+	}
 
 	onMount(() => {
 		load_enigmatick();
@@ -72,12 +87,7 @@
 			});
 		}
 
-		console.log($page.params);
-		fetch('/user/' + $page.params.handle).then((x) => {
-			x.json().then((y: UserProfile) => {
-				profile = y;
-			});
-		});
+		load_profile();
 	});
 
 	function convertToMarkdown(data: string) {
@@ -121,7 +131,7 @@
 
 	function handleSaveSummary() {
 		if (profile) {
-			send_updated_summary(profile.summary).then((x) => {
+			update_summary(profile.summary).then((x) => {
 				console.log(x);
 				summary_changed = false;
 			});
@@ -138,13 +148,13 @@
 		}
 	}
 
-	let avatar: string | ArrayBuffer | null, fileinput: HTMLInputElement;
+	let avatar: string | ArrayBuffer | null, avatar_file_input: HTMLInputElement;
 
-	const onFileSelected = (e: Event) => {
+	const onAvatarSelected = (e: Event) => {
 		let target = e.target as HTMLInputElement;
 		if (target.files !== null) {
-			let image = target.files[0]
-			let extension = String(image.name.match(/\.[0-9a-z]+$/i)).slice(1)
+			let image = target.files[0];
+			let extension = String(image.name.match(/\.[0-9a-z]+$/i)).slice(1);
 			let reader = new FileReader();
 			reader.readAsArrayBuffer(image);
 			reader.onload = (e: ProgressEvent<FileReader>) => {
@@ -153,7 +163,32 @@
 					console.log(avatar);
 					let bytes = new Uint8Array(avatar as ArrayBuffer);
 
-					upload_avatar(bytes, (avatar as ArrayBuffer).byteLength, extension)
+					upload_avatar(bytes, (avatar as ArrayBuffer).byteLength, extension).then(() => {
+						load_profile();
+					});
+				}
+			};
+		}
+	};
+
+	let banner: string | ArrayBuffer | null, banner_file_input: HTMLInputElement;
+
+	const onBannerSelected = (e: Event) => {
+		let target = e.target as HTMLInputElement;
+		if (target.files !== null) {
+			let image = target.files[0];
+			let extension = String(image.name.match(/\.[0-9a-z]+$/i)).slice(1);
+			let reader = new FileReader();
+			reader.readAsArrayBuffer(image);
+			reader.onload = (e: ProgressEvent<FileReader>) => {
+				if (e.target !== null) {
+					banner = e.target.result !== null ? e.target.result : null;
+					console.log(banner);
+					let bytes = new Uint8Array(banner as ArrayBuffer);
+
+					upload_banner(bytes, (banner as ArrayBuffer).byteLength, extension).then(() => {
+						load_profile();
+					});
 				}
 			};
 		}
@@ -165,33 +200,98 @@
 	let display_name = get(appData).display_name;
 </script>
 
-<header>
-	<div>
-		<span class="title"><a href="/">ENIGMATICK</a></span>
-		{#if display_name}
-			<nav>
-				<span class="person"><a href="/@{username}">{display_name}</a></span>
-			</nav>
-		{/if}
-	</div>
-</header>
 <main>
 	{#if profile}
 		<div class="profile">
-			<div class="identity">
-				<img src={profile.icon.url} alt="Default Person" on:click={() => {
-					fileinput.click();
-				}}/>
-				<input
-					style="display:none"
-					type="file"
-					accept=".jpg, .jpeg, .png"
-					on:change={(e) => onFileSelected(e)}
-					bind:this={fileinput}
-				/>
-				<h1>{profile.name}</h1>
-			</div>
+			{#if profile.image}
+				{#if username}
+					<div class="banner">
+						<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
+						<!-- svelte-ignore a11y-positive-tabindex -->
+						<img
+							class="selectable"
+							src={profile.image.url}
+							tabindex="3"
+							alt="Banner"
+							on:keypress={() => {
+								banner_file_input.click();
+							}}
+							on:click={() => {
+								banner_file_input.click();
+							}}
+						/>
+					</div>
+				{/if}
 
+				{#if !username}
+					<div class="banner">
+						<img src={profile.image.url} alt="Banner" />
+					</div>
+				{/if}
+			{/if}
+
+			<div class="identity">
+				<div class="avatar">
+					{#if username}
+						<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
+						<!-- svelte-ignore a11y-positive-tabindex -->
+						<img
+							class="selectable"
+							src={profile.icon.url}
+							alt="Avatar"
+							tabindex="2"
+							on:keypress={() => {
+								avatar_file_input.click();
+							}}
+							on:click={() => {
+								avatar_file_input.click();
+							}}
+						/>
+						<input
+							style="display:none"
+							type="file"
+							accept=".jpg, .jpeg, .png"
+							on:change={(e) => onAvatarSelected(e)}
+							bind:this={avatar_file_input}
+						/>
+					{/if}
+
+					{#if !username}
+						<img src={profile.icon.url} alt="Avatar" />
+					{/if}
+				</div>
+				<div class="details">
+					<h1>{profile.name}</h1>
+					<a href={profile.url}>{profile.url}</a>
+				</div>
+			</div>
+			{#if username}
+				<div class="controls">
+					{#if !profile.image}
+						<button
+							on:keypress={() => {
+								banner_file_input.click();
+							}}
+							on:click={() => {
+								banner_file_input.click();
+							}}>Set Banner</button
+						>
+					{/if}
+					<input
+						style="display:none"
+						type="file"
+						accept=".jpg, .jpeg, .png"
+						on:change={(e) => onBannerSelected(e)}
+						bind:this={banner_file_input}
+					/>
+
+					<button
+						on:click|preventDefault={() => {
+							goto('/settings');
+						}}>Settings</button
+					>
+				</div>
+			{/if}
 			<div class="summary">
 				{#if edit_summary}
 					<pre contenteditable="true" on:input|preventDefault={handleUpdate}>{convertToMarkdown(
@@ -210,6 +310,7 @@
 					<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 					<!-- svelte-ignore a11y-positive-tabindex -->
 					<div
+						class="selectable"
 						tabindex="1"
 						on:click|preventDefault={handleEdit}
 						on:keypress|preventDefault={handleEdit}
@@ -260,82 +361,128 @@
 		transition-duration: 0.5s;
 	}
 
-	header {
-		width: 100%;
-		padding: 5px;
-		background: #222;
-		color: #eee;
-		text-align: center;
-		font-family: 'Open Sans';
-		font-size: 22px;
-		font-weight: 600;
-
-		a {
-			color: #eee;
-			text-decoration: none;
-		}
-
-		a:visited {
-			color: #eee;
-		}
-
-		a:hover {
-			color: red;
-			transition-duration: 0.5s;
-			text-decoration: none;
-		}
-
-		nav {
-			display: block;
-			position: absolute;
-			right: 0;
-			top: 0;
-			padding: 2px 5px;
-			text-align: right;
-
-			.person {
-				display: inline-block;
-				font-size: 18px;
-				font-weight: 400;
-			}
-		}
-
-		@media screen and (max-width: 600px) {
-			text-align: left;
-		}
-	}
-
 	main {
 		display: block;
 		max-width: 800px;
 		width: 100%;
 		margin: 0 auto 0 auto;
-		padding: 15px;
 		font-family: 'Open Sans';
+
+		:global(.selectable:hover),
+		:global(.selectable:focus) {
+			cursor: pointer;
+			color: darkred;
+			transition-duration: 0.5s;
+			opacity: 0.8;
+		}
 
 		.profile {
 			width: 100%;
+			display: flex;
+			flex-direction: column;
+
+			.banner {
+				z-index: 20;
+				width: 100%;
+				max-height: 300px;
+				overflow: hidden;
+
+				img {
+					width: 100%;
+				}
+			}
 
 			.identity {
 				display: flex;
 				flex-direction: row;
 				width: 100%;
 
-				img {
-					width: 150px;
-					height: 150px;
-					clip-path: inset(0 0 0 0 round 30px);
+				/* percentage margins here are weird because they are relative 
+				   to width only, but make sense for this use-case; the square 
+				   avatar is 20% wide, and we want it half-way overlapping in 
+				   the banner - that means that .details is also shifted by 10% 
+				   down to undo the overlap */
+
+				margin-top: -10%;
+
+				.avatar {
+					z-index: 30;
+					margin: 0 5%;
+					width: 20%;
+					height: 20%;
+					overflow: none;
+
+					img {
+						width: 100%;
+						clip-path: inset(0 0 0 0 round 10%);
+					}
+
+					img:focus {
+						opacity: 0.75;
+					}
 				}
 
-				h1 {
-					width: calc(100% - 150px);
-					margin: 0;
-					padding: 0 30px;
+				.details {
+					z-index: 10;
+					display: flex;
+					flex-direction: column;
+					margin-top: 10%;
+					width: 70%;
+					overflow: hidden;
+
+					h1 {
+						font-size: 24px;
+					}
+
+					h1,
+					a {
+						width: 100%;
+						margin: 0;
+						padding: 0;
+					}
+
+					a {
+						text-decoration: none;
+						font-size: 18px;
+					}
+
+					@media screen and (max-width: 600px) {
+						a {
+							display: none;
+						}
+					}
+				}
+			}
+
+			.controls {
+				width: 100%;
+				padding: 10px;
+				text-align: right;
+
+				button {
+					display: inline-block;
+					color: whitesmoke;
+					background: darkred;
+					border: 0;
+					transition-duration: 1s;
+					font-size: 18px;
+					font-weight: 600;
+					padding: 5px 15px;
+					margin: 5px;
+					border-radius: 7px;
+				}
+
+				button:hover {
+					color: darkred;
+					background: whitesmoke;
+					transition-duration: 1s;
+					cursor: pointer;
 				}
 			}
 
 			.summary {
 				width: 100%;
+				padding: 0 15px;
 
 				> pre {
 					border: 1px solid #eee;
@@ -353,12 +500,6 @@
 					textarea {
 						display: none;
 					}
-				}
-
-				div:hover,
-				form:hover,
-				button:hover {
-					cursor: pointer;
 				}
 			}
 		}

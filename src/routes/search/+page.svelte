@@ -13,7 +13,6 @@
 		get_inbox,
 		get_processing_queue,
 		get_external_identity_key,
-		init_sse,
 		update_keystore_olm_sessions,
 		load_instance_information,
 		send_follow,
@@ -161,44 +160,23 @@
 
 			send_follow(profile.id);
 		} else {
-            console.log('no profile loaded')
-        }
+			console.log('no profile loaded');
+		}
 	}
 
-    function handleUnfollow(event: any) {
+	function handleUnfollow(event: any) {
 		if (profile && profile.id) {
 			console.log('unfollowing: ' + profile.id);
 
 			send_unfollow(profile.id);
 		} else {
-            console.log('no profile loaded')
-        }
+			console.log('no profile loaded');
+		}
 	}
 
 	let username = get(appData).username;
 	let display_name = get(appData).display_name;
 </script>
-
-<svelte:head>
-	<style>
-		body {
-			display: flex;
-			flex-direction: column;
-		}
-	</style>
-</svelte:head>
-
-<header>
-	<div>
-		<span class="title"><a href="/">ENIGMATICK</a></span>
-	</div>
-
-	{#if display_name}
-		<nav>
-			<span class="person"><a href="/@{username}">{display_name}</a></span>
-		</nav>
-	{/if}
-</header>
 
 <main>
 	<form id="profile" method="POST" on:submit|preventDefault={handleProfile}>
@@ -210,13 +188,18 @@
 	{#if profile}
 		<div class="profile">
 			{#if profile.image}
-				<img src={profile.image.url} alt="Banner" />
+				<div class="banner">
+					<img src={profile.image.url} alt="Banner" />
+				</div>
 			{/if}
 
 			<div class="identity">
-				{#if profile.icon}
-					<img src={profile.icon.url} alt="Avatar" />
-				{/if}
+				<div class="avatar">
+					{#if profile.icon}
+						<img src={profile.icon.url} alt="Avatar" />
+					{/if}
+				</div>
+				
 				<div class="controls">
 					<a href={profile.url}>{profile.name}</a>
 					<ul>
@@ -241,65 +224,13 @@
 </main>
 
 <style lang="scss">
-	:global(a),
-	:global(a:visited) {
-		color: #222;
-		text-decoration: none;
-	}
-
-	:global(a:hover) {
-		color: red;
-		transition-duration: 0.5s;
-		text-decoration: none;
-	}
-
 	* {
 		font-family: 'Open Sans';
 	}
 
-	header {
-		width: 100%;
-		padding: 5px;
-		background: #222;
-		color: #eee;
-		text-align: center;
-		font-family: 'Open Sans';
-		font-size: 22px;
-		font-weight: 600;
-		height: auto;
-
-		a {
-			color: #eee;
-			text-decoration: none;
-		}
-
-		a:visited {
-			color: #eee;
-		}
-
-		nav {
-			display: block;
-			position: fixed;
-			right: 0;
-			top: 0;
-			padding: 2px 5px;
-			text-align: right;
-
-			.person {
-				display: inline-block;
-				font-size: 18px;
-				font-weight: 400;
-			}
-		}
-
-		@media screen and (max-width: 600px) {
-			text-align: left;
-		}
-	}
-
 	main {
 		display: block;
-		max-width: 500px;
+		max-width: 800px;
 		width: 100%;
 		margin: 0 auto 0 auto;
 		padding: 5px;
@@ -320,25 +251,39 @@
 			border: 1px solid #eee;
 			border-radius: 15px;
 
-			img {
+			.banner {
 				width: 100%;
-				height: 150px;
-				clip-path: inset(0 0 0 0 round 15px 15px 0 0);
-				margin-bottom: -30px;
+				max-height: 200px;
+				overflow: hidden;
+				margin-bottom: -10%;
+
+				img {
+					width: 100%;
+				}
+			}
+
+			:global(a) {
+				text-decoration: none;
 			}
 
 			.identity {
+				z-index: 20;
 				padding: 10px;
 				width: 100%;
 				display: flex;
 				flex-direction: row;
 
-				filter: drop-shadow(10px 10px 4px #ddd);
+				.avatar {
+					z-index: 30;
+					margin: 0 5%;
+					width: 20%;
+					height: 20%;
+					overflow: none;
 
-				img {
-					width: 150px;
-					height: 150px;
-					clip-path: inset(0 0 0 0 round 15px);
+					img {
+						width: 100%;
+						clip-path: inset(0 0 0 0 round 10%);
+					}
 				}
 
 				.controls {
@@ -346,6 +291,7 @@
 					margin-top: 20px;
 					display: flex;
 					flex-direction: column;
+					margin-top: 10%;
 
 					a {
 						display: block;
@@ -365,19 +311,20 @@
 
 							button {
 								display: inline-block;
-								color: darkred;
-								background: white;
-								border: 2px solid darkred;
+								color: whitesmoke;
+								background: darkred;
+								transition-duration: 1s;
+								border: 0;
 								font-size: 18px;
 								font-weight: 600;
 								padding: 5px 15px;
 								margin: 5px;
-								border-radius: 5px;
+								border-radius: 7px;
 							}
 
 							button:hover {
-								color: white;
-								background: darkred;
+								color: darkred;
+								background: whitesmoke;
 								transition-duration: 1s;
 								cursor: pointer;
 							}
