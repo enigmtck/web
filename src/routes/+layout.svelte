@@ -2,7 +2,17 @@
 	import { get } from 'svelte/store';
 	import { appData } from '../stores';
 	import { page } from '$app/stores';
-	import { onMount } from 'svelte';
+	import { Converter } from 'showdown';
+	import init_wasm, {
+		send_note,
+		SendParams,
+		get_state as get_wasm_state,
+		import_state as import_wasm_state
+	} from 'enigmatick_wasm';
+	import init_olm, {
+		import_state as import_olm_state,
+		get_state as get_olm_state
+	} from 'enigmatick_olm';
 
 	$: username = get(appData).username;
 	$: display_name = get(appData).display_name;
@@ -12,6 +22,59 @@
 		display_name = get(appData).display_name;
 		return true;
 	}
+
+	function handleComposeSubmit(event: any) {
+		console.log(event);
+	}
+
+	function convertToMarkdown(data: string) {
+		let converter = new Converter();
+		converter.setFlavor('github');
+		converter.setOption('tables', true);
+		converter.setOption('requireSpaceBeforeHeadingText', true);
+		return converter.makeMarkdown(data);
+	}
+
+	function convertToHtml(data: string) {
+		let converter = new Converter();
+		converter.setFlavor('github');
+		converter.setOption('tables', true);
+		converter.setOption('requireSpaceBeforeHeadingText', true);
+		return converter.makeHtml(data);
+	}
+
+	function captureChanges() {
+		let compose = document.getElementById('compose');
+
+		if (compose) {
+			markdown_note = compose.innerText;
+			html_note = convertToHtml(markdown_note);
+		}
+	}
+
+	function handlePreview() {
+		captureChanges();
+
+		preview = !preview;
+	}
+
+	function handlePublish() {
+		captureChanges();
+
+		let params = SendParams.new().set_kind('Note').set_content(html_note);
+
+		send_note(params).then((x) => {
+			if (x) {
+				console.log('send successful');
+			} else {
+				console.log('send unsuccessful');
+			}
+		});
+	}
+
+	let markdown_note = '';
+	let html_note = '';
+	let preview = false;
 </script>
 
 <svelte:head>
@@ -27,7 +90,7 @@
 			grid-template:
 				[row1-start] 'header header header' [row1-end]
 				[row2-start] 'left-aside content right-aside' [row2-end]
-				/ 1fr minmax(200px, 800px) 1fr;
+				/ 1fr auto 1fr;
 		}
 	</style>
 </svelte:head>
@@ -40,22 +103,51 @@
 	</header>
 
 	{#if update()}
-		{#if username}
-			<aside><div></div></aside>
-		{/if}
+		<aside>
+			{#if username}
+				{#if $page.url.pathname === '/timeline'}
+					<div>
+						<h1>Write</h1>
+						{#if !preview}
+							<pre id="compose" contenteditable="true">{markdown_note}</pre>
+						{:else}
+							<div>{@html html_note}</div>
+						{/if}
+
+						<form method="POST" on:submit|preventDefault={handleComposeSubmit}>
+							<span>
+								<i class="fa-solid fa-paperclip" />
+								{#if preview}
+									<i class="fa-solid fa-pen-nib" on:click|preventDefault={handlePreview} />
+								{:else}
+									<i class="fa-solid fa-eye" on:click|preventDefault={handlePreview} />
+								{/if}
+							</span>
+							<button on:click|preventDefault={handlePublish}>Publish</button>
+						</form>
+					</div>
+				{/if}
+			{/if}
+		</aside>
 
 		<slot />
 
-		{#if username}
-			<nav>
+		<nav>
+			{#if username}
 				<div>
-					<a href="/@{username}">{display_name}</a>
-					<a href="/timeline">Timeline</a>
-					<a href="/search">Search</a>
-					<a href="/settings">Settings</a>
+					<a class={$page.url.pathname == '/@' + username ? 'selected' : ''} href="/@{username}"
+						>{display_name}</a
+					>
+					<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
+						>Timeline</a
+					>
+					<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search">Search</a>
+					<a class={$page.url.pathname == '/settings' ? 'selected' : ''} href="/settings"
+						>Settings</a
+					>
 				</div>
-			</nav>
-		{/if}
+			{/if}
+		</nav>
 	{/if}
 {:else}
 	<slot />
@@ -76,21 +168,21 @@
 		grid-area: header;
 		width: 100%;
 		padding: 5px;
-		background: #222;
-		color: #eee;
+		background: white;
+		color: darkred;
 		text-align: center;
 		font-family: 'Open Sans';
 		font-size: 22px;
 		font-weight: 600;
 
 		a {
-			color: #eee;
+			color: darkred;
 			text-decoration: none;
 			transition-duration: 1s;
 		}
 
 		a:visited {
-			color: #eee;
+			color: darkred;
 		}
 
 		a:hover {
@@ -98,26 +190,112 @@
 			transition-duration: 0.5s;
 			text-decoration: none;
 		}
-
-		@media screen and (max-width: 600px) {
-			text-align: left;
-		}
 	}
 
 	aside {
 		grid-area: left-aside;
-	}
+		height: calc(100vh - 40px);
+		text-align: right;
 
-	slot {
-		grid-area: content;
-	}
-
-	nav {
 		@media screen and (max-width: 600px) {
 			display: none;
 		}
 
+		div {
+			display: inline-block;
+			max-width: 400px;
+			min-width: 350px;
+			margin: 10px;
+			padding: 0;
+
+			h1 {
+				width: 100%;
+				text-align: right;
+				font-family: 'Open Sans';
+				font-size: 28px;
+				font-weight: 400;
+				margin: 5px 0;
+			}
+
+			pre,
+			div {
+				text-align: left;
+				width: 100%;
+				padding: 10px;
+				margin: 0;
+				background: white;
+				min-height: 150px;
+				border-top: 1px solid #ccc;
+				border-bottom: 1px solid #ccc;
+				font-family: 'Open Sans';
+			}
+
+			div {
+				padding: 0 10px;
+			}
+
+			form {
+				padding: 5px;
+				text-align: right;
+
+				span {
+					display: inline-block;
+					width: calc(100% - 110px);
+					text-align: left;
+
+					i {
+						font-size: 24px;
+						transition-duration: 1s;
+						padding: 0 10px;
+					}
+
+					i:hover {
+						cursor: pointer;
+						transition-duration: 0.5s;
+						color: red;
+					}
+				}
+
+				button {
+					display: inline-block;
+					margin: 5px;
+					padding: 5px 15px;
+					background: darkred;
+					color: whitesmoke;
+					transition-duration: 1s;
+					border: 0;
+					font-family: 'Open Sans';
+					font-size: 18px;
+					font-weight: 600;
+				}
+
+				button:hover {
+					color: darkred;
+					background: whitesmoke;
+					transition-duration: 1s;
+					cursor: pointer;
+				}
+			}
+		}
+	}
+
+	:global(main) {
+		grid-area: content;
+		min-width: 600px;
+		max-width: 800px;
+
+		@media screen and (max-width: 600px) {
+			min-width: unset;
+			width: 100vw;
+		}
+	}
+
+	nav {
 		grid-area: right-aside;
+
+		@media screen and (max-width: 600px) {
+			display: none;
+		}
 
 		div {
 			width: 100%;
@@ -129,7 +307,7 @@
 				display: inline-block;
 				width: 100%;
 				text-decoration: none;
-				font-family: "Open Sans";
+				font-family: 'Open Sans';
 				font-size: 22px;
 				padding: 5px;
 				color: #222;
@@ -144,6 +322,11 @@
 			a:hover {
 				color: red;
 				transition-duration: 0.5s;
+			}
+
+			.selected {
+				color: darkred;
+				transition-duration: 1s;
 			}
 		}
 	}

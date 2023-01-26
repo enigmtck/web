@@ -87,6 +87,8 @@
 		object?: EnigmatickEventObject | string | null;
 	};
 
+	let address: string | null = $page.url.searchParams.get('actor');
+
 	onMount(() => {
 		load_enigmatick();
 
@@ -102,6 +104,8 @@
 					});
 				}
 				console.log('init WASM');
+
+				load_profile();
 			});
 
 			const sse = new EventSource('/api/user/' + username + '/events');
@@ -131,8 +135,6 @@
 			goto('/');
 		}
 	});
-
-	let address: string | null = null;
 
 	function load_profile() {
 		if (address) {
@@ -307,7 +309,7 @@
 						width: 100%;
 
 						li {
-							text-align: center;
+							text-align: right;
 
 							button {
 								display: inline-block;
@@ -319,7 +321,6 @@
 								font-weight: 600;
 								padding: 5px 15px;
 								margin: 5px;
-								border-radius: 7px;
 							}
 
 							button:hover {

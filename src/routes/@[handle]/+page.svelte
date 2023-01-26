@@ -116,12 +116,16 @@
 	}
 
 	function handlePreview(event: any) {
-		let data = new FormData(event.target);
+		let el = document.getElementById('summary_edit');
 
-		if (profile) {
-			edit_summary = false;
-			profile.summary = convertToHtml(String(data.get('summary')));
-			summary_changed = true;
+		if (el) {
+			let data = el.innerText;
+
+			if (profile) {
+				edit_summary = false;
+				profile.summary = convertToHtml(data);
+				summary_changed = true;
+			}
 		}
 	}
 
@@ -135,16 +139,6 @@
 				console.log(x);
 				summary_changed = false;
 			});
-		}
-	}
-
-	function handleUpdate(event: any) {
-		let t: HTMLTextAreaElement | null = <HTMLTextAreaElement>(
-			document.getElementById('summary_textarea')
-		);
-
-		if (t) {
-			t.value = event.target.innerText;
 		}
 	}
 
@@ -203,9 +197,9 @@
 <main>
 	{#if profile}
 		<div class="profile">
-			{#if profile.image}
-				{#if username}
-					<div class="banner">
+			<div class="banner">
+				{#if profile.image}
+					{#if username}
 						<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 						<!-- svelte-ignore a11y-positive-tabindex -->
 						<img
@@ -220,16 +214,11 @@
 								banner_file_input.click();
 							}}
 						/>
-					</div>
-				{/if}
-
-				{#if !username}
-					<div class="banner">
+					{:else if !username}
 						<img src={profile.image.url} alt="Banner" />
-					</div>
+					{/if}
 				{/if}
-			{/if}
-
+			</div>
 			<div class="identity">
 				<div class="avatar">
 					{#if username}
@@ -284,49 +273,45 @@
 						on:change={(e) => onBannerSelected(e)}
 						bind:this={banner_file_input}
 					/>
-
-					<button
-						on:click|preventDefault={() => {
-							goto('/settings');
-						}}>Settings</button
-					>
 				</div>
 			{/if}
 			<div class="summary">
 				{#if edit_summary}
-					<pre contenteditable="true" on:input|preventDefault={handleUpdate}>{convertToMarkdown(
-							profile.summary
-						)}</pre>
-					<form method="POST" on:submit|preventDefault={handlePreview}>
-						<textarea id="summary_textarea" name="summary"
-							>{convertToMarkdown(profile.summary)}</textarea
-						>
-						<button on:click|preventDefault={handleCancel}>Cancel</button>
-						<button>Preview</button>
-					</form>
+					<pre id="summary_edit" contenteditable="true">{convertToMarkdown(profile.summary)}</pre>
 				{/if}
 
 				{#if username && !edit_summary}
-					<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
-					<!-- svelte-ignore a11y-positive-tabindex -->
-					<div
-						class="selectable"
-						tabindex="1"
+					<button
+						class="transparent"
 						on:click|preventDefault={handleEdit}
 						on:keypress|preventDefault={handleEdit}
-					>
+					/>
+					<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
+					<!-- svelte-ignore a11y-positive-tabindex -->
+					<div>
 						{@html profile.summary}
 					</div>
-
-					{#if summary_changed}
-						<button on:click|preventDefault={handleSaveSummary}>Save Changes</button>
-					{/if}
 				{/if}
 
 				{#if !username}
 					<span>{@html profile.summary}</span>
 				{/if}
 			</div>
+
+			{#if edit_summary}
+				<form method="POST" on:submit|preventDefault={handlePreview}>
+					<div class="controls">
+						<button on:click|preventDefault={handleCancel}>Cancel</button>
+						<button>Preview</button>
+					</div>
+				</form>
+			{/if}
+
+			{#if summary_changed}
+				<div class="controls">
+					<button on:click|preventDefault={handleSaveSummary}>Save Changes</button>
+				</div>
+			{/if}
 		</div>
 	{/if}
 </main>
@@ -381,10 +366,53 @@
 			display: flex;
 			flex-direction: column;
 
+			button {
+				display: inline-block;
+				color: whitesmoke;
+				background: darkred;
+				border: 0;
+				transition-duration: 1s;
+				font-size: 18px;
+				font-weight: 600;
+				padding: 5px 15px;
+				margin: 5px;
+			}
+
+			button:hover {
+				color: darkred;
+				background: whitesmoke;
+				transition-duration: 1s;
+				cursor: pointer;
+			}
+
+			button.transparent {
+				display: block;
+				position: absolute;
+				left: 0;
+				top: 0;
+				width: 100%;
+				height: 100%;
+				color: unset;
+				background: unset;
+				border: 0;
+				transition-duration: 1s;
+				font-size: unset;
+				font-weight: unset;
+				padding: unset;
+				margin: unset;
+				opacity: 0.1;
+				text-align: left;
+			}
+
+			button.transparent:hover {
+				background: #aaa;
+			}
+
 			.banner {
 				z-index: 20;
 				width: 100%;
 				max-height: 300px;
+				min-height: 100px;
 				overflow: hidden;
 
 				img {
@@ -457,35 +485,17 @@
 			.controls {
 				width: 100%;
 				padding: 10px;
-				text-align: right;
-
-				button {
-					display: inline-block;
-					color: whitesmoke;
-					background: darkred;
-					border: 0;
-					transition-duration: 1s;
-					font-size: 18px;
-					font-weight: 600;
-					padding: 5px 15px;
-					margin: 5px;
-					border-radius: 7px;
-				}
-
-				button:hover {
-					color: darkred;
-					background: whitesmoke;
-					transition-duration: 1s;
-					cursor: pointer;
-				}
+				text-align: center;
 			}
 
 			.summary {
+				position: relative;
 				width: 100%;
 				padding: 0 15px;
 
 				> pre {
-					border: 1px solid #eee;
+					padding: 0;
+					margin: 0;
 				}
 
 				:global(div > pre),
@@ -496,10 +506,6 @@
 
 				form {
 					width: 100%;
-
-					textarea {
-						display: none;
-					}
 				}
 			}
 		}

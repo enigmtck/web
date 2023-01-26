@@ -178,7 +178,6 @@
                 margin-top: 10px;
             
                 button {
-                    border-radius: 7px;
                     background: darkred;
                     color: whitesmoke;
                     transition-duration: 1s;

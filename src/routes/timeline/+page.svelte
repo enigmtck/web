@@ -1,3 +1,7 @@
+<svelte:head>
+    <script src="https://kit.fontawesome.com/66f38a391f.js" crossorigin="anonymous"></script>
+</svelte:head>
+
 <script lang="ts">
 	import { page } from '$app/stores';
 
@@ -7,6 +11,7 @@
 	import init_wasm, {
 		authenticate,
 		SendParams,
+		get_note,
 		send_note,
 		send_encrypted_note,
 		get_actor,
@@ -87,7 +92,35 @@
 		object?: EnigmatickEventObject | string | null;
 		attributedTo?: string | null;
 		content?: string | null;
+		published: string;
+		inReplyTo?: string | null;
 	};
+
+	type Tag = {
+		type: 'Mention';
+		name: string;
+		href: string;
+	};
+
+	type Note = {
+		'@context': string;
+		type: 'Note';
+		tag?: Tag[];
+		id?: string;
+		actor?: string | null;
+		to?: string[];
+		cc?: string[];
+		url?: string;
+		attributedTo: string;
+		content?: string | null;
+		replies?: object | null;
+		published: string | null;
+		inReplyTo?: string | null;
+	};
+
+	function sleep(ms: number) {
+		return new Promise((resolve) => setTimeout(resolve, ms));
+	}
 
 	onMount(() => {
 		load_enigmatick();
@@ -106,8 +139,9 @@
 				console.log('init WASM');
 			});
 
-			const sse = new EventSource('/api/user/' + username + '/events');
-			sse.onmessage = (event) => {
+			let sse = new EventSource('/api/user/' + username + '/events');
+
+			function onMessage(event: any) {
 				console.log('event: ' + event.data);
 				let e: EnigmatickEvent = JSON.parse(event.data);
 				console.log(e);
@@ -124,20 +158,73 @@
 								icon = `<img src="${profile.icon.url}" />`;
 							}
 
-							notes.unshift(
-								`<article>` +
-									`<header>` +
-									`<div>${icon}</div>` +
-									`<address><span>${profile.name}</span><span>${profile.url}</span></address>` +
-									`</header>` +
-									`<section>${e.content}</section>` +
-									`</article>`
-							);
-							notes = notes;
+							let d = new Date(e.published).toLocaleString();
+
+							if (!e.inReplyTo) {
+								notes.set(String(e.id), [
+									e.published,
+									`<article>` +
+										`<header>` +
+										`<div>${icon}</div>` +
+										`<address>` +
+										`<span>${profile.name}</span>` +
+										`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
+										`<time datetime="${e.published}">${d}</time>` +
+										`</address>` +
+										`</header>` +
+										`<section>${e.content}</section>` +
+										`</article>`,
+									0
+								]);
+								notes = notes;
+								console.log(notes);
+							} else {
+								get_note(e.inReplyTo).then((n) => {
+									let note: Note = JSON.parse(String(n));
+									console.log('note: ' + n);
+									get_actor(note.attributedTo).then((a) => {
+										let sender: UserProfile = JSON.parse(String(a));
+										console.log('a: ' + a);
+										notes.set(String(e.id), [
+											e.published,
+											`<article>` +
+                                                `<span> <i class="fa-solid fa-reply"></i> In reply to ${sender.name || sender.preferredUsername}</span>` +
+												`<header>` +
+												`<div>${icon}</div>` +
+												`<address>` +
+												`<span>${profile.name || profile.preferredUsername}</span>` +
+												`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
+												`<time datetime="${e.published}">${d}</time>` +
+												`</address>` +
+												`</header>` +
+												`<section>${e.content}</section>` +
+												`</article>`,
+											0
+										]);
+
+										notes = notes;
+										console.log(notes);
+									});
+								});
+							}
 						}
 					});
 				}
-			};
+			}
+
+			function restartEventSource(event: any) {
+				console.log(event);
+				/* sleep(5000).then(() => {
+                    sse.close();
+                    sse = new EventSource('/api/user/' + username + '/events');
+                    sse.onerror = restartEventSource;
+                    sse.onmessage = onMessage;
+                }) */
+			}
+
+			sse.onerror = restartEventSource;
+			sse.onmessage = onMessage;
+
 			return () => {
 				if (sse.readyState === 1) {
 					sse.close();
@@ -148,45 +235,70 @@
 		}
 	});
 
-	let notes: string[] = [];
+	function compare(a: any[], b: any[]) {
+		console.log('comparing ' + a[0] + ' to ' + b[0]);
+		if (Date.parse(a[0]) < Date.parse(b[0])) {
+			return -1;
+		} else if (Date.parse(a[0]) > Date.parse(b[0])) {
+			return 1;
+		} else {
+			return 0;
+		}
+	}
+
+	let notes = new Map<string, any[]>();
 	let username = get(appData).username;
 	let display_name = get(appData).display_name;
 </script>
 
 <main>
-	{#each notes as note}
-		{@html note}
+	{#if notes.size == 0}
+		<span>WAITING FOR EVENTS</span>
+	{/if}
+	{#each Array.from(notes.values()).sort(compare).reverse() as [published, note, replies]}
+		{#if note}
+			{@html note}
+		{/if}
 	{/each}
 </main>
 
 <style lang="scss">
 	main {
 		width: 100%;
-        transition-duration: 1s;
-        height: calc(100vh - 40px);
-        overflow-y: auto;
+		height: calc(100vh - 40px);
+		overflow-y: auto;
 
 		:global(article) {
 			display: flex;
 			flex-direction: column;
 			width: 100%;
 			padding: 10px;
-            font-family: "Open Sans";
+			margin: 5px 0;
+			font-family: 'Open Sans';
+			background: #fafafa;
 
-            :global(address) {
+            :global(> span) {
                 width: 100%;
-                padding: 0 20px;
+                padding: 0 0 20px 0;
+                font-weight: 600;
+                color: darkred;
             }
 
-            :global(address > span) {
-                display: inline-block;
-                width: 100%;
-                font-style: normal;
-            }
+			:global(address) {
+				width: 100%;
+				padding: 0 20px;
+			}
 
-            :global(address > span:first-child) {
-                font-size: 22px;
-            }
+			:global(address > span),
+			:global(address > time) {
+				display: inline-block;
+				width: 100%;
+				font-style: normal;
+			}
+
+			:global(address > span:first-child) {
+				font-size: 22px;
+			}
 		}
 
 		:global(header) {
@@ -207,6 +319,18 @@
 		:global(img) {
 			width: 100%;
 			clip-path: inset(0 0 0 0 round 50%);
+		}
+
+		> span {
+			display: inline-block;
+			width: 100%;
+			text-align: center;
+			padding: 50px 0;
+			margin: 30px 0;
+			font-family: 'Open Sans';
+			font-size: 18px;
+			color: #444;
+			background: #fafafa;
 		}
 	}
 </style>
