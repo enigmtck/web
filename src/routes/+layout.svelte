@@ -22,59 +22,6 @@
 		display_name = get(appData).display_name;
 		return true;
 	}
-
-	function handleComposeSubmit(event: any) {
-		console.log(event);
-	}
-
-	function convertToMarkdown(data: string) {
-		let converter = new Converter();
-		converter.setFlavor('github');
-		converter.setOption('tables', true);
-		converter.setOption('requireSpaceBeforeHeadingText', true);
-		return converter.makeMarkdown(data);
-	}
-
-	function convertToHtml(data: string) {
-		let converter = new Converter();
-		converter.setFlavor('github');
-		converter.setOption('tables', true);
-		converter.setOption('requireSpaceBeforeHeadingText', true);
-		return converter.makeHtml(data);
-	}
-
-	function captureChanges() {
-		let compose = document.getElementById('compose');
-
-		if (compose) {
-			markdown_note = compose.innerText;
-			html_note = convertToHtml(markdown_note);
-		}
-	}
-
-	function handlePreview() {
-		captureChanges();
-
-		preview = !preview;
-	}
-
-	function handlePublish() {
-		captureChanges();
-
-		let params = SendParams.new().set_kind('Note').set_content(html_note);
-
-		send_note(params).then((x) => {
-			if (x) {
-				console.log('send successful');
-			} else {
-				console.log('send unsuccessful');
-			}
-		});
-	}
-
-	let markdown_note = '';
-	let html_note = '';
-	let preview = false;
 </script>
 
 <svelte:head>
@@ -103,33 +50,6 @@
 	</header>
 
 	{#if update()}
-		<aside>
-			{#if username}
-				{#if $page.url.pathname === '/timeline'}
-					<div>
-						<h1>Write</h1>
-						{#if !preview}
-							<pre id="compose" contenteditable="true">{markdown_note}</pre>
-						{:else}
-							<div>{@html html_note}</div>
-						{/if}
-
-						<form method="POST" on:submit|preventDefault={handleComposeSubmit}>
-							<span>
-								<i class="fa-solid fa-paperclip" />
-								{#if preview}
-									<i class="fa-solid fa-pen-nib" on:click|preventDefault={handlePreview} />
-								{:else}
-									<i class="fa-solid fa-eye" on:click|preventDefault={handlePreview} />
-								{/if}
-							</span>
-							<button on:click|preventDefault={handlePublish}>Publish</button>
-						</form>
-					</div>
-				{/if}
-			{/if}
-		</aside>
-
 		<slot />
 
 		<nav>
@@ -192,100 +112,14 @@
 		}
 	}
 
-	aside {
-		grid-area: left-aside;
-		height: calc(100vh - 40px);
-		text-align: right;
-
-		@media screen and (max-width: 600px) {
-			display: none;
-		}
-
-		div {
-			display: inline-block;
-			max-width: 400px;
-			min-width: 350px;
-			margin: 10px;
-			padding: 0;
-
-			h1 {
-				width: 100%;
-				text-align: right;
-				font-family: 'Open Sans';
-				font-size: 28px;
-				font-weight: 400;
-				margin: 5px 0;
-			}
-
-			pre,
-			div {
-				text-align: left;
-				width: 100%;
-				padding: 10px;
-				margin: 0;
-				background: white;
-				min-height: 150px;
-				border-top: 1px solid #ccc;
-				border-bottom: 1px solid #ccc;
-				font-family: 'Open Sans';
-			}
-
-			div {
-				padding: 0 10px;
-			}
-
-			form {
-				padding: 5px;
-				text-align: right;
-
-				span {
-					display: inline-block;
-					width: calc(100% - 110px);
-					text-align: left;
-
-					i {
-						font-size: 24px;
-						transition-duration: 1s;
-						padding: 0 10px;
-					}
-
-					i:hover {
-						cursor: pointer;
-						transition-duration: 0.5s;
-						color: red;
-					}
-				}
-
-				button {
-					display: inline-block;
-					margin: 5px;
-					padding: 5px 15px;
-					background: darkred;
-					color: whitesmoke;
-					transition-duration: 1s;
-					border: 0;
-					font-family: 'Open Sans';
-					font-size: 18px;
-					font-weight: 600;
-				}
-
-				button:hover {
-					color: darkred;
-					background: whitesmoke;
-					transition-duration: 1s;
-					cursor: pointer;
-				}
-			}
-		}
-	}
-
 	:global(main) {
 		grid-area: content;
 		min-width: 600px;
-		max-width: 800px;
+		max-width: 700px;
 
 		@media screen and (max-width: 600px) {
 			min-width: unset;
+			max-width: unset;
 			width: 100vw;
 		}
 	}
@@ -301,7 +135,6 @@
 			width: 100%;
 			padding: 20px;
 			margin: 10px 20px;
-			border-left: 1px solid #ccc;
 
 			a {
 				display: inline-block;
