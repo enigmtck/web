@@ -10,28 +10,20 @@
 		SendParams,
 		get_note,
 		send_note,
-		send_encrypted_note,
 		get_actor,
-		get_inbox,
-		get_timeline,
-		get_processing_queue,
-		get_external_identity_key,
-		update_keystore_olm_sessions,
 		load_instance_information,
 		send_follow,
 		send_unfollow,
 		send_authorization,
+		get_conversation,
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
 	import init_olm, {
 		import_state as import_olm_state,
-		get_state as get_olm_state,
-		create_olm_message,
-		decrypt_olm_message
+		get_state as get_olm_state
 	} from 'enigmatick_olm';
 	import { goto } from '$app/navigation';
-	import { action_destroyer, set_custom_element_data } from 'svelte/internal';
 
 	function load_enigmatick() {
 		init_olm().then(() => {
@@ -76,35 +68,6 @@
 		ephemeralLeaderApId?: string;
 	};
 
-	type EnigmatickEventObject = {
-		id: string;
-	};
-
-	type EnigmatickEvent = {
-		'@context': string;
-		type: string;
-		id?: string;
-		actor?: string | null;
-		to?: string | null;
-		cc?: string | null;
-		object?: EnigmatickEventObject | string | null;
-		attributedTo?: string | null;
-		content?: string | null;
-		published: string;
-		inReplyTo?: string | null;
-	};
-
-	type Announce = {
-		'@context': string;
-		id: string;
-		actor: string;
-		cc: string[];
-		to: string[];
-		object: string;
-		published: string;
-		type: 'Announce';
-	};
-
 	type Tag = {
 		type: 'Mention';
 		name: string;
@@ -137,8 +100,6 @@
 		published: string | null;
 		inReplyTo?: string | null;
 		attachment?: Attachment[];
-		conversation: string | null;
-		ephemeralAnnounce?: string | null;
 	};
 
 	type StreamConnect = {
@@ -149,128 +110,125 @@
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 
-	async function addNote(e: Note) {
+	function addNote(e: Note) {
 		if (e.attributedTo) {
-			let actor = await cachedActor(e.attributedTo);
+			cachedActor(e.attributedTo).then((actor) => {
+				if (actor) {
+					let profile = JSON.parse(actor);
+					//console.log(profile);
 
-			if (actor) {
-				let profile = JSON.parse(actor);
-				//console.log(profile);
+					let icon = '';
 
-				let icon = '';
+					if (profile.icon) {
+						icon = `<img src="${profile.icon.url}" />`;
+					}
 
-				if (profile.icon) {
-					icon = `<img src="${profile.icon.url}" />`;
+					let d = new Date(String(e.published)).toLocaleString();
+					let attachments = '';
+					//console.log('attachments: ' + e.attachment);
+					if (e.attachment && e.attachment.length > 0) {
+						e.attachment.forEach((x) => {
+							if (x.type == 'Document' && /^image\/.+$/.test(String(x.mediaType))) {
+								attachments += `<div><img src="${x.url}" width="${x.width}" height="${x.height}"/></div>`;
+							}
+						});
+					}
+
+					if (!e.inReplyTo) {
+						console.log('first note');
+						notes.set(String(e.id), [
+							e.published,
+							`<header>` +
+								`<div>${icon}</div>` +
+								`<address>` +
+								`<span>${profile.name}</span>` +
+								`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
+								`<time datetime="${e.published}">${d}</time>` +
+								`</address>` +
+								`</header>` +
+								`<section>${e.content}</section>` +
+								`<section class="attachments">${attachments}</section>`,
+							0,
+							profile.name || profile.preferredUsername,
+							e.id
+						]);
+						notes = notes;
+						//console.log(notes);
+					} else {
+						cachedNote(e.inReplyTo).then((n) => {
+							//console.log('note: ' + e.inReplyTo + ' result: ' + n);
+							let r = '';
+							if (n) {
+								let note: Note = JSON.parse(String(n));
+								cachedActor(note.attributedTo).then((a) => {
+									let sender: UserProfile = JSON.parse(String(a));
+
+									notes.set(String(e.id), [
+										e.published,
+										`<span><i class="fa-solid fa-reply"></i> In reply to ${
+											sender.name || sender.preferredUsername
+										}</span>` +
+											`<header>` +
+											`<div>${icon}</div>` +
+											`<address>` +
+											`<span>${profile.name || profile.preferredUsername}</span>` +
+											`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
+											`<time datetime="${e.published}">${d}</time>` +
+											`</address>` +
+											`</header>` +
+											`<section>${e.content}</section>` +
+											`<section class="attachments">${attachments}</section>`,
+										0,
+										profile.name || profile.preferredUsername,
+										e.id
+									]);
+
+									notes = notes;
+								});
+							} else {
+								notes.set(String(e.id), [
+									e.published,
+									`<header>` +
+										`<div>${icon}</div>` +
+										`<address>` +
+										`<span>${profile.name || profile.preferredUsername}</span>` +
+										`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
+										`<time datetime="${e.published}">${d}</time>` +
+										`</address>` +
+										`</header>` +
+										`<section>${e.content}</section>` +
+										`<section class="attachments">${attachments}</section>`,
+									0,
+									profile.name || profile.preferredUsername,
+									e.id
+								]);
+
+								notes = notes;
+							}
+
+							//console.log(notes);
+						});
+					}
 				}
-
-				function timeSince(date: any) {
-					let now: any = new Date();
-
-					var seconds = Math.floor((now - date) / 1000);
-
-					var interval = seconds / 31536000;
-
-					if (interval > 1) {
-						return Math.floor(interval) + 'yr';
-					}
-					interval = seconds / 2592000;
-					if (interval > 1) {
-						return Math.floor(interval) + 'mo';
-					}
-					interval = seconds / 86400;
-					if (interval > 1) {
-						return Math.floor(interval) + 'd';
-					}
-					interval = seconds / 3600;
-					if (interval > 1) {
-						return Math.floor(interval) + 'h';
-					}
-					interval = seconds / 60;
-					if (interval > 1) {
-						return Math.floor(interval) + 'm';
-					}
-					return Math.floor(seconds) + 's';
-				}
-
-				let d = timeSince(new Date(String(e.published)));
-				let attachments = '';
-				//console.log('attachments: ' + e.attachment);
-				if (e.attachment && e.attachment.length > 0) {
-					e.attachment.forEach((x) => {
-						if (x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))) {
-							attachments += `<div><img src="${x.url}" width="${x.width}" height="${x.height}"/></div>`;
-						} else if (x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))) {
-							attachments += `<div><video width="${x.width}" height="${x.height}" controls><source src="${x.url}" type="${x.mediaType}"></video></div>`;
-						}
-					});
-				}
-
-				let announce_html = '';
-
-				if (e.ephemeralAnnounce) {
-					let announce_actor = await cachedActor(e.ephemeralAnnounce);
-
-					if (announce_actor) {
-						let announce_profile: UserProfile = JSON.parse(announce_actor);
-						announce_html = `<span class="repost"><i class="fa-solid fa-retweet"></i> Reposted by ${
-							announce_profile.name || announce_profile.preferredUsername
-						}</span>`;
-					}
-				}
-
-				let reply_html = '';
-
-				if (e.inReplyTo) {
-					let reply_note = await cachedNote(e.inReplyTo);
-
-					if (reply_note) {
-						let note: Note = JSON.parse(String(reply_note));
-
-						let reply_actor = await cachedActor(note.attributedTo);
-						let sender: UserProfile = JSON.parse(String(reply_actor));
-
-						reply_html = `<span class="reply"><i class="fa-solid fa-reply"></i> In reply to <a href="/conversation?conversation=${encodeURIComponent(
-							String(e.conversation)
-						)}">${sender.name || sender.preferredUsername}</a></span>`;
-					}
-				}
-
-				notes.set(String(e.id), [
-					e.published,
-					announce_html +
-						reply_html +
-						`<header>` +
-						`<div>${icon}</div>` +
-						`<address>` +
-						`<span>${profile.name}</span>` +
-						`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
-						`<time datetime="${e.published}">${d}</time>` +
-						`</address>` +
-						`</header>` +
-						`<section>${e.content}</section>` +
-						`<section class="attachments">${attachments}</section>`,
-					0,
-					profile.name || profile.preferredUsername,
-					e.id
-				]);
-				notes = notes;
-				console.log(notes);
-			}
+			});
 		}
 	}
 
-	async function load_timeline_data() {
-		let x = await get_timeline(offset, 5);
+	async function load_conversation_data() {
+		console.log('conversation: ' + conversation + ' offset: ' + offset);
+		if (conversation) {
+			let x = await get_conversation(conversation, offset, 5);
+			console.log(x);
 
-		console.log(x);
-		let timeline = JSON.parse(String(x));
-		console.log(timeline);
+			let timeline = JSON.parse(String(x));
+			//console.log(timeline);
 
-		timeline.forEach((t: Note) => {
-			addNote(t);
-		});
+			timeline.forEach((t: Note) => {
+				addNote(t);
+			});
 
-		offset += 5;
+			offset += 5;
+		}
 	}
 
 	onMount(() => {
@@ -291,14 +249,16 @@
 				}
 				console.log('init WASM');
 
-				load_timeline_data();
+				load_conversation_data().then(() => {
+					console.log('conversation loaded');
+				});
 			});
 
 			let sse = new EventSource('/api/user/' + username + '/events');
 
 			function onMessage(event: any) {
 				console.log('event: ' + event.data);
-				let e: Note | StreamConnect | Announce = JSON.parse(event.data);
+				let e: Note | StreamConnect = JSON.parse(event.data);
 				console.log(e);
 
 				if ((<Note>e).type === 'Note') {
@@ -306,16 +266,6 @@
 					offset += 1;
 				} else if ((<StreamConnect>e).uuid) {
 					send_authorization((<StreamConnect>e).uuid);
-				} else if ((<Announce>e).type == 'Announce') {
-					let announce = <Announce>e;
-					get_note(announce.object).then((x) => {
-						let note: Note = JSON.parse(String(x));
-						note.ephemeralAnnounce = announce.actor;
-						note.id = announce.id;
-						note.published = announce.published;
-						addNote(note);
-						offset += 1;
-					});
 				}
 			}
 
@@ -346,9 +296,9 @@
 	});
 
 	function compare(a: any[], b: any[]) {
-		if (Date.parse(a[0]) < Date.parse(b[0])) {
+		if (Date.parse(a[0]) > Date.parse(b[0])) {
 			return -1;
-		} else if (Date.parse(a[0]) > Date.parse(b[0])) {
+		} else if (Date.parse(a[0]) < Date.parse(b[0])) {
 			return 1;
 		} else {
 			return 0;
@@ -437,7 +387,7 @@
 			let main = document.getElementsByTagName('main')[0];
 
 			if (main.scrollTop + main.offsetHeight >= main.scrollHeight - 300) {
-				await load_timeline_data();
+				await load_conversation_data();
 			}
 			loading = false;
 		}
@@ -459,6 +409,7 @@
 		return ap_cache.get(id);
 	}
 
+	let conversation = $page.url.searchParams.get('conversation');
 	let ap_cache = new Map<string, string>();
 	let offset = 0;
 	let profile: UserProfile | null = null;
@@ -475,38 +426,6 @@
 <svelte:head>
 	<script src="https://kit.fontawesome.com/66f38a391f.js" crossorigin="anonymous"></script>
 </svelte:head>
-
-<aside>
-	{#if username}
-		{#if $page.url.pathname === '/timeline'}
-			<div>
-				{#if reply_to_actor}
-					<span
-						>Replying to {reply_to_actor}
-						<i class="fa-solid fa-xmark" on:click={cancelReplyTo} /></span
-					>
-				{/if}
-				{#if !preview}
-					<pre id="compose" contenteditable="true">{markdown_note}</pre>
-				{:else}
-					<div>{@html html_note}</div>
-				{/if}
-
-				<form method="POST" on:submit|preventDefault={handleComposeSubmit}>
-					<span>
-						<i class="fa-solid fa-paperclip" />
-						{#if preview}
-							<i class="fa-solid fa-pen-nib" on:click|preventDefault={handlePreview} />
-						{:else}
-							<i class="fa-solid fa-eye" on:click|preventDefault={handlePreview} />
-						{/if}
-					</span>
-					<button on:click|preventDefault={handlePublish}>Publish</button>
-				</form>
-			</div>
-		{/if}
-	{/if}
-</aside>
 
 <main>
 	{#if notes.size == 0}
@@ -535,108 +454,6 @@
 </main>
 
 <style lang="scss">
-	:global(i:hover) {
-		cursor: pointer;
-		color: red;
-		transition-duration: 0.5s;
-	}
-
-	aside {
-		grid-area: left-aside;
-		height: calc(100vh - 40px);
-		text-align: right;
-
-		@media screen and (max-width: 600px) {
-			display: none;
-		}
-
-		div {
-			display: inline-block;
-			max-width: 400px;
-			min-width: 350px;
-			margin: 10px;
-			padding: 15px 10px 0 10px;
-			border-radius: 10px;
-			background: #fafafa;
-
-			h1 {
-				width: 100%;
-				text-align: center;
-				font-family: 'Open Sans';
-				font-size: 28px;
-				font-weight: 400;
-				margin: 5px 0;
-			}
-
-			> span {
-				display: inline-block;
-				background: #fafafa;
-				padding: 4px;
-				border-radius: 5px;
-				margin: 5px 0;
-				font-family: 'Open Sans';
-			}
-
-			pre,
-			div {
-				text-align: left;
-				width: 100%;
-				padding: 10px;
-				margin: 0;
-				background: white;
-				min-height: 150px;
-				border: 1px solid #eee;
-				font-family: 'Open Sans';
-			}
-
-			div {
-				padding: 0 10px;
-			}
-
-			form {
-				text-align: right;
-
-				span {
-					display: inline-block;
-					width: calc(100% - 110px);
-					text-align: left;
-
-					i {
-						font-size: 24px;
-						transition-duration: 1s;
-						padding: 0 10px;
-					}
-
-					i:hover {
-						cursor: pointer;
-						transition-duration: 0.5s;
-						color: red;
-					}
-				}
-
-				button {
-					display: inline-block;
-					margin: 5px;
-					padding: 5px 15px;
-					background: darkred;
-					color: whitesmoke;
-					transition-duration: 1s;
-					border: 0;
-					font-family: 'Open Sans';
-					font-size: 18px;
-					font-weight: 600;
-				}
-
-				button:hover {
-					color: darkred;
-					background: whitesmoke;
-					transition-duration: 1s;
-					cursor: pointer;
-				}
-			}
-		}
-	}
-
 	main {
 		width: 100%;
 		height: calc(100vh - 40px);
@@ -650,23 +467,16 @@
 			display: flex;
 			flex-direction: column;
 			width: 100%;
-			margin: 0;
-			border-bottom: 3px solid #ddd;
+			margin: 5px 0;
 			font-family: 'Open Sans';
 			background: #fafafa;
+			border-radius: 10px;
 
-			:global(.reply),
-			:global(.repost) {
+			:global(> span) {
 				width: 100%;
-				padding: 5px 10px;
+				padding: 10px;
 				font-weight: 600;
-				font-size: 14px;
-				background: #eee;
 				color: darkred;
-			}
-
-			:global(.repost) {
-				color: #444;
 			}
 
 			:global(header) {
@@ -674,22 +484,18 @@
 			}
 
 			:global(address) {
-				position: relative;
 				width: 100%;
-				padding: 0 15px;
+				padding: 0 20px;
 			}
 
 			:global(address > span),
 			:global(address > time),
 			:global(address > a) {
 				display: inline-block;
-				font-style: normal;
-				font-size: 12px;
-				text-decoration: none;
-			}
-
-			:global(address > span) {
 				width: 100%;
+				font-style: normal;
+				font-size: 13px;
+				text-decoration: none;
 			}
 
 			:global(address > time),
@@ -699,19 +505,13 @@
 				transition-duration: 1s;
 			}
 
-			:global(address > time) {
-				position: absolute;
-				top: 0;
-				right: 0;
-			}
-
 			:global(address > a:hover) {
 				color: red;
 				transition-duration: 0.5s;
 			}
 
 			:global(address > span:first-child) {
-				font-size: 18px;
+				font-size: 22px;
 			}
 
 			:global(section) {
@@ -719,16 +519,11 @@
 				overflow-wrap: break-word;
 			}
 
-			:global(section > p) {
-				margin: 10px 0;
-			}
-
 			:global(.attachments) {
 				overflow: hidden;
 				padding-bottom: 10px;
 				display: flex;
 				flex-direction: row;
-				flex-wrap: wrap;
 				align-items: center;
 				justify-content: center;
 
@@ -739,15 +534,14 @@
 					height: unset;
 					text-align: center;
 					padding: 0 10px;
-					width: 100%;
 				}
 
-				:global(img),
-				:global(video) {
+				:global(img) {
 					width: unset;
 					height: unset;
 					clip-path: unset;
-					width: 100%;
+					max-width: 100%;
+					max-height: 300px;
 				}
 			}
 
@@ -755,6 +549,7 @@
 				width: 100%;
 				background: #eee;
 				padding: 5px 0;
+				border-radius: 0 0 10px 10px;
 
 				i {
 					text-align: center;
@@ -779,17 +574,17 @@
 
 			:global(div) {
 				display: inline-block;
-				width: calc(100% - 55px);
+				width: calc(100% - 100px);
 			}
 
 			:global(div:first-child) {
-				width: 55px;
+				width: 100px;
 			}
 		}
 
 		:global(img) {
 			width: 100%;
-			clip-path: inset(0 0 0 0 round 20%);
+			clip-path: inset(0 0 0 0 round 50%);
 		}
 
 		> span {

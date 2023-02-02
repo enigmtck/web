@@ -88,7 +88,8 @@
 		grid-area: header;
 		width: 100%;
 		padding: 5px;
-		background: white;
+		background: #fefefe;
+		border-bottom: 1px solid #eee;
 		color: darkred;
 		text-align: center;
 		font-family: 'Open Sans';
@@ -114,8 +115,8 @@
 
 	:global(main) {
 		grid-area: content;
-		min-width: 600px;
-		max-width: 700px;
+		min-width: 400px;
+		max-width: 600px;
 
 		@media screen and (max-width: 600px) {
 			min-width: unset;

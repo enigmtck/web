@@ -14,6 +14,7 @@
 		get_processing_queue,
 		get_external_identity_key,
 		update_keystore_olm_sessions,
+		send_authorization,
 		load_instance_information,
 		send_follow,
 		send_unfollow,
@@ -89,6 +90,45 @@
 
 	let address: string | null = $page.url.searchParams.get('actor');
 
+	type Tag = {
+		type: 'Mention';
+		name: string;
+		href: string;
+	};
+
+	type Attachment = {
+		type: 'PropertyValue' | 'Document' | 'IdentityProof';
+		name?: string | null;
+		value?: string | null;
+		mediaType?: string | null;
+		url?: string | null;
+		blurhash?: string | null;
+		width?: number | null;
+		height?: number | null;
+	};
+
+	type Note = {
+		'@context': string;
+		type: 'Note';
+		tag?: Tag[];
+		id?: string;
+		actor?: string | null;
+		to?: string[];
+		cc?: string[];
+		url?: string;
+		attributedTo: string;
+		content?: string | null;
+		replies?: object | null;
+		published: string | null;
+		inReplyTo?: string | null;
+		attachment?: Attachment[];
+		conversation: string | null;
+	};
+
+	type StreamConnect = {
+		uuid: string;
+	};
+
 	onMount(() => {
 		load_enigmatick();
 
@@ -111,19 +151,26 @@
 			const sse = new EventSource('/api/user/' + username + '/events');
 			sse.onmessage = (event) => {
 				console.log('event: ' + event.data);
-				let e: EnigmatickEvent = JSON.parse(event.data);
+				let e: Note | StreamConnect | EnigmatickEvent = JSON.parse(event.data);
+				console.log(e);
 
-				if (e.type == 'Follow' && e.object !== undefined && String(e.object) == profile?.id) {
-					load_profile();
-				} else if (e.type == 'Accept' && e.actor && e.actor == profile?.id) {
-					load_profile();
-				} else if (
-					e.type == 'Undo' &&
-					e.object &&
-					typeof e.object == 'object' &&
-					e.object.id == profile?.ephemeralLeaderApId
-				) {
-					load_profile();
+				if ((<StreamConnect>e).uuid) {
+					send_authorization((<StreamConnect>e).uuid);
+				} else if ((<EnigmatickEvent>e).type) {
+					let ev: EnigmatickEvent = <EnigmatickEvent>e;
+
+					if (ev.type == 'Follow' && ev.object !== undefined && String(ev.object) == profile?.id) {
+						load_profile();
+					} else if (ev.type == 'Accept' && ev.actor && ev.actor == profile?.id) {
+						load_profile();
+					} else if (
+						ev.type == 'Undo' &&
+						ev.object &&
+						typeof ev.object == 'object' &&
+						ev.object.id == profile?.ephemeralLeaderApId
+					) {
+						load_profile();
+					}
 				}
 			};
 			return () => {
@@ -201,7 +248,7 @@
 						<img src={profile.icon.url} alt="Avatar" />
 					{/if}
 				</div>
-				
+
 				<div class="controls">
 					<a href={profile.url}>{profile.name}</a>
 					<ul>
