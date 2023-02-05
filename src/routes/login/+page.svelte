@@ -135,9 +135,8 @@
 		form {
 			display: flex;
 			flex-direction: column;
-			width: 300px;
-			border-top: 1px solid #ccc;
-			padding-top: 10px;
+			width: 400px;
+			padding: 10px 20px;
 
 			label {
 				width: 100%;
@@ -183,6 +182,21 @@
 					background: whitesmoke;
 					transition-duration: 1s;
 					cursor: pointer;
+				}
+			}
+		}
+	}
+
+	:global(body.dark) {
+		main {
+			h1 {
+				color: whitesmoke;
+			}
+
+			form {
+				background: #222;
+				label {
+					color: #ddd;
 				}
 			}
 		}

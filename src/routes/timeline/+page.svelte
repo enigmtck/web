@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 
 	import { onMount, setContext } from 'svelte';
+	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
 	import { wasmState, olmState, appData } from '../../stores';
 	import { Converter } from 'showdown';
@@ -149,6 +150,35 @@
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 
+	function timeSince(date: any) {
+		let now: any = new Date();
+
+		var seconds = Math.floor((now - date) / 1000);
+
+		var interval = seconds / 31536000;
+
+		if (interval > 1) {
+			return Math.floor(interval) + 'yr';
+		}
+		interval = seconds / 2592000;
+		if (interval > 1) {
+			return Math.floor(interval) + 'mo';
+		}
+		interval = seconds / 86400;
+		if (interval > 1) {
+			return Math.floor(interval) + 'd';
+		}
+		interval = seconds / 3600;
+		if (interval > 1) {
+			return Math.floor(interval) + 'h';
+		}
+		interval = seconds / 60;
+		if (interval > 1) {
+			return Math.floor(interval) + 'm';
+		}
+		return Math.floor(seconds) + 's';
+	}
+
 	async function addNote(e: Note) {
 		if (e.attributedTo) {
 			let actor = await cachedActor(e.attributedTo);
@@ -163,38 +193,8 @@
 					icon = `<img src="${profile.icon.url}" />`;
 				}
 
-				function timeSince(date: any) {
-					let now: any = new Date();
-
-					var seconds = Math.floor((now - date) / 1000);
-
-					var interval = seconds / 31536000;
-
-					if (interval > 1) {
-						return Math.floor(interval) + 'yr';
-					}
-					interval = seconds / 2592000;
-					if (interval > 1) {
-						return Math.floor(interval) + 'mo';
-					}
-					interval = seconds / 86400;
-					if (interval > 1) {
-						return Math.floor(interval) + 'd';
-					}
-					interval = seconds / 3600;
-					if (interval > 1) {
-						return Math.floor(interval) + 'h';
-					}
-					interval = seconds / 60;
-					if (interval > 1) {
-						return Math.floor(interval) + 'm';
-					}
-					return Math.floor(seconds) + 's';
-				}
-
-				let d = timeSince(new Date(String(e.published)));
 				let attachments = '';
-				//console.log('attachments: ' + e.attachment);
+				console.log('attachments: ' + e.attachment);
 				if (e.attachment && e.attachment.length > 0) {
 					e.attachment.forEach((x) => {
 						if (x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))) {
@@ -242,16 +242,16 @@
 						`<header>` +
 						`<div>${icon}</div>` +
 						`<address>` +
-						`<span>${profile.name}</span>` +
+						`<span>${profile.name || profile.preferredUsername}</span>` +
 						`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
-						`<time datetime="${e.published}">${d}</time>` +
 						`</address>` +
 						`</header>` +
 						`<section>${e.content}</section>` +
 						`<section class="attachments">${attachments}</section>`,
 					0,
 					profile.name || profile.preferredUsername,
-					e.id
+					e.id,
+					e.conversation
 				]);
 				notes = notes;
 				console.log(notes);
@@ -272,6 +272,29 @@
 
 		offset += 5;
 	}
+
+	beforeNavigate((navigation) => {
+		// this is currently triggered (and not reset) when opening a link in to a new tab. this is likely a bug
+		// and may be addressed here: https://github.com/sveltejs/kit/issues/8482
+		// UPDATE - ran a 'yarn upgrade' and this seems to be fixed now
+		console.log(navigation);
+		if (navigation.to) {
+			if (navigation.to.route.id === null) {
+				let actor = navigation.to.url.href;
+
+				// we want to catch the calls to external profiles so that we can offer actions on them; the
+				// intention of this expression is to match Mastodon-isms like (with grouping notated)
+				// ^https://(ser)(.endipito)(.us)/@justin$ or ^https://(infosec)(.exchange)/@jdt$
+				const re = /^https:\/\/(:?[a-zA-Z0-9\-]+)(:?\.[a-zA-Z0-9\-]+)+?\/@[a-zA-Z0-9_]+$/;
+
+				if (actor.match(re)) {
+					console.log(actor);
+					navigation.cancel();
+					goto(`/search?actor=${actor}`);
+				}
+			}
+		}
+	});
 
 	onMount(() => {
 		load_enigmatick();
@@ -309,6 +332,7 @@
 				} else if ((<Announce>e).type == 'Announce') {
 					let announce = <Announce>e;
 					get_note(announce.object).then((x) => {
+						console.log('announce: ' + x);
 						let note: Note = JSON.parse(String(x));
 						note.ephemeralAnnounce = announce.actor;
 						note.id = announce.id;
@@ -384,6 +408,17 @@
 		}
 	}
 
+	function updateTime() {
+		const time_elements = document.getElementsByTagName('time');
+
+		if (time_elements) {
+			Array.from(time_elements).forEach((el) => {
+				let d = timeSince(new Date(String(el.getAttribute('datetime'))));
+				el.textContent = d;
+			});
+		}
+	}
+
 	function handlePreview() {
 		captureChanges();
 
@@ -407,7 +442,9 @@
 
 		let params = SendParams.new().set_kind('Note').set_content(html_note);
 		if (reply_to_note) {
-			params = params.set_in_reply_to(String(reply_to_note));
+			params = params
+				.set_in_reply_to(String(reply_to_note))
+				.set_conversation(String(reply_to_conversation));
 		}
 
 		send_note(params).then((x) => {
@@ -423,11 +460,15 @@
 	function handleReplyTo(event: any) {
 		reply_to_note = event.target.dataset.reply;
 		reply_to_actor = event.target.dataset.actor;
+		reply_to_conversation = event.target.dataset.conversation;
+
+		console.log(event.target.dataset);
 	}
 
 	function cancelReplyTo() {
-		reply_to_note = false;
-		reply_to_actor = false;
+		reply_to_note = null;
+		reply_to_actor = null;
+		reply_to_conversation = null;
 	}
 
 	let loading = false;
@@ -468,8 +509,10 @@
 	let markdown_note = '';
 	let html_note = '';
 	let preview = false;
-	let reply_to_note: string | boolean = false;
-	let reply_to_actor: string | boolean = false;
+
+	let reply_to_note: string | null = null;
+	let reply_to_actor: string | null = null;
+	let reply_to_conversation: string | null = null;
 </script>
 
 <svelte:head>
@@ -483,6 +526,7 @@
 				{#if reply_to_actor}
 					<span
 						>Replying to {reply_to_actor}
+						<!-- svelte-ignore a11y-click-events-have-key-events -->
 						<i class="fa-solid fa-xmark" on:click={cancelReplyTo} /></span
 					>
 				{/if}
@@ -496,8 +540,10 @@
 					<span>
 						<i class="fa-solid fa-paperclip" />
 						{#if preview}
+							<!-- svelte-ignore a11y-click-events-have-key-events -->
 							<i class="fa-solid fa-pen-nib" on:click|preventDefault={handlePreview} />
 						{:else}
+							<!-- svelte-ignore a11y-click-events-have-key-events -->
 							<i class="fa-solid fa-eye" on:click|preventDefault={handlePreview} />
 						{/if}
 					</span>
@@ -509,23 +555,29 @@
 </aside>
 
 <main>
-	{#if notes.size == 0}
-		<span>WAITING FOR EVENTS</span>
-	{/if}
 	{#each Array.from(notes.values())
 		.sort(compare)
-		.reverse() as [published, note, replies, sender, in_reply_to]}
+		.reverse() as [published, note, replies, sender, in_reply_to, conversation]}
 		{#if note}
 			<article>
 				{@html note}
+				<time datetime={published}>{timeSince(new Date(String(published)))}</time>
 				<nav>
-					<i class="fa-solid fa-comments" />
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<i
+						class="fa-solid fa-comments"
+						on:click={async () => {
+							await goto(`/conversation?conversation=${conversation}`);
+						}}
+					/>
 					<i class="fa-solid fa-repeat" />
 					<i class="fa-solid fa-star" />
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<i
 						class="fa-solid fa-reply"
 						data-reply={in_reply_to}
 						data-actor={sender}
+						data-conversation={conversation}
 						on:click={handleReplyTo}
 					/>
 				</nav>
@@ -558,6 +610,7 @@
 			padding: 15px 10px 0 10px;
 			border-radius: 10px;
 			background: #fafafa;
+			transition-duration: 1s;
 
 			h1 {
 				width: 100%;
@@ -587,6 +640,7 @@
 				min-height: 150px;
 				border: 1px solid #eee;
 				font-family: 'Open Sans';
+				border-radius: 10px;
 			}
 
 			div {
@@ -637,6 +691,22 @@
 		}
 	}
 
+	:global(body.dark) {
+		aside {
+			div {
+				background: #222;
+
+				div {
+					background: #fff;
+				}
+			}
+
+			i {
+				color: #ccc;
+			}
+		}
+	}
+
 	main {
 		width: 100%;
 		height: calc(100vh - 40px);
@@ -648,12 +718,14 @@
 
 		article {
 			display: flex;
+			position: relative;
 			flex-direction: column;
 			width: 100%;
 			margin: 0;
 			border-bottom: 3px solid #ddd;
 			font-family: 'Open Sans';
 			background: #fafafa;
+			transition-duration: 1s;
 
 			:global(.reply),
 			:global(.repost) {
@@ -671,6 +743,7 @@
 
 			:global(header) {
 				padding: 10px 20px;
+				color: #222;
 			}
 
 			:global(address) {
@@ -679,8 +752,19 @@
 				padding: 0 15px;
 			}
 
+			:global(time) {
+				display: inline-block;
+				position: absolute;
+				top: 5px;
+				right: 10px;
+				font-style: normal;
+				font-size: 14px;
+				text-decoration: none;
+				color: inherit;
+				font-weight: 600;
+			}
+
 			:global(address > span),
-			:global(address > time),
 			:global(address > a) {
 				display: inline-block;
 				font-style: normal;
@@ -692,17 +776,10 @@
 				width: 100%;
 			}
 
-			:global(address > time),
 			:global(address > a) {
-				color: #222;
+				color: inherit;
 				font-weight: 400;
 				transition-duration: 1s;
-			}
-
-			:global(address > time) {
-				position: absolute;
-				top: 0;
-				right: 0;
 			}
 
 			:global(address > a:hover) {
@@ -712,6 +789,7 @@
 
 			:global(address > span:first-child) {
 				font-size: 18px;
+				color: #222;
 			}
 
 			:global(section) {
@@ -802,6 +880,53 @@
 			font-size: 18px;
 			color: #444;
 			background: #fafafa;
+		}
+	}
+
+	:global(body.dark) {
+		article {
+			background: #222;
+			color: #fff;
+			border-bottom: 3px solid black;
+
+			:global(.reply),
+			:global(.repost) {
+				background: #222;
+				color: #fff;
+			}
+
+			:global(.repost) {
+				color: #fff;
+			}
+
+			:global(header) {
+				color: #aaa;
+			}
+
+			:global(address > span:first-child) {
+				font-size: 18px;
+				color: #eee;
+			}
+
+			:global(a) {
+				color: #ccc;
+			}
+
+			:global(a:hover) {
+				color: red;
+			}
+
+			:global(code) {
+				background: #444;
+			}
+		}
+
+		nav {
+			background: #222;
+
+			i {
+				color: #ccc;
+			}
 		}
 	}
 </style>

@@ -317,6 +317,10 @@
 </main>
 
 <style lang="scss">
+	:global(*) {
+		transition-duration: 0.5s;
+	}
+
 	:global(li) {
 		padding: 5px 0;
 	}
@@ -431,7 +435,7 @@
 				   the banner - that means that .details is also shifted by 10% 
 				   down to undo the overlap */
 
-				margin-top: -10%;
+				
 
 				.avatar {
 					z-index: 30;
@@ -442,6 +446,7 @@
 
 					img {
 						width: 100%;
+						margin-top: -50%;
 						clip-path: inset(0 0 0 0 round 10%);
 					}
 
@@ -454,7 +459,6 @@
 					z-index: 10;
 					display: flex;
 					flex-direction: column;
-					margin-top: 10%;
 					width: 70%;
 					overflow: hidden;
 
@@ -506,6 +510,58 @@
 
 				form {
 					width: 100%;
+				}
+			}
+		}
+	}
+
+	:global(body.dark) {
+		main {
+			.profile {
+				border: 0;
+				background: #333;
+
+				.banner {
+					background: inherit;
+				}
+
+				.identity {
+					background: inherit;
+
+					span {
+						color: #ccc;
+					}
+
+					a {
+						color: #aaa;
+					}
+
+					.details {
+						h1 {
+							color: #ddd;
+						}
+					}
+				}
+
+				.controls {
+					background: inherit;
+				}
+
+				.summary {
+					color: #fff;
+					background: #222;
+
+					:global(p) {
+						color: inherit;
+					}
+
+					:global(a) {
+						color: #aaa;
+					}
+
+					:global(a:hover) {
+						color: red;
+					}
 				}
 			}
 		}

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 
 	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
@@ -18,6 +19,9 @@
 		load_instance_information,
 		send_follow,
 		send_unfollow,
+		KexInitParams,
+		send_kex_init,
+		get_external_one_time_key,
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
@@ -25,10 +29,11 @@
 		import_state as import_olm_state,
 		get_state as get_olm_state,
 		create_olm_message,
-		decrypt_olm_message
+		decrypt_olm_message,
+		session_exists,
+		get_identity_public_key
 	} from 'enigmatick_olm';
-	import { goto } from '$app/navigation';
-
+	
 	function load_enigmatick() {
 		init_olm().then(() => {
 			if (get(olmState)) {
@@ -72,8 +77,6 @@
 		ephemeralLeaderApId?: string;
 	};
 
-	let profile: UserProfile | null = null;
-
 	type EnigmatickEventObject = {
 		id: string;
 	};
@@ -87,8 +90,6 @@
 		cc?: string | null;
 		object?: EnigmatickEventObject | string | null;
 	};
-
-	let address: string | null = $page.url.searchParams.get('actor');
 
 	type Tag = {
 		type: 'Mention';
@@ -169,7 +170,9 @@
 						typeof ev.object == 'object' &&
 						ev.object.id == profile?.ephemeralLeaderApId
 					) {
-						load_profile();
+						load_profile().then(() => {
+							console.log('profile loaded');
+						});
 					}
 				}
 			};
@@ -183,24 +186,42 @@
 		}
 	});
 
-	function load_profile() {
+	async function load_profile() {
+		olm_session = false;
+		olm_pending = false;
+		one_time_key = false;
+		profile = null;
+
 		if (address) {
-			get_actor(address).then((actor) => {
-				if (actor) {
-					profile = JSON.parse(actor);
+			const actor = await get_actor(address);
+
+			if (actor) {
+				profile = JSON.parse(actor);
+
+				if (profile) {
 					console.log(profile);
+
+					if (session_exists(String(profile.id))) {
+						console.log('olm session exists');
+						olm_session = true;
+					} else if (get_external_one_time_key(String(profile.id))) {
+						console.log('one-time-key exists');
+						one_time_key = true;
+					} else {
+						console.log('no olm session or one-time-key found');
+					}
 				}
-			});
+			}
 		}
 	}
 
-	function handleProfile(event: any) {
+	async function handleProfile(event: any) {
 		let data = new FormData(event.target);
 		console.log('looking up: ' + data.get('address'));
 
 		address = String(data.get('address'));
 
-		load_profile();
+		await load_profile();
 	}
 
 	function handleFollow(event: any) {
@@ -223,6 +244,33 @@
 		}
 	}
 
+	function handleKexInit(event: any) {
+		console.log(event);
+
+		let kexinit = KexInitParams.new();
+
+		if (profile && profile.id) {
+			kexinit.set_recipient_id(profile.id).set_identity_key(String(get_identity_public_key()));
+
+			send_kex_init(kexinit).then(() => {
+				console.log('kexinit sent');
+			});
+		}
+	}
+
+	function handleMessage(event: any) {
+		console.log(event);
+
+		if (profile && profile.id) {
+			goto(`/message?address=${profile.id}`)
+		}
+	}
+
+	let olm_session = false;
+	let olm_pending = false;
+	let one_time_key = false;
+	let address: string | null = $page.url.searchParams.get('actor');
+	let profile: UserProfile | null = null;
 	let username = get(appData).username;
 	let display_name = get(appData).display_name;
 </script>
@@ -236,11 +284,11 @@
 
 	{#if profile}
 		<div class="profile">
-			{#if profile.image}
-				<div class="banner">
+			<div class="banner">
+				{#if profile.image}
 					<img src={profile.image.url} alt="Banner" />
-				</div>
-			{/if}
+				{/if}
+			</div>
 
 			<div class="identity">
 				<div class="avatar">
@@ -248,23 +296,32 @@
 						<img src={profile.icon.url} alt="Avatar" />
 					{/if}
 				</div>
-
-				<div class="controls">
-					<a href={profile.url}>{profile.name}</a>
-					<ul>
-						{#if profile.ephemeralFollowing === undefined}
-							<li><button on:click|preventDefault={handleFollow}>Follow</button></li>
-						{/if}
-
-						{#if profile.ephemeralFollowing !== undefined && !profile.ephemeralFollowing}
-							<li><button>Pending</button></li>
-						{/if}
-
-						{#if profile.ephemeralFollowing !== undefined && profile.ephemeralFollowing}
-							<li><button on:click|preventDefault={handleUnfollow}>Unfollow</button></li>
-						{/if}
-					</ul>
+				<div class="contact">
+					<span>{profile.name}</span>
+					<a href={profile.url}>{profile.url}</a>
 				</div>
+			</div>
+
+			<div class="controls">
+				<ul>
+					{#if !olm_session && !one_time_key && !olm_pending}
+						<li><button on:click|preventDefault={handleKexInit}>Exchange Keys</button></li>
+					{/if}
+					{#if olm_session || one_time_key}
+						<li><button on:click|preventDefault={handleMessage}>Message</button></li>
+					{/if}
+					{#if profile.ephemeralFollowing === undefined}
+						<li><button on:click|preventDefault={handleFollow}>Follow</button></li>
+					{/if}
+
+					{#if profile.ephemeralFollowing !== undefined && !profile.ephemeralFollowing}
+						<li><button>Pending</button></li>
+					{/if}
+
+					{#if profile.ephemeralFollowing !== undefined && profile.ephemeralFollowing}
+						<li><button on:click|preventDefault={handleUnfollow}>Unfollow</button></li>
+					{/if}
+				</ul>
 			</div>
 
 			<div class="summary">{@html profile.summary}</div>
@@ -275,11 +332,12 @@
 <style lang="scss">
 	* {
 		font-family: 'Open Sans';
+		transition-duration: 0.5s;
 	}
 
 	main {
 		display: block;
-		max-width: 800px;
+		max-width: 600px;
 		width: 100%;
 		margin: 0 auto 0 auto;
 		padding: 5px;
@@ -298,13 +356,15 @@
 			width: 100%;
 			padding: 0;
 			border: 1px solid #eee;
-			border-radius: 15px;
+			border-radius: 0 0 15px 15px;
+			background: #fafafa;
 
 			.banner {
 				width: 100%;
 				max-height: 200px;
+				min-height: 70px;
 				overflow: hidden;
-				margin-bottom: -10%;
+				background: inherit;
 
 				img {
 					width: 100%;
@@ -317,10 +377,10 @@
 
 			.identity {
 				z-index: 20;
-				padding: 10px;
 				width: 100%;
 				display: flex;
 				flex-direction: row;
+				background: inherit;
 
 				.avatar {
 					z-index: 30;
@@ -330,60 +390,124 @@
 					overflow: none;
 
 					img {
+						margin-top: -50%;
 						width: 100%;
 						clip-path: inset(0 0 0 0 round 10%);
 					}
 				}
 
-				.controls {
-					width: calc(100% - 150px);
-					margin-top: 20px;
+				span {
+					display: inline-block;
+					width: 100%;
+					font-size: 22px;
+					font-weight: 500;
+					color: #222;
+				}
+			}
+
+			.controls {
+				width: 100%;
+				display: flex;
+				flex-direction: column;
+				background: inherit;
+
+				ul {
 					display: flex;
-					flex-direction: column;
-					margin-top: 10%;
+					flex-direction: row-reverse;
+					list-style: none;
+					padding: 0;
+					margin: 0;
+					width: 100%;
 
-					a {
-						display: block;
-						width: 100%;
-						font-size: 28px;
-						padding: 0 20px;
-					}
+					li {
+						text-align: right;
 
-					ul {
-						display: inline-block;
-						list-style: none;
-						padding: 5px;
-						width: 100%;
+						button {
+							display: inline-block;
+							color: whitesmoke;
+							background: darkred;
+							transition-duration: 1s;
+							border: 0;
+							font-size: 18px;
+							font-weight: 600;
+							padding: 5px 15px;
+							margin: 5px;
+						}
 
-						li {
-							text-align: right;
-
-							button {
-								display: inline-block;
-								color: whitesmoke;
-								background: darkred;
-								transition-duration: 1s;
-								border: 0;
-								font-size: 18px;
-								font-weight: 600;
-								padding: 5px 15px;
-								margin: 5px;
-							}
-
-							button:hover {
-								color: darkred;
-								background: whitesmoke;
-								transition-duration: 1s;
-								cursor: pointer;
-							}
+						button:hover {
+							color: darkred;
+							background: whitesmoke;
+							transition-duration: 1s;
+							cursor: pointer;
 						}
 					}
 				}
 			}
 
 			.summary {
-				margin: 5px 0 0 0;
-				padding: 5px 10px;
+				margin: 0;
+				padding: 10px;
+				border-radius: 0 0 15px 15px;
+				background: white;
+
+				:global(p) {
+					margin: 10px 0;
+					color: #000;
+				}
+
+				:global(a) {
+					color: #444;
+				}
+
+				:global(a:hover) {
+					color: red;
+				}
+			}
+		}
+	}
+
+	:global(body.dark) {
+		main {
+			.profile {
+				border: 0;
+				background: #333;
+
+				.banner {
+					background: inherit;
+				}
+
+				.identity {
+					background: inherit;
+
+					span {
+						color: #ccc;
+					}
+
+					a {
+						color: #aaa;
+					}
+				}
+
+				.controls {
+					background: inherit;
+				}
+
+				.summary {
+					color: #fff;
+					background: #222;
+
+					:global(p) {
+						color: inherit;
+					}
+
+					:global(a) {
+						color: #aaa;
+					}
+
+					:global(a:hover) {
+						color: red;
+					}
+				}
 			}
 		}
 	}

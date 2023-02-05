@@ -1,37 +1,32 @@
 <script lang="ts">
+	import { page } from '$app/stores';
+
 	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
-	import { wasmState, olmState } from '../../stores';
+	import { wasmState, olmState, appData } from '../../stores';
 	import init_wasm, {
 		SendParams,
-		send_note,
+		send_encrypted_note,
 		get_state as get_wasm_state,
 		import_state as import_wasm_state,
 		KexInitParams,
 		send_kex_init,
-		update_keystore_olm_sessions
+		load_instance_information,
+		update_keystore_olm_sessions,
+		get_external_one_time_key,
+		get_external_identity_key
 	} from 'enigmatick_wasm';
 	import init_olm, {
 		get_state as get_olm_state,
 		import_state as import_olm_state,
 		create_olm_account,
 		get_one_time_keys,
+		session_exists,
+		create_olm_message,
 		get_identity_public_key
 	} from 'enigmatick_olm';
 
 	function load_enigmatick() {
-		init_wasm().then(() => {
-			if (get(wasmState)) {
-				get_wasm_state().then(() => {
-					import_wasm_state(get(wasmState));
-					console.log('loaded wasm state from store');
-				});
-			}
-			console.log('init WASM');
-		});
-	}
-
-	function load_olm() {
 		init_olm().then(() => {
 			if (get(olmState)) {
 				import_olm_state(get(olmState));
@@ -43,43 +38,48 @@
 
 	onMount(() => {
 		load_enigmatick();
-		load_olm();
+
+		if (username) {
+			load_instance_information().then((instance) => {
+				console.log(instance?.domain);
+				console.log(instance?.url);
+
+				if (get(wasmState)) {
+					get_wasm_state().then(() => {
+						import_wasm_state(get(wasmState));
+						console.log('loaded state from store');
+					});
+				}
+				console.log('init WASM');
+			});
+		}
 	});
 
 	function handleMessage(event: any) {
 		let data = new FormData(event.target);
+		const message = data.get('message');
 
 		console.log(data);
 
-		let note = SendParams.new();
+		if (message && address && !session_exists(address)) {
+			const otk = get_external_one_time_key(address);
+			const idk = get_external_identity_key(address);
 
-		if (data.get('recipient') && data.get('message')) {
-			note.add_address(String(data.get('recipient'))).then(() => {
-				note.set_content(String(data.get('message')));
-				note.set_kind("Note")
+			if (idk && otk) {
+				const encrypted = create_olm_message(address, String(message), idk, otk);
+				console.log(`encrypted\n${encrypted}`);
 
-				send_note(note).then(() => {
-					console.log('note sent');
-				});
-			});
-		}
-	}
+				if (encrypted) {
+					const state = get_olm_state().export();
+					console.log(`state\n${JSON.stringify(state)}`);
 
-	function handleKexInit(event: any) {
-		let data = new FormData(event.target);
+					let note = SendParams.new().add_recipient_id(address).set_content(encrypted).set_kind('EncryptedNote');
 
-		console.log(data);
-
-		let kexinit = KexInitParams.new();
-
-		if (data.get('recipient')) {
-			kexinit.set_recipient(String(data.get('recipient'))).then(() => {
-				kexinit.set_identity_key(String(get_identity_public_key()));
-
-				send_kex_init(kexinit).then(() => {
-					console.log('kexinit sent');
-				});
-			});
+					send_encrypted_note(note).then(() => {
+						console.log('note sent');
+					})
+				}
+			}
 		}
 	}
 
@@ -90,31 +90,18 @@
 		let y = get_one_time_keys();
 		console.log(y);
 	}
+
+	let username = get(appData).username;
+	let address: string | null = $page.url.searchParams.get('address');
 </script>
 
-<form id="message" method="POST" on:submit|preventDefault="{handleMessage}">
-	<label>
-		Recipient
-		<input name="recipient" type="text" />
-	</label>
+<main>
+	<form id="message" method="POST" on:submit|preventDefault={handleMessage}>
+		<label>
+			Message
+			<textarea name="message" />
+		</label>
 
-	<label>
-		Message
-		<textarea name="message" />
-	</label>
-
-	<button>Send Message</button>
-</form>
-
-<br />
-
-<form id="kexinit" method="POST" on:submit|preventDefault="{handleKexInit}">
-	<label>
-		Recipient
-		<input name="recipient" type="text" />
-	</label>
-
-	<button>Send KexInit</button>
-</form>
-
-<a href="/login">Login</a>
+		<button>Send Message</button>
+	</form>
+</main>

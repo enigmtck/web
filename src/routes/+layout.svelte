@@ -22,6 +22,12 @@
 		display_name = get(appData).display_name;
 		return true;
 	}
+
+	function dark_mode(event: any) {
+		console.log(event);
+		let body = document.getElementsByTagName("body")[0];
+		body?.classList.toggle("dark");
+	}
 </script>
 
 <svelte:head>
@@ -46,6 +52,12 @@
 	<header>
 		<div>
 			<span class="title"><a href="/">ENIGMATICK</a></span>
+		</div>
+		<div class="toggle">
+			<label>
+				<input type="checkbox" on:change|preventDefault="{dark_mode}"/>
+				<span class="slider" />
+			</label>
 		</div>
 	</header>
 
@@ -84,7 +96,24 @@
 		transition-duration: 0.5s;
 	}
 
+	:root {
+		--light: white;
+		--dark: #28292c;
+		--container-background: #fff;
+		--container-dark-background: #000;
+	}
+
+	:global(body) {
+		background: var(--container-background);
+		transition-duration: 1s;
+	}
+
+	:global(body.dark) {
+		background: var(--container-dark-background);
+	}
+	
 	header {
+		position: relative;
 		grid-area: header;
 		width: 100%;
 		padding: 5px;
@@ -95,6 +124,7 @@
 		font-family: 'Open Sans';
 		font-size: 22px;
 		font-weight: 600;
+		transition-duration: 1s;
 
 		a {
 			color: darkred;
@@ -110,6 +140,71 @@
 			color: red;
 			transition-duration: 0.5s;
 			text-decoration: none;
+		}
+
+		.toggle {
+			position: absolute;
+			top: 8px;
+			right: 40px;
+			width: 50px;
+		}
+
+		label {
+			position: absolute;
+			width: 100%;
+			height: 24px;
+			background-color: var(--dark);
+			outline: 1px solid #ccc;
+			border-radius: 50px;
+			cursor: pointer;
+		}
+
+		input {
+			position: absolute;
+			display: none;
+		}
+
+		.slider {
+			position: absolute;
+			left: 0px;
+			width: 100%;
+			height: 100%;
+			border-radius: 50px;
+			transition: 0.3s;
+		}
+
+		input:checked ~ .slider {
+			background-color: var(--light);
+		}
+
+		.slider::before {
+			content: '';
+			position: absolute;
+			top: 3px;
+			left: 4px;
+			width: 18px;
+			height: 18px;
+			border-radius: 50%;
+			box-shadow: inset 7px -4px 0px 0px var(--light);
+			background-color: var(--dark);
+			transition: 0.3s;
+		}
+
+		input:checked ~ .slider::before {
+			transform: translateX(25px);
+			background-color: var(--dark);
+			box-shadow: none;
+		}
+	}
+
+	:global(body.dark) {
+		header {
+			background: #000;
+			border-bottom: 1px solid #222;
+
+			a {
+				color: whitesmoke;
+			}
 		}
 	}
 
@@ -161,6 +256,22 @@
 			.selected {
 				color: darkred;
 				transition-duration: 1s;
+			}
+		}
+	}
+
+	:global(body.dark) {
+		nav {
+			a {
+				color: #aaa;
+			}
+
+			a:hover {
+				color: red;
+			}
+
+			.selected {
+				color: white;
 			}
 		}
 	}

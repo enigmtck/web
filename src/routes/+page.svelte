@@ -58,4 +58,22 @@
 			border-right: 0;
 		}
 	}
+
+	:global(body.dark) {
+		h1 {
+			color: whitesmoke;
+		}
+
+		ul {
+			li {
+				a {
+					color: #ddd;
+				}
+
+				a:hover {
+					color: red;
+				}
+			}
+		}
+	}
 </style>
