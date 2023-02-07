@@ -14,12 +14,14 @@
 		load_instance_information,
 		update_keystore_olm_sessions,
 		get_external_one_time_key,
-		get_external_identity_key
+		get_external_identity_key,
+		get_processing_queue
 	} from 'enigmatick_wasm';
 	import init_olm, {
 		get_state as get_olm_state,
 		import_state as import_olm_state,
 		create_olm_account,
+		decrypt_olm_message,
 		get_one_time_keys,
 		session_exists,
 		create_olm_message,
@@ -51,9 +53,42 @@
 					});
 				}
 				console.log('init WASM');
+
+				get_processing_queue().then((x) => {
+					console.log("queue")
+					const q: Collection = JSON.parse(String(x));
+
+					q.items.forEach((x) => {
+						let k = get_external_identity_key(x.attributedTo);
+						console.log(k);
+						let d = decrypt_olm_message(x.attributedTo, x.content, String(k));
+						console.log(d);
+					})
+					console.log(q);
+				})
 			});
 		}
 	});
+
+	type QueueItem = {
+		'@context'?: string | null;
+		attributedTo: string,
+		id: string,
+		tag?: object[],
+		type: 'EncryptedNote';
+		to: string[];
+		published: string;
+		content: string;
+		conversations: string;
+	}
+
+	type Collection = {
+		'@context': string;
+		type: 'Collection' | 'OrderedCollection';
+		id: string;
+		totalItems: number;
+		items: QueueItem[];
+	}
 
 	function handleMessage(event: any) {
 		let data = new FormData(event.target);

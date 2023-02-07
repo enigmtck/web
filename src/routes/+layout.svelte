@@ -13,6 +13,7 @@
 		import_state as import_olm_state,
 		get_state as get_olm_state
 	} from 'enigmatick_olm';
+	import { goto } from '$app/navigation';
 
 	$: username = get(appData).username;
 	$: display_name = get(appData).display_name;
@@ -25,8 +26,8 @@
 
 	function dark_mode(event: any) {
 		console.log(event);
-		let body = document.getElementsByTagName("body")[0];
-		body?.classList.toggle("dark");
+		let body = document.getElementsByTagName('body')[0];
+		body?.classList.toggle('dark');
 	}
 </script>
 
@@ -37,8 +38,14 @@
 			box-sizing: border-box;
 		}
 
+		html {
+			margin: 0;
+			padding: 0;
+		}
+
 		body {
 			margin: 0;
+			padding: 0;
 			display: grid;
 			grid-template:
 				[row1-start] 'header header header' [row1-end]
@@ -55,7 +62,7 @@
 		</div>
 		<div class="toggle">
 			<label>
-				<input type="checkbox" on:change|preventDefault="{dark_mode}"/>
+				<input type="checkbox" on:change|preventDefault={dark_mode} checked={true} />
 				<span class="slider" />
 			</label>
 		</div>
@@ -64,8 +71,32 @@
 	{#if update()}
 		<slot />
 
-		<nav>
-			{#if username}
+		{#if username}
+			<footer>
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-earth-americas"
+					on:click={async () => {
+						await goto('/timeline');
+					}}
+				/>
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-house"
+					on:click={async () => {
+						await goto(`/@${username}`);
+					}}
+				/>
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-magnifying-glass"
+					on:click={async () => {
+						await goto('/search');
+					}}
+				/>
+			</footer>
+
+			<nav>
 				<div>
 					<a class={$page.url.pathname == '/@' + username ? 'selected' : ''} href="/@{username}"
 						>{display_name}</a
@@ -73,13 +104,16 @@
 					<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
 						>Timeline</a
 					>
+					<a class={$page.url.pathname == '/message' ? 'selected' : ''} href="/message"
+						>Messages</a
+					>
 					<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search">Search</a>
 					<a class={$page.url.pathname == '/settings' ? 'selected' : ''} href="/settings"
 						>Settings</a
 					>
 				</div>
-			{/if}
-		</nav>
+			</nav>
+		{/if}
 	{/if}
 {:else}
 	<slot />
@@ -88,7 +122,8 @@
 <style lang="scss">
 	:global(a),
 	:global(a:visited) {
-		color: black;
+		color: darkred;
+		text-decoration: none;
 	}
 
 	:global(a:hover) {
@@ -106,18 +141,20 @@
 	:global(body) {
 		background: var(--container-background);
 		transition-duration: 1s;
+		position: relative;
 	}
 
 	:global(body.dark) {
 		background: var(--container-dark-background);
 	}
-	
+
 	header {
-		position: relative;
+		z-index: 30;
+		position: fixed;
 		grid-area: header;
 		width: 100%;
 		padding: 5px;
-		background: #fefefe;
+		background: #eee;
 		border-bottom: 1px solid #eee;
 		color: darkred;
 		text-align: center;
@@ -199,7 +236,7 @@
 
 	:global(body.dark) {
 		header {
-			background: #000;
+			background: #222;
 			border-bottom: 1px solid #222;
 
 			a {
@@ -209,6 +246,7 @@
 	}
 
 	:global(main) {
+		margin-top: 41px;
 		grid-area: content;
 		min-width: 400px;
 		max-width: 600px;
@@ -220,7 +258,49 @@
 		}
 	}
 
+	footer {
+		display: none;
+
+		@media screen and (max-width: 600px) {
+			background: #eee;
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-evenly;
+			position: fixed;
+			bottom: 0;
+			left: 0;
+			width: 100vw;
+			height: 50px;
+
+			i {
+				color: #222;
+				font-size: 26px;
+				margin: 0 20px;
+			}
+
+			i:hover {
+				color: red;
+			}
+		}
+	}
+
+	:global(body.dark) {
+		footer {
+			background: #222;
+
+			i {
+				color: #fafafa;
+			}
+
+			i:hover {
+				color: red;
+			}
+		}
+	}
+
 	nav {
+		margin-top: 41px;
 		grid-area: right-aside;
 
 		@media screen and (max-width: 600px) {

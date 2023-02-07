@@ -32,7 +32,6 @@
 		decrypt_olm_message
 	} from 'enigmatick_olm';
 	import { goto } from '$app/navigation';
-	import { action_destroyer, set_custom_element_data } from 'svelte/internal';
 
 	function load_enigmatick() {
 		init_olm().then(() => {
@@ -383,14 +382,6 @@
 		console.log(event);
 	}
 
-	function convertToMarkdown(data: string) {
-		let converter = new Converter();
-		converter.setFlavor('github');
-		converter.setOption('tables', true);
-		converter.setOption('requireSpaceBeforeHeadingText', true);
-		return converter.makeMarkdown(data);
-	}
-
 	function convertToHtml(data: string) {
 		let converter = new Converter();
 		converter.setFlavor('github');
@@ -405,17 +396,6 @@
 		if (compose) {
 			markdown_note = compose.innerText;
 			html_note = convertToHtml(markdown_note);
-		}
-	}
-
-	function updateTime() {
-		const time_elements = document.getElementsByTagName('time');
-
-		if (time_elements) {
-			Array.from(time_elements).forEach((el) => {
-				let d = timeSince(new Date(String(el.getAttribute('datetime'))));
-				el.textContent = d;
-			});
 		}
 	}
 
@@ -462,7 +442,7 @@
 		reply_to_actor = event.target.dataset.actor;
 		reply_to_conversation = event.target.dataset.conversation;
 
-		console.log(event.target.dataset);
+		openAside(event);
 	}
 
 	function cancelReplyTo() {
@@ -500,6 +480,17 @@
 		return ap_cache.get(id);
 	}
 
+	function closeAside(event: any) {
+		cancelReplyTo();
+		const aside = document.getElementsByTagName('aside')[0];
+		aside.classList.add('closed');
+	}
+
+	function openAside(event: any) {
+		const aside = document.getElementsByTagName('aside')[0];
+		aside.classList.remove('closed');
+	}
+
 	let ap_cache = new Map<string, string>();
 	let offset = 0;
 	let profile: UserProfile | null = null;
@@ -519,9 +510,10 @@
 	<script src="https://kit.fontawesome.com/66f38a391f.js" crossorigin="anonymous"></script>
 </svelte:head>
 
-<aside>
+<aside class="closed">
 	{#if username}
 		{#if $page.url.pathname === '/timeline'}
+			<div class="mask" />
 			<div>
 				{#if reply_to_actor}
 					<span
@@ -537,19 +529,20 @@
 				{/if}
 
 				<form method="POST" on:submit|preventDefault={handleComposeSubmit}>
-					<span>
-						<i class="fa-solid fa-paperclip" />
-						{#if preview}
-							<!-- svelte-ignore a11y-click-events-have-key-events -->
-							<i class="fa-solid fa-pen-nib" on:click|preventDefault={handlePreview} />
-						{:else}
-							<!-- svelte-ignore a11y-click-events-have-key-events -->
-							<i class="fa-solid fa-eye" on:click|preventDefault={handlePreview} />
-						{/if}
-					</span>
+					<i class="fa-solid fa-paperclip" />
+					{#if preview}
+						<!-- svelte-ignore a11y-click-events-have-key-events -->
+						<i class="fa-solid fa-pen-nib" on:click|preventDefault={handlePreview} />
+					{:else}
+						<!-- svelte-ignore a11y-click-events-have-key-events -->
+						<i class="fa-solid fa-eye" on:click|preventDefault={handlePreview} />
+					{/if}
 					<button on:click|preventDefault={handlePublish}>Publish</button>
 				</form>
 			</div>
+
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<i class="fa-solid fa-xmark" on:click={closeAside} />
 		{/if}
 	{/if}
 </aside>
@@ -584,6 +577,11 @@
 			</article>
 		{/if}
 	{/each}
+
+	<!-- svelte-ignore a11y-click-events-have-key-events -->
+	<div class="compose" on:click={openAside}>
+		<i class="fa-solid fa-pencil" />
+	</div>
 </main>
 
 <style lang="scss">
@@ -595,11 +593,18 @@
 
 	aside {
 		grid-area: left-aside;
-		height: calc(100vh - 40px);
+		height: calc(100vh - 28px);
+		width: 100%;
+		margin-top: 41px;
 		text-align: right;
 
-		@media screen and (max-width: 600px) {
+		> i {
 			display: none;
+		}
+
+		.mask {
+			display: none;
+			background: #999;
 		}
 
 		div {
@@ -609,21 +614,13 @@
 			margin: 10px;
 			padding: 15px 10px 0 10px;
 			border-radius: 10px;
-			background: #fafafa;
+			background: #ddd;
 			transition-duration: 1s;
-
-			h1 {
-				width: 100%;
-				text-align: center;
-				font-family: 'Open Sans';
-				font-size: 28px;
-				font-weight: 400;
-				margin: 5px 0;
-			}
 
 			> span {
 				display: inline-block;
-				background: #fafafa;
+				background: #efefef;
+				border: 1px solid #ccc;
 				padding: 4px;
 				border-radius: 5px;
 				margin: 5px 0;
@@ -648,24 +645,20 @@
 			}
 
 			form {
-				text-align: right;
+				display: flex;
+				justify-content: space-evenly;
+				align-items: center;
 
-				span {
-					display: inline-block;
-					width: calc(100% - 110px);
-					text-align: left;
+				i {
+					font-size: 24px;
+					transition-duration: 1s;
+					padding: 0 10px;
+				}
 
-					i {
-						font-size: 24px;
-						transition-duration: 1s;
-						padding: 0 10px;
-					}
-
-					i:hover {
-						cursor: pointer;
-						transition-duration: 0.5s;
-						color: red;
-					}
+				i:hover {
+					cursor: pointer;
+					transition-duration: 0.5s;
+					color: red;
 				}
 
 				button {
@@ -689,31 +682,138 @@
 				}
 			}
 		}
+
+		@media screen and (max-width: 600px) {
+			margin-top: unset;
+			grid-area: content;
+			position: absolute;
+			top: 35px;
+			left: 0;
+			width: 100%;
+			height: calc(100vh - 42px);
+			z-index: 21;
+			text-align: unset;
+
+			.mask {
+				display: block;
+				position: fixed;
+				border: 0;
+				outline: 0;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100vh;
+				opacity: 0.9;
+			}
+
+			> i {
+				display: inline-block;
+				position: fixed;
+				top: 45px;
+				left: 20px;
+				font-size: 36px;
+				color: #aaa;
+			}
+
+			> i:hover {
+				color: red;
+			}
+
+			div {
+				position: relative;
+				display: inline-block;
+				margin: 0;
+				padding: 0;
+				border: 0;
+				border-radius: 0;
+				height: auto;
+				width: 100%;
+				padding-top: 45px;
+				max-width: unset;
+				min-width: unset;
+
+				span {
+					margin: 5px;
+				}
+
+				pre,
+				div {
+					position: relative;
+					display: block;
+					height: calc(100% - 105px);
+					width: calc(100vw - 12px);
+					margin: 5px;
+					border-radius: 0;
+					border: 1px solid #aaa;
+				}
+
+				form {
+					display: flex;
+					justify-content: space-evenly;
+					position: relative;
+					width: 100%;
+					bottom: 0;
+					left: 0;
+					border: 0;
+					height: 50px;
+					background: #ddd;
+
+					button {
+						position: fixed;
+						top: 40px;
+						right: 10px;
+						border-radius: 5px;
+					}
+				}
+			}
+		}
+	}
+
+	@media screen and (max-width: 600px) {
+		:global(.closed) {
+			display: none;
+		}
 	}
 
 	:global(body.dark) {
 		aside {
 			div {
-				background: #222;
+				background: #444;
+				border: 1px solid #777;
 
+				pre,
 				div {
-					background: #fff;
+					background: #222;
+					color: white;
+					border: 1px solid #777;
 				}
 			}
 
-			i {
-				color: #ccc;
+			.mask {
+				background: black;
+			}
+
+			form {
+				background: #444;
+
+				i {
+					color: #ccc;
+				}
+
+				i:hover {
+					color: red;
+				}
 			}
 		}
 	}
 
 	main {
 		width: 100%;
-		height: calc(100vh - 40px);
+		height: calc(100vh - 41px);
 		overflow-y: auto;
 
-		@media screen and (max-width: 600px) {
-			width: 100vw;
+		.compose {
+			display: none;
 		}
 
 		article {
@@ -722,18 +822,26 @@
 			flex-direction: column;
 			width: 100%;
 			margin: 0;
-			border-bottom: 3px solid #ddd;
+			border-bottom: 1px solid #ddd;
 			font-family: 'Open Sans';
 			background: #fafafa;
 			transition-duration: 1s;
 
+			:global(a) {
+				color: darkgoldenrod;
+			}
+
+			:global(a:hover) {
+				color: red;
+			}
+
 			:global(.reply),
 			:global(.repost) {
 				width: 100%;
-				padding: 5px 10px;
+				padding: 10px 10px 5px 10px;
 				font-weight: 600;
 				font-size: 14px;
-				background: #eee;
+				background: #fafafa;
 				color: darkred;
 			}
 
@@ -755,7 +863,7 @@
 			:global(time) {
 				display: inline-block;
 				position: absolute;
-				top: 5px;
+				top: 10px;
 				right: 10px;
 				font-style: normal;
 				font-size: 14px;
@@ -831,8 +939,9 @@
 
 			nav {
 				width: 100%;
-				background: #eee;
+				background: #fafafa;
 				padding: 5px 0;
+				margin: 0 0 10px 0;
 
 				i {
 					text-align: center;
@@ -883,15 +992,46 @@
 		}
 	}
 
+	@media screen and (max-width: 600px) {
+		main {
+			height: calc(100vh - 91px);
+			width: 100vw;
+
+			.compose {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				position: fixed;
+				right: 10px;
+				bottom: 60px;
+				background: #eee;
+				width: 60px;
+				height: 60px;
+				border-radius: 10px;
+				opacity: 0.8;
+				border: 1px solid #ccc;
+				color: #444;
+
+				i {
+					font-size: 24px;
+				}
+			}
+
+			.compose:hover {
+				cursor: pointer;
+			}
+		}
+	}
+
 	:global(body.dark) {
 		article {
-			background: #222;
+			background: #000;
 			color: #fff;
-			border-bottom: 3px solid black;
+			border-bottom: 1px solid #444;
 
 			:global(.reply),
 			:global(.repost) {
-				background: #222;
+				background: #000;
 				color: #fff;
 			}
 
@@ -909,7 +1049,7 @@
 			}
 
 			:global(a) {
-				color: #ccc;
+				color: darkgoldenrod;
 			}
 
 			:global(a:hover) {
@@ -922,7 +1062,7 @@
 		}
 
 		nav {
-			background: #222;
+			background: #000;
 
 			i {
 				color: #ccc;

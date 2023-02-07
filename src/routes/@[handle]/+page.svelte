@@ -83,6 +83,8 @@
 						});
 					}
 					console.log('init WASM');
+
+					username = username;
 				});
 			});
 		}
@@ -193,6 +195,10 @@
 	let username = get(appData).username;
 	let display_name = get(appData).display_name;
 </script>
+
+<svelte:head>
+	<script src="https://kit.fontawesome.com/66f38a391f.js" crossorigin="anonymous"></script>
+</svelte:head>
 
 <main>
 	{#if profile}
@@ -354,7 +360,7 @@
 		display: block;
 		max-width: 800px;
 		width: 100%;
-		margin: 0 auto 0 auto;
+		margin: 41px auto 0 auto;
 		font-family: 'Open Sans';
 
 		:global(.selectable:hover),

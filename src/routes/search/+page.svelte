@@ -33,7 +33,7 @@
 		session_exists,
 		get_identity_public_key
 	} from 'enigmatick_olm';
-	
+
 	function load_enigmatick() {
 		init_olm().then(() => {
 			if (get(olmState)) {
@@ -250,7 +250,11 @@
 		let kexinit = KexInitParams.new();
 
 		if (profile && profile.id) {
-			kexinit.set_recipient_id(profile.id).set_identity_key(String(get_identity_public_key()));
+			let x = get_identity_public_key();
+			console.log("idk");
+			console.log(x);
+			kexinit.set_recipient_id(profile.id)
+			kexinit.set_identity_key(String(get_identity_public_key()));
 
 			send_kex_init(kexinit).then(() => {
 				console.log('kexinit sent');
@@ -262,7 +266,7 @@
 		console.log(event);
 
 		if (profile && profile.id) {
-			goto(`/message?address=${profile.id}`)
+			goto(`/message?address=${profile.id}`);
 		}
 	}
 
@@ -339,17 +343,21 @@
 		display: block;
 		max-width: 600px;
 		width: 100%;
-		margin: 0 auto 0 auto;
+		margin: 41px auto 0 auto;
 		padding: 5px;
 
-		input {
+		label {
 			width: 100%;
-			padding: 15px;
-			border-radius: 15px;
-			border: 0;
-			outline: 1px solid #ccc;
-			font-size: large;
-			margin: 10px 0;
+
+			input {
+				width: 100%;
+				padding: 15px;
+				border-radius: 15px;
+				border: 0;
+				outline: 1px solid #ccc;
+				font-size: large;
+				margin: 10px 0;
+			}
 		}
 
 		.profile {
@@ -464,10 +472,19 @@
 				}
 			}
 		}
+
+		@media screen and (max-width: 600px) {
+			width: 100vw;
+		}
 	}
 
 	:global(body.dark) {
 		main {
+			input {
+				background: #222;
+				color: white;
+				outline: 1px solid #777;
+			}
 			.profile {
 				border: 0;
 				background: #333;
