@@ -58,7 +58,11 @@
 
 	function load_profile() {
 		if ($page.params.handle) {
-			fetch('/user/' + $page.params.handle).then((x) => {
+			fetch('/user/' + $page.params.handle, {
+				headers: {
+					'Accept': 'application/json'
+				}
+			}).then((x) => {
 				x.json().then((y: UserProfile) => {
 					console.log(y);
 					profile = y;
@@ -440,8 +444,6 @@
 				   avatar is 20% wide, and we want it half-way overlapping in 
 				   the banner - that means that .details is also shifted by 10% 
 				   down to undo the overlap */
-
-				
 
 				.avatar {
 					z-index: 30;

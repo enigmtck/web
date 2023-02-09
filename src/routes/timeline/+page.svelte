@@ -228,9 +228,7 @@
 						let reply_actor = await cachedActor(note.attributedTo);
 						let sender: UserProfile = JSON.parse(String(reply_actor));
 
-						reply_html = `<span class="reply"><i class="fa-solid fa-reply"></i> In reply to <a href="/conversation?conversation=${encodeURIComponent(
-							String(e.conversation)
-						)}">${sender.name || sender.preferredUsername}</a></span>`;
+						reply_html = `<span class="reply"><i class="fa-solid fa-reply"></i> In reply to ${sender.name || sender.preferredUsername}</span>`;
 					}
 				}
 
@@ -258,7 +256,7 @@
 		}
 	}
 
-	async function load_timeline_data() {
+	async function loadTimelineData() {
 		let x = await get_timeline(offset, 5);
 
 		console.log(x);
@@ -313,7 +311,7 @@
 				}
 				console.log('init WASM');
 
-				load_timeline_data();
+				loadTimelineData();
 			});
 
 			let sse = new EventSource('/api/user/' + username + '/events');
@@ -324,7 +322,14 @@
 				console.log(e);
 
 				if ((<Note>e).type === 'Note') {
-					addNote(<Note>e);
+					if (live_loading) {
+						// display the note immediately
+						addNote(<Note>e);
+					} else {
+						// place the note in the queue to be added when scrolled to the top
+						note_queue.push(<Note>e);
+					}
+
 					offset += 1;
 				} else if ((<StreamConnect>e).uuid) {
 					send_authorization((<StreamConnect>e).uuid);
@@ -451,16 +456,31 @@
 		reply_to_conversation = null;
 	}
 
-	let loading = false;
 	async function handleInfiniteScroll() {
+		const main = document.getElementsByTagName('main')[0];
+
 		if (!loading) {
 			loading = true;
-			let main = document.getElementsByTagName('main')[0];
 
 			if (main.scrollTop + main.offsetHeight >= main.scrollHeight - 300) {
-				await load_timeline_data();
+				await loadTimelineData();
 			}
 			loading = false;
+		}
+
+		const scroll = document.getElementsByClassName('scroll')[0] as HTMLElement;
+		if (main.scrollTop < 50) {
+			live_loading = true;
+
+			let note;
+			while ((note = note_queue.shift()) !== undefined) {
+				addNote(note);
+			}
+
+			scroll.style.display = "none";
+		} else {
+			live_loading = false;
+			scroll.style.display = "revert";
 		}
 	}
 
@@ -491,12 +511,29 @@
 		aside.classList.remove('closed');
 	}
 
-	let ap_cache = new Map<string, string>();
-	let offset = 0;
-	let profile: UserProfile | null = null;
+	// controls whether messages from EventSource are immediately displayed or queued
+	let live_loading = true;
+
+	// the queue used when the page is not scrolled to the top
+	let note_queue: Note[] = [];
+
+	// HTML formatted notes to display in the Timeline
+	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
 	let notes = new Map<string, any[]>();
+
+	// used very temporarily to control requests to the API for new data
+	let loading = false;
+
+	// the offset sent to the API for new data; adjusted when Notes are added by EventSource
+	let offset = 0;
+
+	// used to reduce calls to the API for Actor data
+	let ap_cache = new Map<string, string>();
+
+	let profile: UserProfile | null = null;
 	let username = get(appData).username;
 	let display_name = get(appData).display_name;
+
 	let markdown_note = '';
 	let html_note = '';
 	let preview = false;
@@ -560,7 +597,7 @@
 					<i
 						class="fa-solid fa-comments"
 						on:click={async () => {
-							await goto(`/conversation?conversation=${conversation}`);
+							await goto(`/thread?conversation=${conversation}`);
 						}}
 					/>
 					<i class="fa-solid fa-repeat" />
@@ -581,6 +618,17 @@
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<div class="compose" on:click={openAside}>
 		<i class="fa-solid fa-pencil" />
+	</div>
+
+	<!-- svelte-ignore a11y-click-events-have-key-events -->
+	<div
+		class="scroll"
+		on:click={() => {
+			let main = document.getElementsByTagName('main')[0];
+			main.scrollTo(0, 0);
+		}}
+	>
+		<i class="fa-solid fa-square-caret-up" />
 	</div>
 </main>
 
@@ -808,12 +856,32 @@
 	}
 
 	main {
+		position: relative;
 		width: 100%;
 		height: calc(100vh - 41px);
 		overflow-y: auto;
 
 		.compose {
 			display: none;
+		}
+
+		.scroll {
+			display: none;
+			position: fixed;
+			left: calc(50% - 50px);
+			width: 100px;
+			top: 50px;
+			background: #ddd;
+			text-align: center;
+			border-radius: 10px;
+			font-size: 28px;
+			color: #777;
+			opacity: 0.3;
+			border: 1px solid #bbb;
+		}
+
+		.scroll:hover {
+			opacity: 0.8;
 		}
 
 		article {
@@ -843,10 +911,6 @@
 				font-size: 14px;
 				background: #fafafa;
 				color: darkred;
-			}
-
-			:global(.repost) {
-				color: #444;
 			}
 
 			:global(header) {
@@ -1032,11 +1096,7 @@
 			:global(.reply),
 			:global(.repost) {
 				background: #000;
-				color: #fff;
-			}
-
-			:global(.repost) {
-				color: #fff;
+				color: #aaa;
 			}
 
 			:global(header) {

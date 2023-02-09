@@ -68,6 +68,17 @@
 		ephemeralLeaderApId?: string;
 	};
 
+	type Announce = {
+		'@context': string;
+		id: string;
+		actor: string;
+		cc: string[];
+		to: string[];
+		object: string;
+		published: string;
+		type: 'Announce';
+	};
+
 	type Tag = {
 		type: 'Mention';
 		name: string;
@@ -100,6 +111,8 @@
 		published: string | null;
 		inReplyTo?: string | null;
 		attachment?: Attachment[];
+		conversation: string | null;
+		ephemeralAnnounce?: string | null;
 	};
 
 	type StreamConnect = {
@@ -110,107 +123,110 @@
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 
-	function addNote(e: Note) {
+	function timeSince(date: any) {
+		let now: any = new Date();
+
+		var seconds = Math.floor((now - date) / 1000);
+
+		var interval = seconds / 31536000;
+
+		if (interval > 1) {
+			return Math.floor(interval) + 'yr';
+		}
+		interval = seconds / 2592000;
+		if (interval > 1) {
+			return Math.floor(interval) + 'mo';
+		}
+		interval = seconds / 86400;
+		if (interval > 1) {
+			return Math.floor(interval) + 'd';
+		}
+		interval = seconds / 3600;
+		if (interval > 1) {
+			return Math.floor(interval) + 'h';
+		}
+		interval = seconds / 60;
+		if (interval > 1) {
+			return Math.floor(interval) + 'm';
+		}
+		return Math.floor(seconds) + 's';
+	}
+
+	async function addNote(e: Note) {
 		if (e.attributedTo) {
-			cachedActor(e.attributedTo).then((actor) => {
-				if (actor) {
-					let profile = JSON.parse(actor);
-					//console.log(profile);
+			let actor = await cachedActor(e.attributedTo);
 
-					let icon = '';
+			if (actor) {
+				let profile = JSON.parse(actor);
+				//console.log(profile);
 
-					if (profile.icon) {
-						icon = `<img src="${profile.icon.url}" />`;
-					}
+				let icon = '';
 
-					let d = new Date(String(e.published)).toLocaleString();
-					let attachments = '';
-					//console.log('attachments: ' + e.attachment);
-					if (e.attachment && e.attachment.length > 0) {
-						e.attachment.forEach((x) => {
-							if (x.type == 'Document' && /^image\/.+$/.test(String(x.mediaType))) {
-								attachments += `<div><img src="${x.url}" width="${x.width}" height="${x.height}"/></div>`;
-							}
-						});
-					}
+				if (profile.icon) {
+					icon = `<img src="${profile.icon.url}" />`;
+				}
 
-					if (!e.inReplyTo) {
-						console.log('first note');
-						notes.set(String(e.id), [
-							e.published,
-							`<header>` +
-								`<div>${icon}</div>` +
-								`<address>` +
-								`<span>${profile.name}</span>` +
-								`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
-								`<time datetime="${e.published}">${d}</time>` +
-								`</address>` +
-								`</header>` +
-								`<section>${e.content}</section>` +
-								`<section class="attachments">${attachments}</section>`,
-							0,
-							profile.name || profile.preferredUsername,
-							e.id
-						]);
-						notes = notes;
-						//console.log(notes);
-					} else {
-						cachedNote(e.inReplyTo).then((n) => {
-							//console.log('note: ' + e.inReplyTo + ' result: ' + n);
-							let r = '';
-							if (n) {
-								let note: Note = JSON.parse(String(n));
-								cachedActor(note.attributedTo).then((a) => {
-									let sender: UserProfile = JSON.parse(String(a));
+				let attachments = '';
+				console.log('attachments: ' + e.attachment);
+				if (e.attachment && e.attachment.length > 0) {
+					e.attachment.forEach((x) => {
+						if (x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))) {
+							attachments += `<div><img src="${x.url}" width="${x.width}" height="${x.height}"/></div>`;
+						} else if (x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))) {
+							attachments += `<div><video width="${x.width}" height="${x.height}" controls><source src="${x.url}" type="${x.mediaType}"></video></div>`;
+						}
+					});
+				}
 
-									notes.set(String(e.id), [
-										e.published,
-										`<span><i class="fa-solid fa-reply"></i> In reply to ${
-											sender.name || sender.preferredUsername
-										}</span>` +
-											`<header>` +
-											`<div>${icon}</div>` +
-											`<address>` +
-											`<span>${profile.name || profile.preferredUsername}</span>` +
-											`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
-											`<time datetime="${e.published}">${d}</time>` +
-											`</address>` +
-											`</header>` +
-											`<section>${e.content}</section>` +
-											`<section class="attachments">${attachments}</section>`,
-										0,
-										profile.name || profile.preferredUsername,
-										e.id
-									]);
+				let announce_html = '';
 
-									notes = notes;
-								});
-							} else {
-								notes.set(String(e.id), [
-									e.published,
-									`<header>` +
-										`<div>${icon}</div>` +
-										`<address>` +
-										`<span>${profile.name || profile.preferredUsername}</span>` +
-										`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
-										`<time datetime="${e.published}">${d}</time>` +
-										`</address>` +
-										`</header>` +
-										`<section>${e.content}</section>` +
-										`<section class="attachments">${attachments}</section>`,
-									0,
-									profile.name || profile.preferredUsername,
-									e.id
-								]);
+				if (e.ephemeralAnnounce) {
+					let announce_actor = await cachedActor(e.ephemeralAnnounce);
 
-								notes = notes;
-							}
-
-							//console.log(notes);
-						});
+					if (announce_actor) {
+						let announce_profile: UserProfile = JSON.parse(announce_actor);
+						announce_html = `<span class="repost"><i class="fa-solid fa-retweet"></i> Reposted by ${
+							announce_profile.name || announce_profile.preferredUsername
+						}</span>`;
 					}
 				}
-			});
+
+				let reply_html = '';
+
+				if (e.inReplyTo) {
+					let reply_note = await cachedNote(e.inReplyTo);
+
+					if (reply_note) {
+						let note: Note = JSON.parse(String(reply_note));
+
+						let reply_actor = await cachedActor(note.attributedTo);
+						let sender: UserProfile = JSON.parse(String(reply_actor));
+
+						reply_html = `<span class="reply"><i class="fa-solid fa-reply"></i> In reply to ${sender.name || sender.preferredUsername}</span>`;
+					}
+				}
+
+				notes.set(String(e.id), [
+					e.published,
+					announce_html +
+						reply_html +
+						`<header>` +
+						`<div>${icon}</div>` +
+						`<address>` +
+						`<span>${profile.name || profile.preferredUsername}</span>` +
+						`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
+						`</address>` +
+						`</header>` +
+						`<section>${e.content}</section>` +
+						`<section class="attachments">${attachments}</section>`,
+					0,
+					profile.name || profile.preferredUsername,
+					e.id,
+					e.conversation
+				]);
+				notes = notes;
+				console.log(notes);
+			}
 		}
 	}
 
@@ -433,18 +449,27 @@
 	{/if}
 	{#each Array.from(notes.values())
 		.sort(compare)
-		.reverse() as [published, note, replies, sender, in_reply_to]}
+		.reverse() as [published, note, replies, sender, in_reply_to, conversation]}
 		{#if note}
 			<article>
 				{@html note}
+				<time datetime={published}>{timeSince(new Date(String(published)))}</time>
 				<nav>
-					<i class="fa-solid fa-comments" />
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<i
+						class="fa-solid fa-comments"
+						on:click={async () => {
+							await goto(`/thread?conversation=${conversation}`);
+						}}
+					/>
 					<i class="fa-solid fa-repeat" />
 					<i class="fa-solid fa-star" />
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<i
 						class="fa-solid fa-reply"
 						data-reply={in_reply_to}
 						data-actor={sender}
+						data-conversation={conversation}
 						on:click={handleReplyTo}
 					/>
 				</nav>
@@ -465,42 +490,70 @@
 
 		article {
 			display: flex;
+			position: relative;
 			flex-direction: column;
 			width: 100%;
-			margin: 5px 0;
+			margin: 0;
+			border-bottom: 1px solid #ddd;
 			font-family: 'Open Sans';
 			background: #fafafa;
-			border-radius: 10px;
+			transition-duration: 1s;
 
-			:global(> span) {
+			:global(a) {
+				color: darkgoldenrod;
+			}
+
+			:global(a:hover) {
+				color: red;
+			}
+
+			:global(.reply),
+			:global(.repost) {
 				width: 100%;
-				padding: 10px;
+				padding: 10px 10px 5px 10px;
 				font-weight: 600;
+				font-size: 14px;
+				background: #fafafa;
 				color: darkred;
 			}
 
 			:global(header) {
 				padding: 10px 20px;
+				color: #222;
 			}
 
 			:global(address) {
+				position: relative;
 				width: 100%;
-				padding: 0 20px;
+				padding: 0 15px;
+			}
+
+			:global(time) {
+				display: inline-block;
+				position: absolute;
+				top: 10px;
+				right: 10px;
+				font-style: normal;
+				font-size: 14px;
+				text-decoration: none;
+				color: inherit;
+				font-weight: 600;
 			}
 
 			:global(address > span),
-			:global(address > time),
 			:global(address > a) {
 				display: inline-block;
-				width: 100%;
 				font-style: normal;
-				font-size: 13px;
+				font-size: 12px;
 				text-decoration: none;
 			}
 
-			:global(address > time),
+			:global(address > span) {
+				width: 100%;
+			}
+
 			:global(address > a) {
-				color: #222;
+				color: inherit;
 				font-weight: 400;
 				transition-duration: 1s;
 			}
@@ -511,7 +564,8 @@
 			}
 
 			:global(address > span:first-child) {
-				font-size: 22px;
+				font-size: 18px;
+				color: #222;
 			}
 
 			:global(section) {
@@ -519,11 +573,16 @@
 				overflow-wrap: break-word;
 			}
 
+			:global(section > p) {
+				margin: 10px 0;
+			}
+
 			:global(.attachments) {
 				overflow: hidden;
 				padding-bottom: 10px;
 				display: flex;
 				flex-direction: row;
+				flex-wrap: wrap;
 				align-items: center;
 				justify-content: center;
 
@@ -534,22 +593,23 @@
 					height: unset;
 					text-align: center;
 					padding: 0 10px;
+					width: 100%;
 				}
 
-				:global(img) {
+				:global(img),
+				:global(video) {
 					width: unset;
 					height: unset;
 					clip-path: unset;
-					max-width: 100%;
-					max-height: 300px;
+					width: 100%;
 				}
 			}
 
 			nav {
 				width: 100%;
-				background: #eee;
+				background: #fafafa;
 				padding: 5px 0;
-				border-radius: 0 0 10px 10px;
+				margin: 0 0 10px 0;
 
 				i {
 					text-align: center;
@@ -574,17 +634,17 @@
 
 			:global(div) {
 				display: inline-block;
-				width: calc(100% - 100px);
+				width: calc(100% - 55px);
 			}
 
 			:global(div:first-child) {
-				width: 100px;
+				width: 55px;
 			}
 		}
 
 		:global(img) {
 			width: 100%;
-			clip-path: inset(0 0 0 0 round 50%);
+			clip-path: inset(0 0 0 0 round 20%);
 		}
 
 		> span {
@@ -597,6 +657,49 @@
 			font-size: 18px;
 			color: #444;
 			background: #fafafa;
+		}
+	}
+
+	:global(body.dark) {
+		article {
+			background: #000;
+			color: #fff;
+			border-bottom: 1px solid #444;
+
+			:global(.reply),
+			:global(.repost) {
+				background: #000;
+				color: #aaa;
+			}
+
+			:global(header) {
+				color: #aaa;
+			}
+
+			:global(address > span:first-child) {
+				font-size: 18px;
+				color: #eee;
+			}
+
+			:global(a) {
+				color: darkgoldenrod;
+			}
+
+			:global(a:hover) {
+				color: red;
+			}
+
+			:global(code) {
+				background: #444;
+			}
+		}
+
+		nav {
+			background: #000;
+
+			i {
+				color: #ccc;
+			}
 		}
 	}
 </style>
