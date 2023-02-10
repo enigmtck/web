@@ -90,7 +90,7 @@
 		items: QueueItem[];
 	}
 
-	function handleMessage(event: any) {
+	async function handleMessage(event: any) {
 		let data = new FormData(event.target);
 		const message = data.get('message');
 
@@ -108,7 +108,10 @@
 					const state = get_olm_state().export();
 					console.log(`state\n${JSON.stringify(state)}`);
 
-					let note = SendParams.new().add_recipient_id(address).set_content(encrypted).set_kind('EncryptedNote');
+					let note = SendParams.new();
+					note = await note.add_recipient_id(address, false);
+					note = note.set_content(encrypted);
+					note = note.set_kind('EncryptedNote');
 
 					send_encrypted_note(note).then(() => {
 						console.log('note sent');

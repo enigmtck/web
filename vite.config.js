@@ -42,6 +42,12 @@ export default defineConfig({
 				secure: false,
 				ws: false
 			},
+			'/inbox': {
+				target: 'http://127.0.0.1:8010/',
+				changeOrigin: false,
+				secure: false,
+				ws: false
+			},
 			'/.well-known': {
 				target: 'http://127.0.0.1:8010/',
 				changeOrigin: false,

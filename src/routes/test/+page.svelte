@@ -214,7 +214,7 @@
 		});
 	}
 
-	function handleSend(event: any, recipient: string, identity_key?: string, session_key?: string) {
+	async function handleSend(event: any, recipient: string, identity_key?: string, session_key?: string) {
 		let data = new FormData(event.target);
 
 		console.log(event);
@@ -239,9 +239,9 @@
 		update_keystore_olm_sessions(get_olm_state().get_olm_sessions());
 
 		let note = SendParams.new();
-		note.add_recipient_id(recipient);
-		note.set_content(String(encrypted_message));
-		note.set_kind('EncryptedNote');
+		note = await note.add_recipient_id(recipient, false);
+		note = note.set_content(String(encrypted_message));
+		note = note.set_kind('EncryptedNote');
 
 		send_encrypted_note(note).then(() => {
 			console.log('note sent');

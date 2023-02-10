@@ -17,6 +17,7 @@
 		get_timeline,
 		get_processing_queue,
 		get_external_identity_key,
+		get_webfinger_from_id,
 		update_keystore_olm_sessions,
 		load_instance_information,
 		send_follow,
@@ -179,6 +180,8 @@
 	}
 
 	async function addNote(e: Note) {
+		//console.log(e);
+
 		if (e.attributedTo) {
 			let actor = await cachedActor(e.attributedTo);
 
@@ -247,6 +250,7 @@
 						`<section class="attachments">${attachments}</section>`,
 					0,
 					profile.name || profile.preferredUsername,
+					profile.id,
 					e.id,
 					e.conversation
 				]);
@@ -389,7 +393,7 @@
 
 	function convertToHtml(data: string) {
 		let converter = new Converter();
-		converter.setFlavor('github');
+		converter.setFlavor('vanilla');
 		converter.setOption('tables', true);
 		converter.setOption('requireSpaceBeforeHeadingText', true);
 		return converter.makeHtml(data);
@@ -422,15 +426,18 @@
 		html_note = '';
 	}
 
-	function handlePublish() {
+	async function handlePublish() {
 		captureChanges();
 
 		let params = SendParams.new().set_kind('Note').set_content(html_note);
 		if (reply_to_note) {
-			params = params
-				.set_in_reply_to(String(reply_to_note))
-				.set_conversation(String(reply_to_conversation));
+			params = await params.add_recipient_id(String(reply_to_recipient), true);
+			params = params.set_in_reply_to(String(reply_to_note));
+			params = params.set_conversation(String(reply_to_conversation));
+			params.is_public = true;
 		}
+
+		//console.log(params.export());
 
 		send_note(params).then((x) => {
 			if (x) {
@@ -442,10 +449,14 @@
 		});
 	}
 
-	function handleReplyTo(event: any) {
+	async function handleReplyTo(event: any) {
+		reply_to_recipient = event.target.dataset.recipient;
 		reply_to_note = event.target.dataset.reply;
 		reply_to_actor = event.target.dataset.actor;
 		reply_to_conversation = event.target.dataset.conversation;
+
+		const webfinger_acct = await get_webfinger_from_id(String(reply_to_recipient));
+		markdown_note = `[@${reply_to_actor}](${reply_to_recipient}) `;
 
 		openAside(event);
 	}
@@ -538,6 +549,7 @@
 	let html_note = '';
 	let preview = false;
 
+	let reply_to_recipient: string | null = null;
 	let reply_to_note: string | null = null;
 	let reply_to_actor: string | null = null;
 	let reply_to_conversation: string | null = null;
@@ -587,7 +599,7 @@
 <main>
 	{#each Array.from(notes.values())
 		.sort(compare)
-		.reverse() as [published, note, replies, sender, in_reply_to, conversation]}
+		.reverse() as [published, note, replies, sender_name, sender_id, in_reply_to, conversation]}
 		{#if note}
 			<article>
 				{@html note}
@@ -606,7 +618,8 @@
 					<i
 						class="fa-solid fa-reply"
 						data-reply={in_reply_to}
-						data-actor={sender}
+						data-actor={sender_name}
+						data-recipient={sender_id}
 						data-conversation={conversation}
 						on:click={handleReplyTo}
 					/>
