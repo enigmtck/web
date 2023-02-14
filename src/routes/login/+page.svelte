@@ -8,10 +8,6 @@
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
-	import init_olm, {
-		import_state as import_olm_state,
-		get_state as get_olm_state
-	} from 'enigmatick_olm';
 	import { goto } from '$app/navigation';
 
 	function load_enigmatick() {
@@ -27,14 +23,6 @@
 					});
 				}
 				console.log('init WASM');
-			});
-
-			init_olm().then(() => {
-				if (get(olmState)) {
-					import_olm_state(get(olmState));
-					console.log('loaded olm state from store');
-				}
-				console.log('init OLM');
 			});
 		});
 	}
@@ -61,7 +49,8 @@
 		).then((profile) => {
 			appData.set({
 				username: String(profile?.username),
-				display_name: String(profile?.display_name)
+				display_name: String(profile?.display_name),
+				avatar: String(profile?.avatar_filename)
 			});
 			username = get(appData).username;
 			get_wasm_state().then((x) => {
@@ -71,10 +60,7 @@
 					pickled_account: x.get_olm_pickled_account(),
 					olm_sessions: JSON.parse(x.get_olm_sessions())
 				});
-				import_olm_state(data);
 				console.log(get(wasmState));
-
-				olmState.set(get_olm_state().export());
 
 				goto('/@' + username).then(() => {
 					console.log('logged in');
@@ -156,7 +142,6 @@
 				input:hover,
 				input:focus {
 					outline: 1px solid darkred;
-					transition-duration: 0.5s;
 				}
 			}
 
@@ -168,7 +153,6 @@
 				button {
 					background: darkred;
 					color: whitesmoke;
-					transition-duration: 1s;
 					border: 0;
 					font-family: 'Open Sans';
 					font-size: 18px;
@@ -180,7 +164,6 @@
 				button:hover {
 					color: darkred;
 					background: whitesmoke;
-					transition-duration: 1s;
 					cursor: pointer;
 				}
 			}

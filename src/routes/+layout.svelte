@@ -9,18 +9,16 @@
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
-	import init_olm, {
-		import_state as import_olm_state,
-		get_state as get_olm_state
-	} from 'enigmatick_olm';
 	import { goto } from '$app/navigation';
 
 	$: username = get(appData).username;
 	$: display_name = get(appData).display_name;
+	$: avatar = get(appData).avatar;
 
 	function update() {
 		username = get(appData).username;
 		display_name = get(appData).display_name;
+		avatar = get(appData).avatar;
 		return true;
 	}
 
@@ -60,12 +58,17 @@
 		<div>
 			<span class="title"><a href="/">ENIGMATICK</a></span>
 		</div>
-		<div class="toggle">
-			<label>
-				<input type="checkbox" on:change|preventDefault={dark_mode} checked={true} />
-				<span class="slider" />
-			</label>
-		</div>
+		<nav>
+			{#if avatar}
+				<a href="/@{username}"><img src="/{avatar}" /></a>
+			{/if}
+			<div class="toggle">
+				<label>
+					<input type="checkbox" on:change|preventDefault={dark_mode} checked={true} />
+					<span class="slider" />
+				</label>
+			</div>
+		</nav>
 	</header>
 
 	{#if update()}
@@ -98,18 +101,20 @@
 
 			<nav>
 				<div>
-					<a class={$page.url.pathname == '/@' + username ? 'selected' : ''} href="/@{username}"
-						>{display_name}</a
-					>
 					<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
-						>Timeline</a
+						><i class="fa-solid fa-earth-americas" />Timeline</a
 					>
 					<a class={$page.url.pathname == '/message' ? 'selected' : ''} href="/message"
-						>Messages</a
+						><i class="fa-solid fa-inbox" />Messages</a
 					>
-					<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search">Search</a>
+					<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
+						><i class="fa-solid fa-magnifying-glass" />Search</a
+					>
 					<a class={$page.url.pathname == '/settings' ? 'selected' : ''} href="/settings"
-						>Settings</a
+						><i class="fa-solid fa-gear" />Settings</a
+					>
+					<a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
+						><i class="fa-solid fa-gear" />TEST</a
 					>
 				</div>
 			</nav>
@@ -140,104 +145,139 @@
 
 	:global(body) {
 		background: var(--container-background);
-		transition-duration: 1s;
+		transition-duration: 0.5s;
 		position: relative;
+		background: #eee;
 	}
 
 	:global(body.dark) {
 		background: var(--container-dark-background);
+		background: #222;
 	}
 
 	header {
 		z-index: 30;
 		position: fixed;
-		grid-area: header;
 		width: 100%;
-		padding: 5px;
+		padding: 0;
 		background: #eee;
-		border-bottom: 1px solid #eee;
 		color: darkred;
 		text-align: center;
 		font-family: 'Open Sans';
 		font-size: 22px;
 		font-weight: 600;
-		transition-duration: 1s;
+		display: grid;
+		grid-template-columns: 1fr auto 1fr;
+		grid-template-areas: 'left center right';
+		align-items: center;
 
-		a {
-			color: darkred;
-			text-decoration: none;
-			transition-duration: 1s;
+		> div {
+			grid-area: center;
+			display: inline-block;
+
+			a {
+				color: darkred;
+				text-decoration: none;
+			}
+
+			a:visited {
+				color: darkred;
+			}
+
+			a:hover {
+				color: red;
+				text-decoration: none;
+			}
 		}
 
-		a:visited {
-			color: darkred;
-		}
-
-		a:hover {
-			color: red;
-			transition-duration: 0.5s;
-			text-decoration: none;
-		}
-
-		.toggle {
-			position: absolute;
-			top: 8px;
-			right: 40px;
-			width: 50px;
-		}
-
-		label {
-			position: absolute;
+		nav {
+			grid-area: right;
+			display: flex;
+			flex-direction: row-reverse;
+			align-items: center;
+			margin: 0;
 			width: 100%;
-			height: 24px;
-			background-color: var(--dark);
-			outline: 1px solid #ccc;
-			border-radius: 50px;
-			cursor: pointer;
-		}
 
-		input {
-			position: absolute;
-			display: none;
-		}
+			a {
+				position: relative;
+				display: inline-block;
+				width: auto;
+				height: 41px;
 
-		.slider {
-			position: absolute;
-			left: 0px;
-			width: 100%;
-			height: 100%;
-			border-radius: 50px;
-			transition: 0.3s;
-		}
+				img {
+					display: inline-block;
+					width: 35px;
+					height: auto;
+					margin: 3px 10px;
+					clip-path: inset(0 0 0 0 round 50%);
+				}
+			}
 
-		input:checked ~ .slider {
-			background-color: var(--light);
-		}
+			img:hover {
+				opacity: 0.8;
+			}
 
-		.slider::before {
-			content: '';
-			position: absolute;
-			top: 3px;
-			left: 4px;
-			width: 18px;
-			height: 18px;
-			border-radius: 50%;
-			box-shadow: inset 7px -4px 0px 0px var(--light);
-			background-color: var(--dark);
-			transition: 0.3s;
-		}
+			.toggle {
+				position: relative;
+				margin: 8px;
+				padding: 0;
+				width: 50px;
+				height: 24px;
+			}
 
-		input:checked ~ .slider::before {
-			transform: translateX(25px);
-			background-color: var(--dark);
-			box-shadow: none;
+			label {
+				position: relative;
+				display: inline-block;
+				width: 100%;
+				height: 25px;
+				background-color: var(--dark);
+				outline: 1px solid #ccc;
+				border-radius: 50px;
+				cursor: pointer;
+			}
+
+			input {
+				position: absolute;
+				display: none;
+			}
+
+			.slider {
+				position: absolute;
+				left: 0px;
+				width: 100%;
+				height: 100%;
+				border-radius: 50px;
+				transition: 0.3s;
+			}
+
+			input:checked ~ .slider {
+				background-color: var(--light);
+			}
+
+			.slider::before {
+				content: '';
+				position: absolute;
+				top: 3px;
+				left: 4px;
+				width: 18px;
+				height: 18px;
+				border-radius: 50%;
+				box-shadow: inset 7px -4px 0px 0px var(--light);
+				background-color: var(--dark);
+				transition: 0.3s;
+			}
+
+			input:checked ~ .slider::before {
+				transform: translateX(25px);
+				background-color: var(--dark);
+				box-shadow: none;
+			}
 		}
 	}
 
 	:global(body.dark) {
 		header {
 			background: #222;
-			border-bottom: 1px solid #222;
 
 			a {
 				color: whitesmoke;
@@ -299,9 +339,11 @@
 		}
 	}
 
-	nav {
+	:global(body div > nav) {
 		margin-top: 41px;
+		height: calc(100vh - 41px);
 		grid-area: right-aside;
+		background: #eee;
 
 		@media screen and (max-width: 600px) {
 			display: none;
@@ -309,39 +351,40 @@
 
 		div {
 			width: 100%;
-			padding: 20px;
+			padding: 0;
 			margin: 10px 20px;
+
+			img {
+				width: 40px;
+			}
 
 			a {
 				display: inline-block;
 				width: 100%;
 				text-decoration: none;
 				font-family: 'Open Sans';
-				font-size: 22px;
+				font-size: 18px;
 				padding: 5px;
 				color: #222;
-				transition-duration: 1s;
-			}
-
-			a:first-child {
-				font-size: 28px;
-				margin-bottom: 20px;
 			}
 
 			a:hover {
 				color: red;
-				transition-duration: 0.5s;
+			}
+
+			a > i {
+				padding: 0 15px;
 			}
 
 			.selected {
 				color: darkred;
-				transition-duration: 1s;
 			}
 		}
 	}
 
 	:global(body.dark) {
 		nav {
+			background: #222;
 			a {
 				color: #aaa;
 			}

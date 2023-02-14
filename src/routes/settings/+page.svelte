@@ -12,27 +12,11 @@
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
-	import init_olm, {
-		import_state as import_olm_state,
-		get_state as get_olm_state
-	} from 'enigmatick_olm';
-
-	function load_enigmatick() {
-		init_olm().then(() => {
-			if (get(olmState)) {
-				import_olm_state(get(olmState));
-				console.log('loaded olm state from store');
-			}
-			console.log('init OLM');
-		});
-	}
 
 	let username = get(appData).username;
 	let display_name = get(appData).display_name;
 
 	onMount(() => {
-		load_enigmatick();
-
 		if (username) {
 			init_wasm().then(() => {
 				load_instance_information().then((instance) => {

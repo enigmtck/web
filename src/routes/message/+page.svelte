@@ -18,69 +18,61 @@
 		get_processing_queue
 	} from 'enigmatick_wasm';
 	import init_olm, {
-		get_state as get_olm_state,
-		import_state as import_olm_state,
 		create_olm_account,
 		decrypt_olm_message,
 		get_one_time_keys,
-		session_exists,
 		create_olm_message,
 		get_identity_public_key
 	} from 'enigmatick_olm';
 
 	function load_enigmatick() {
 		init_olm().then(() => {
-			if (get(olmState)) {
-				import_olm_state(get(olmState));
-				console.log('loaded olm state from store');
-			}
 			console.log('init OLM');
 		});
 	}
 
-	onMount(() => {
+	onMount(async () => {
 		load_enigmatick();
 
 		if (username) {
-			load_instance_information().then((instance) => {
-				console.log(instance?.domain);
-				console.log(instance?.url);
+			const instance = await load_instance_information();
+			console.log(instance?.domain);
+			console.log(instance?.url);
 
-				if (get(wasmState)) {
-					get_wasm_state().then(() => {
-						import_wasm_state(get(wasmState));
-						console.log('loaded state from store');
-					});
-				}
-				console.log('init WASM');
+			if (get(wasmState)) {
+				import_wasm_state(get(wasmState));
+				console.log('loaded state from store');
+			}
 
-				get_processing_queue().then((x) => {
-					console.log("queue")
-					const q: Collection = JSON.parse(String(x));
+			console.log('init WASM');
 
-					q.items.forEach((x) => {
-						let k = get_external_identity_key(x.attributedTo);
-						console.log(k);
-						let d = decrypt_olm_message(x.attributedTo, x.content, String(k));
-						console.log(d);
-					})
-					console.log(q);
-				})
+			get_processing_queue().then(async (x) => {
+				console.log('queue');
+				const q: Collection = JSON.parse(String(x));
+
+				q.items.forEach(async (x) => {
+					let k = get_external_identity_key(x.attributedTo);
+					console.log(k);
+					let a = (await get_wasm_state()).get_olm_pickled_account;
+					let d = decrypt_olm_message(x.attributedTo, x.content, String(a), String(k));
+					console.log(d);
+				});
+				console.log(q);
 			});
 		}
 	});
 
 	type QueueItem = {
 		'@context'?: string | null;
-		attributedTo: string,
-		id: string,
-		tag?: object[],
+		attributedTo: string;
+		id: string;
+		tag?: object[];
 		type: 'EncryptedNote';
 		to: string[];
 		published: string;
 		content: string;
 		conversations: string;
-	}
+	};
 
 	type Collection = {
 		'@context': string;
@@ -88,7 +80,7 @@
 		id: string;
 		totalItems: number;
 		items: QueueItem[];
-	}
+	};
 
 	async function handleMessage(event: any) {
 		let data = new FormData(event.target);
@@ -96,7 +88,8 @@
 
 		console.log(data);
 
-		if (message && address && !session_exists(address)) {
+		// write code to check for existing session
+		if (message && address) {
 			const otk = get_external_one_time_key(address);
 			const idk = get_external_identity_key(address);
 
@@ -105,28 +98,18 @@
 				console.log(`encrypted\n${encrypted}`);
 
 				if (encrypted) {
-					const state = get_olm_state().export();
-					console.log(`state\n${JSON.stringify(state)}`);
-
 					let note = SendParams.new();
 					note = await note.add_recipient_id(address, false);
-					note = note.set_content(encrypted);
+					note = note.set_content(encrypted.message);
+					// write code to include the session and maybe? remote_actor
 					note = note.set_kind('EncryptedNote');
 
 					send_encrypted_note(note).then(() => {
 						console.log('note sent');
-					})
+					});
 				}
 			}
 		}
-	}
-
-	function testHandler(event: any) {
-		let x = create_olm_account();
-		console.log(x);
-
-		let y = get_one_time_keys();
-		console.log(y);
 	}
 
 	let username = get(appData).username;

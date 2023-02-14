@@ -19,21 +19,7 @@
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
-	import init_olm, {
-		import_state as import_olm_state,
-		get_state as get_olm_state
-	} from 'enigmatick_olm';
 	import { goto } from '$app/navigation';
-
-	function load_enigmatick() {
-		init_olm().then(() => {
-			if (get(olmState)) {
-				import_olm_state(get(olmState));
-				console.log('loaded olm state from store');
-			}
-			console.log('init OLM');
-		});
-	}
 
 	type Image = {
 		mediaType?: string;
@@ -248,8 +234,6 @@
 	}
 
 	onMount(() => {
-		load_enigmatick();
-
 		let main = document.getElementsByTagName('main')[0];
 		main.addEventListener('scroll', handleInfiniteScroll);
 		if (username) {

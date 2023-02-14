@@ -5,7 +5,7 @@
 
 	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
-	import { wasmState, olmState, appData } from '../../stores';
+	import { wasmState, appData } from '../../stores';
 	import init_wasm, {
 		update_summary,
 		load_instance_information,
@@ -14,21 +14,7 @@
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
-	import init_olm, {
-		import_state as import_olm_state,
-		get_state as get_olm_state
-	} from 'enigmatick_olm';
 	import { goto } from '$app/navigation';
-
-	function load_enigmatick() {
-		init_olm().then(() => {
-			if (get(olmState)) {
-				import_olm_state(get(olmState));
-				console.log('loaded olm state from store');
-			}
-			console.log('init OLM');
-		});
-	}
 
 	type Image = {
 		type: string;
@@ -72,8 +58,6 @@
 	}
 
 	onMount(() => {
-		load_enigmatick();
-
 		if (username) {
 			init_wasm().then(() => {
 				load_instance_information().then((instance) => {
@@ -328,7 +312,6 @@
 
 <style lang="scss">
 	:global(*) {
-		transition-duration: 0.5s;
 	}
 
 	:global(li) {
@@ -357,7 +340,6 @@
 
 	:global(a:hover) {
 		color: red;
-		transition-duration: 0.5s;
 	}
 
 	main {
@@ -371,7 +353,6 @@
 		:global(.selectable:focus) {
 			cursor: pointer;
 			color: darkred;
-			transition-duration: 0.5s;
 			opacity: 0.8;
 		}
 
@@ -385,7 +366,6 @@
 				color: whitesmoke;
 				background: darkred;
 				border: 0;
-				transition-duration: 1s;
 				font-size: 18px;
 				font-weight: 600;
 				padding: 5px 15px;
@@ -395,7 +375,6 @@
 			button:hover {
 				color: darkred;
 				background: whitesmoke;
-				transition-duration: 1s;
 				cursor: pointer;
 			}
 
@@ -409,7 +388,6 @@
 				color: unset;
 				background: unset;
 				border: 0;
-				transition-duration: 1s;
 				font-size: unset;
 				font-weight: unset;
 				padding: unset;

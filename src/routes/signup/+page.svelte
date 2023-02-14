@@ -13,7 +13,6 @@
 		create_olm_account,
 		get_one_time_keys,
 		get_identity_public_key,
-		export_account
 	} from 'enigmatick_olm';
 
 	function load_enigmatick() {
@@ -39,15 +38,14 @@
 		load_olm();
 	});
 
-	function handleSignup(event: any) {
+	async function handleSignup(event: any) {
 		let data = new FormData(event.target);
 
 		console.log(data);
 
 		let olm_account = create_olm_account();
-		let olm_identity_public_key = get_identity_public_key();
-		let olm_one_time_keys = get_one_time_keys();
-		let updated_olm_account = export_account();
+		let olm_identity_public_key = get_identity_public_key(olm_account);
+		let olm_one_time_keys = get_one_time_keys(olm_account);
 
 		if (
 			data.get('username') &&
@@ -55,8 +53,7 @@
 			data.get('password') &&
 			data.get('passphrase') &&
 			olm_identity_public_key &&
-			olm_one_time_keys &&
-			updated_olm_account
+			olm_one_time_keys
 		) {
 			create_user(
 				String(data.get('username')),
@@ -64,20 +61,12 @@
 				String(data.get('password')),
 				String(data.get('passphrase')),
 				String(olm_identity_public_key),
-				String(olm_one_time_keys),
-				String(updated_olm_account)
+				String(olm_one_time_keys.one_time_keys),
+				String(olm_one_time_keys.pickled_account)
 			).then((profile) => {
 				console.log(profile);
 			});
 		}
-	}
-
-	function testHandler(event: any) {
-		let x = create_olm_account();
-		console.log(x);
-
-		let y = get_one_time_keys();
-		console.log(y);
 	}
 </script>
 

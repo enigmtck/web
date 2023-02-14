@@ -26,23 +26,7 @@
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
-	import init_olm, {
-		import_state as import_olm_state,
-		get_state as get_olm_state,
-		create_olm_message,
-		decrypt_olm_message
-	} from 'enigmatick_olm';
 	import { goto } from '$app/navigation';
-
-	function load_enigmatick() {
-		init_olm().then(() => {
-			if (get(olmState)) {
-				import_olm_state(get(olmState));
-				console.log('loaded olm state from store');
-			}
-			console.log('init OLM');
-		});
-	}
 
 	type Image = {
 		mediaType?: string;
@@ -68,7 +52,7 @@
 		url?: string;
 		manuallyApprovesFollowers?: boolean;
 		published?: string;
-		tag?: object;
+		tag?: Tag[];
 		attachment?: object;
 		endpoints?: object;
 		icon?: Image;
@@ -107,9 +91,12 @@
 	};
 
 	type Tag = {
-		type: 'Mention';
+		type: 'Mention' | 'Emoji' | 'Hashtag';
 		name: string;
-		href: string;
+		href?: string;
+		id?: string;
+		updated?: string;
+		icon?: Image;
 	};
 
 	type Attachment = {
@@ -179,15 +166,36 @@
 		return Math.floor(seconds) + 's';
 	}
 
+	function insert_emojis(text: string, profile: UserProfile | Note) {
+		console.log(`EVALUATING: ${text}`);
+		console.log(profile);
+
+		if (profile.tag) {
+			profile.tag.forEach((tag) => {
+				if (tag.type === 'Emoji') {
+					if (tag.icon) {
+						text = text.replaceAll(tag.name, `<img class="emoji" src="${tag.icon.url}"/>`);
+					}
+				}
+			});
+		}
+
+		return text;
+	}
+
 	async function addNote(e: Note) {
 		//console.log(e);
 
 		if (e.attributedTo) {
-			let actor = await cachedActor(e.attributedTo);
+			const actor = await cachedActor(e.attributedTo);
 
 			if (actor) {
-				let profile = JSON.parse(actor);
+				const profile: UserProfile = JSON.parse(actor);
 				//console.log(profile);
+				if (profile.tag) {
+					console.log(`TAGS! ${profile.id}`);
+					console.log(profile.tag);
+				}
 
 				let icon = '';
 
@@ -210,30 +218,37 @@
 				let announce_html = '';
 
 				if (e.ephemeralAnnounce) {
-					let announce_actor = await cachedActor(e.ephemeralAnnounce);
+					const announce_actor = await cachedActor(e.ephemeralAnnounce);
 
 					if (announce_actor) {
-						let announce_profile: UserProfile = JSON.parse(announce_actor);
-						announce_html = `<span class="repost"><i class="fa-solid fa-retweet"></i> Reposted by ${
-							announce_profile.name || announce_profile.preferredUsername
-						}</span>`;
+						const announce_profile: UserProfile = JSON.parse(announce_actor);
+						const name = insert_emojis(
+							announce_profile.name || announce_profile.preferredUsername,
+							announce_profile
+						);
+
+						announce_html = `<span class="repost"><i class="fa-solid fa-retweet"></i> Reposted by ${name}</span>`;
 					}
 				}
 
 				let reply_html = '';
 
 				if (e.inReplyTo) {
-					let reply_note = await cachedNote(e.inReplyTo);
+					const reply_note = await cachedNote(e.inReplyTo);
 
 					if (reply_note) {
-						let note: Note = JSON.parse(String(reply_note));
+						const note: Note = JSON.parse(String(reply_note));
 
-						let reply_actor = await cachedActor(note.attributedTo);
-						let sender: UserProfile = JSON.parse(String(reply_actor));
+						const reply_actor = await cachedActor(note.attributedTo);
+						const sender: UserProfile = JSON.parse(String(reply_actor));
 
-						reply_html = `<span class="reply"><i class="fa-solid fa-reply"></i> In reply to ${sender.name || sender.preferredUsername}</span>`;
+						const name = insert_emojis(sender.name || sender.preferredUsername, sender);
+
+						reply_html = `<span class="reply"><i class="fa-solid fa-reply"></i> In reply to ${name}</span>`;
 					}
 				}
+
+				const attributed_name = insert_emojis(profile.name || profile.preferredUsername, profile);
 
 				notes.set(String(e.id), [
 					e.published,
@@ -242,15 +257,17 @@
 						`<header>` +
 						`<div>${icon}</div>` +
 						`<address>` +
-						`<span>${profile.name || profile.preferredUsername}</span>` +
+						`<span>${attributed_name}</span>` +
 						`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
 						`</address>` +
 						`</header>` +
-						`<section>${e.content}</section>` +
+						`<section>${insert_emojis(String(e.content), e)}</section>` +
 						`<section class="attachments">${attachments}</section>`,
 					0,
 					profile.name || profile.preferredUsername,
+					profile.preferredUsername,
 					profile.id,
+					profile.url,
 					e.id,
 					e.conversation
 				]);
@@ -298,8 +315,6 @@
 	});
 
 	onMount(() => {
-		load_enigmatick();
-
 		let main = document.getElementsByTagName('main')[0];
 		main.addEventListener('scroll', handleInfiniteScroll);
 		if (username) {
@@ -430,11 +445,12 @@
 		captureChanges();
 
 		let params = SendParams.new().set_kind('Note').set_content(html_note);
+		params.is_public = true;
+
 		if (reply_to_note) {
 			params = await params.add_recipient_id(String(reply_to_recipient), true);
 			params = params.set_in_reply_to(String(reply_to_note));
 			params = params.set_conversation(String(reply_to_conversation));
-			params.is_public = true;
 		}
 
 		//console.log(params.export());
@@ -449,22 +465,31 @@
 		});
 	}
 
+	function escapeMarkdown(text: string) {
+		text = text.replaceAll('_', '\\_').replaceAll('*', '\\*');
+
+		return text;
+	}
 	async function handleReplyTo(event: any) {
 		reply_to_recipient = event.target.dataset.recipient;
 		reply_to_note = event.target.dataset.reply;
-		reply_to_actor = event.target.dataset.actor;
+		reply_to_display = event.target.dataset.display;
 		reply_to_conversation = event.target.dataset.conversation;
 
-		const webfinger_acct = await get_webfinger_from_id(String(reply_to_recipient));
-		markdown_note = `[@${reply_to_actor}](${reply_to_recipient}) `;
+		const reply_to_url = event.target.dataset.url;
+		const reply_to_username = event.target.dataset.username;
+
+		//const webfinger_acct = await get_webfinger_from_id(String(reply_to_recipient));
+		markdown_note = `<span class="h-card"><a href="${reply_to_url}" class="u-url mention" rel="noopener noreferrer">@${reply_to_username}</a></span> `;
 
 		openAside(event);
 	}
 
 	function cancelReplyTo() {
 		reply_to_note = null;
-		reply_to_actor = null;
+		reply_to_display = null;
 		reply_to_conversation = null;
+		reply_to_recipient = null;
 	}
 
 	async function handleInfiniteScroll() {
@@ -488,10 +513,10 @@
 				addNote(note);
 			}
 
-			scroll.style.display = "none";
+			scroll.style.display = 'none';
 		} else {
 			live_loading = false;
-			scroll.style.display = "revert";
+			scroll.style.display = 'revert';
 		}
 	}
 
@@ -551,7 +576,7 @@
 
 	let reply_to_recipient: string | null = null;
 	let reply_to_note: string | null = null;
-	let reply_to_actor: string | null = null;
+	let reply_to_display: string | null = null;
 	let reply_to_conversation: string | null = null;
 </script>
 
@@ -564,9 +589,9 @@
 		{#if $page.url.pathname === '/timeline'}
 			<div class="mask" />
 			<div>
-				{#if reply_to_actor}
+				{#if reply_to_display}
 					<span
-						>Replying to {reply_to_actor}
+						>Replying to {reply_to_display}
 						<!-- svelte-ignore a11y-click-events-have-key-events -->
 						<i class="fa-solid fa-xmark" on:click={cancelReplyTo} /></span
 					>
@@ -599,7 +624,7 @@
 <main>
 	{#each Array.from(notes.values())
 		.sort(compare)
-		.reverse() as [published, note, replies, sender_name, sender_id, in_reply_to, conversation]}
+		.reverse() as [published, note, replies, sender_name, sender_username, sender_id, sender_url, in_reply_to, conversation]}
 		{#if note}
 			<article>
 				{@html note}
@@ -618,7 +643,9 @@
 					<i
 						class="fa-solid fa-reply"
 						data-reply={in_reply_to}
-						data-actor={sender_name}
+						data-display={sender_name}
+						data-url={sender_url}
+						data-username={sender_username}
 						data-recipient={sender_id}
 						data-conversation={conversation}
 						on:click={handleReplyTo}
@@ -649,14 +676,13 @@
 	:global(i:hover) {
 		cursor: pointer;
 		color: red;
-		transition-duration: 0.5s;
 	}
 
 	aside {
 		grid-area: left-aside;
-		height: calc(100vh - 28px);
+		height: calc(100vh - 42px);
 		width: 100%;
-		margin-top: 41px;
+		margin-top: 42px;
 		text-align: right;
 
 		> i {
@@ -676,7 +702,6 @@
 			padding: 15px 10px 0 10px;
 			border-radius: 10px;
 			background: #ddd;
-			transition-duration: 1s;
 
 			> span {
 				display: inline-block;
@@ -712,13 +737,11 @@
 
 				i {
 					font-size: 24px;
-					transition-duration: 1s;
 					padding: 0 10px;
 				}
 
 				i:hover {
 					cursor: pointer;
-					transition-duration: 0.5s;
 					color: red;
 				}
 
@@ -728,7 +751,6 @@
 					padding: 5px 15px;
 					background: darkred;
 					color: whitesmoke;
-					transition-duration: 1s;
 					border: 0;
 					font-family: 'Open Sans';
 					font-size: 18px;
@@ -738,7 +760,6 @@
 				button:hover {
 					color: darkred;
 					background: whitesmoke;
-					transition-duration: 1s;
 					cursor: pointer;
 				}
 			}
@@ -844,7 +865,7 @@
 
 				pre,
 				div {
-					background: #222;
+					background: #333;
 					color: white;
 					border: 1px solid #777;
 				}
@@ -871,7 +892,7 @@
 	main {
 		position: relative;
 		width: 100%;
-		height: calc(100vh - 41px);
+		height: calc(100vh - 42px);
 		overflow-y: auto;
 
 		.compose {
@@ -906,7 +927,6 @@
 			border-bottom: 1px solid #ddd;
 			font-family: 'Open Sans';
 			background: #fafafa;
-			transition-duration: 1s;
 
 			:global(a) {
 				color: darkgoldenrod;
@@ -958,18 +978,18 @@
 			}
 
 			:global(address > span) {
+				display: inline-block;
+				position: relative;
 				width: 100%;
 			}
 
 			:global(address > a) {
 				color: inherit;
 				font-weight: 400;
-				transition-duration: 1s;
 			}
 
 			:global(address > a:hover) {
 				color: red;
-				transition-duration: 0.5s;
 			}
 
 			:global(address > span:first-child) {
@@ -984,6 +1004,13 @@
 
 			:global(section > p) {
 				margin: 10px 0;
+			}
+
+			:global(.emoji) {
+				max-height: 1em;
+				padding: 0 0.25em;
+				width: auto;
+				height: auto;
 			}
 
 			:global(.attachments) {
@@ -1025,13 +1052,11 @@
 					font-size: 22px;
 					color: #777;
 					width: calc(95% / 4);
-					transition-duration: 1s;
 				}
 
 				i:hover {
 					cursor: pointer;
 					color: red;
-					transition-duration: 0.5s;
 				}
 			}
 		}

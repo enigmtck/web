@@ -26,20 +26,13 @@
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
 	import init_olm, {
-		import_state as import_olm_state,
-		get_state as get_olm_state,
 		create_olm_message,
 		decrypt_olm_message,
-		session_exists,
 		get_identity_public_key
 	} from 'enigmatick_olm';
 
 	function load_enigmatick() {
 		init_olm().then(() => {
-			if (get(olmState)) {
-				import_olm_state(get(olmState));
-				console.log('loaded olm state from store');
-			}
 			console.log('init OLM');
 		});
 	}
@@ -201,10 +194,11 @@
 				if (profile) {
 					console.log(profile);
 
-					if (session_exists(String(profile.id))) {
+					/* if (session_exists(String(profile.id))) {
 						console.log('olm session exists');
 						olm_session = true;
-					} else if (get_external_one_time_key(String(profile.id))) {
+					} else */ 
+					if (get_external_one_time_key(String(profile.id))) {
 						console.log('one-time-key exists');
 						one_time_key = true;
 					} else {
@@ -244,17 +238,18 @@
 		}
 	}
 
-	function handleKexInit(event: any) {
+	async function handleKexInit(event: any) {
 		console.log(event);
 
 		let kexinit = KexInitParams.new();
 
 		if (profile && profile.id) {
-			let x = get_identity_public_key();
+			let a = (await get_wasm_state()).get_olm_pickled_account;
+			let x = get_identity_public_key(String(a));
 			console.log("idk");
 			console.log(x);
 			kexinit.set_recipient_id(profile.id)
-			kexinit.set_identity_key(String(get_identity_public_key()));
+			kexinit.set_identity_key(String(x));
 
 			send_kex_init(kexinit).then(() => {
 				console.log('kexinit sent');
