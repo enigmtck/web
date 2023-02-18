@@ -61,7 +61,6 @@
 				String(data.get('password')),
 				String(data.get('passphrase')),
 				String(olm_identity_public_key),
-				String(olm_one_time_keys.one_time_keys),
 				String(olm_one_time_keys.pickled_account)
 			).then((profile) => {
 				console.log(profile);

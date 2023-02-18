@@ -352,10 +352,10 @@
 		html_note = '';
 	}
 
-	function handlePublish() {
+	async function handlePublish() {
 		captureChanges();
 
-		let params = SendParams.new().set_kind('Note').set_content(html_note);
+		let params = (await SendParams.new()).set_content(html_note);
 		if (reply_to_note) {
 			params = params.set_in_reply_to(String(reply_to_note));
 		}

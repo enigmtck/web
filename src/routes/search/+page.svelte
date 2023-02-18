@@ -13,15 +13,12 @@
 		get_actor,
 		get_inbox,
 		get_processing_queue,
-		get_external_identity_key,
-		update_keystore_olm_sessions,
 		send_authorization,
 		load_instance_information,
 		send_follow,
 		send_unfollow,
 		KexInitParams,
 		send_kex_init,
-		get_external_one_time_key,
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
@@ -190,21 +187,6 @@
 
 			if (actor) {
 				profile = JSON.parse(actor);
-
-				if (profile) {
-					console.log(profile);
-
-					/* if (session_exists(String(profile.id))) {
-						console.log('olm session exists');
-						olm_session = true;
-					} else */ 
-					if (get_external_one_time_key(String(profile.id))) {
-						console.log('one-time-key exists');
-						one_time_key = true;
-					} else {
-						console.log('no olm session or one-time-key found');
-					}
-				}
 			}
 		}
 	}
@@ -244,7 +226,8 @@
 		let kexinit = KexInitParams.new();
 
 		if (profile && profile.id) {
-			let a = (await get_wasm_state()).get_olm_pickled_account;
+			let a = (await get_wasm_state()).get_olm_pickled_account();
+			console.log(a);
 			let x = get_identity_public_key(String(a));
 			console.log("idk");
 			console.log(x);

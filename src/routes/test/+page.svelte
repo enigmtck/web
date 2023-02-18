@@ -12,8 +12,6 @@
 		send_encrypted_note,
 		get_inbox,
 		get_processing_queue,
-		get_external_identity_key,
-		update_keystore_olm_sessions,
 		upload_avatar,
 		load_instance_information,
 		get_state as get_wasm_state,
@@ -189,12 +187,12 @@
 
 						if (item.type === 'EncryptedNote') {
 							let a = (await get_wasm_state()).get_olm_pickled_account;
-							let key = get_external_identity_key(item.attributedTo);
-							plaintext = String(
+							//let key = get_external_identity_key(item.attributedTo);
+/* 							plaintext = String(
 								decrypt_olm_message(item.attributedTo, item.content, String(a), String(key))
 							);
 							console.log(plaintext);
-
+ */
 							// this updates the keystore in wasm, but doesn't push it to the server; that action
 							// below is handled by send_encrypted_note
 							//update_keystore_olm_sessions(get_olm_state().get_olm_sessions());
@@ -247,10 +245,10 @@
 			);
 		}
 
-		let note = SendParams.new();
+		let note = await SendParams.new();
 		note = await note.add_recipient_id(recipient, false);
 		note = note.set_content(String(encrypted_message));
-		note = note.set_kind('EncryptedNote');
+		note = note.set_encrypted();
 
 		send_encrypted_note(note).then(() => {
 			console.log('note sent');

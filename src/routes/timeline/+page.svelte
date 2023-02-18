@@ -16,9 +16,7 @@
 		get_inbox,
 		get_timeline,
 		get_processing_queue,
-		get_external_identity_key,
 		get_webfinger_from_id,
-		update_keystore_olm_sessions,
 		load_instance_information,
 		send_follow,
 		send_unfollow,
@@ -444,8 +442,7 @@
 	async function handlePublish() {
 		captureChanges();
 
-		let params = SendParams.new().set_kind('Note').set_content(html_note);
-		params.is_public = true;
+		let params = (await SendParams.new()).set_content(html_note).set_public();
 
 		if (reply_to_note) {
 			params = await params.add_recipient_id(String(reply_to_recipient), true);
