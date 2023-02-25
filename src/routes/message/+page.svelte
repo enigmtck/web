@@ -9,29 +9,61 @@
 		send_encrypted_note,
 		get_state,
 		import_state,
-		KexInitParams,
-		send_kex_init,
 		load_instance_information,
 		get_processing_queue,
-		get_session,
 		get_hash,
 		resolve_processed_item,
-		store_to_vault
+		store_to_vault,
+		decrypt,
+		get_sessions,
+		get_actor,
+		get_webfinger_from_id
 	} from 'enigmatick_wasm';
 	import init_olm, {
-		create_olm_account,
 		decrypt_olm_message,
-		get_one_time_keys,
 		create_olm_message,
 		get_identity_public_key
 	} from 'enigmatick_olm';
 
+	type Image = {
+		mediaType?: string;
+		type: string;
+		url: string;
+	};
+
+	type UserProfile = {
+		'@context': string;
+		type: string;
+		name?: string;
+		summary?: string;
+		id?: string;
+		preferredUsername: string;
+		inbox: string;
+		outbox: string;
+		followers: string;
+		following: string;
+		liked?: string;
+		publicKey: object;
+		featured?: string;
+		featuredTags?: string;
+		url?: string;
+		manuallyApprovesFollowers?: boolean;
+		published?: string;
+		tag?: Tag[];
+		attachment?: object;
+		endpoints?: object;
+		icon?: Image;
+		image?: Image;
+		ephemeralFollowing?: boolean;
+		ephemeralLeaderApId?: string;
+	};
+
 	onMount(async () => {
 		await init_olm();
 		let state = await get_state();
-		let pickled_account = state.get_olm_pickled_account();
+		account = state.get_olm_pickled_account();
 
-		if (username && pickled_account) {
+		if (username && account) {
 			const instance = await load_instance_information();
 			console.log(instance?.domain);
 			console.log(instance?.url);
@@ -41,97 +73,160 @@
 				console.log('loaded state from store');
 			}
 
-			console.log('init WASM');
+			get_sessions().then(async (resp) => {
+				const sessions: Collection = JSON.parse(String(resp));
+				console.info('SESSIONS');
+				console.debug(sessions);
+
+				sessions.items.forEach(async (session) => {
+					if ('string' === typeof session.to) {
+						let resp = await get_actor(session.to);
+						const actor: UserProfile = JSON.parse(String(resp));
+
+						let icon = undefined;
+						if (actor.icon && actor.icon.type === 'Image') {
+							icon = actor.icon.url;
+						}
+
+						let session_pickle = undefined;
+						let session_uuid = undefined;
+
+						const instrument = <Instrument>session.instrument;
+						if (instrument.content) {
+							if (instrument.type === 'OlmSession') {
+								session_uuid = instrument.uuid;
+								session_pickle = decrypt(instrument.content);
+							}
+						} else if (Array.isArray(session.instrument)) {
+							session.instrument.forEach((instrument) => {
+								if (instrument.type === 'OlmSession') {
+									session_uuid = instrument.uuid;
+									session_pickle = decrypt(instrument.content);
+								}
+							});
+						}
+
+						const id = String(session.to);
+						established.set(id, [
+							id,
+							await get_webfinger_from_id(id),
+							actor.name,
+							icon,
+							session_uuid,
+							session_pickle
+						]);
+						established = established;
+					}
+				});
+
+				console.info(established);
+			});
 
 			get_processing_queue().then(async (s) => {
 				console.info('QUEUE');
 				console.debug(s);
-				const q: Collection = JSON.parse(String(s));
-				console.log(q);
+				const queue: Collection = JSON.parse(String(s));
+				console.log(queue);
 
-				q.items.forEach(async (x) => {
-					if (x.type === 'EncryptedSession') {
+				queue.items.forEach(async (queue_item) => {
+					if (queue_item.type === 'EncryptedSession') {
 						console.info('ENCRYPTED SESSION');
 
 						let idk: string | null = null;
 						let otk: string | null = null;
-						if (x.instrument) {
-							x.instrument.forEach((y) => {
-								console.info(`TYPE ${y.type}, CONTENT ${y.content}`);
-								if (y.type === 'IdentityKey') {
-									idk = y.content;
-								} else if (y.type === 'SessionKey') {
-									otk = y.content;
+						if (queue_item.instrument && (<Instrument[]>queue_item.instrument).forEach) {
+							(<Instrument[]>queue_item.instrument).forEach((instrument) => {
+								console.info(`TYPE ${instrument.type}, CONTENT ${instrument.content}`);
+								if (instrument.type === 'IdentityKey') {
+									idk = instrument.content;
+								} else if (instrument.type === 'SessionKey') {
+									otk = instrument.content;
 								}
 							});
 
+							const id = queue_item.attributedTo;
+							const actor: UserProfile = JSON.parse(String(await get_actor(id)));
+
+							let icon: string | undefined = undefined;
+							if (actor.icon && actor.icon.type === 'Image') {
+								icon = actor.icon.url;
+							}
+
 							if (idk && otk) {
-								let message = create_olm_message(
-									x.attributedTo,
-									'SESSION_INIT',
-									String(pickled_account),
-									idk,
-									otk
-								);
+								let message = create_olm_message(id, 'SESSION_INIT', String(account), idk, otk);
 								if (message) {
 									console.info('SESSION INIT');
 									console.info(message.message);
 									console.info(message.session);
 
-									let params = (
-										await (await SendParams.new()).add_recipient_id(x.attributedTo, false)
-									)
+									const session = message.session;
+
+									let params = (await (await SendParams.new()).add_recipient_id(id, false))
 										.set_encrypted()
-										.set_identity_key(get_identity_public_key(String(pickled_account)))
-										.set_session_data(message.session)
+										.set_identity_key(get_identity_public_key(String(account)))
+										.set_session_data(session)
 										.set_content(message.message);
 
-									send_encrypted_note(params).then(() => {
-										const item = `${x.id}#processing`;
+									send_encrypted_note(params).then(async () => {
+										const item = `${queue_item.id}#processing`;
 
 										resolve_processed_item(item).then(() => {
 											console.info(`QUEUE ITEM RESOLVED: ${item}`);
 										});
+
+										established.set(id, [
+											id,
+											await get_webfinger_from_id(id),
+											actor.name,
+											icon,
+											undefined,
+											session
+										]);
 										console.info('SESSION INIT SENT');
 									});
 								}
 							}
 						}
-					} else if (x.type === 'EncryptedNote') {
+					} else if (queue_item.type === 'EncryptedNote') {
 						console.info('ENCRYPTED NOTE');
-						if (x.tag) {
+						if (queue_item.tag) {
 							let idk: string | null = null;
 
-							x.tag.forEach((t) => {
+							queue_item.tag.forEach((t) => {
 								const tag = <Tag>t;
 
 								if (tag.type === 'Mention') {
-									if (tag.name === x.attributedTo) {
+									if (tag.name === queue_item.attributedTo) {
 										idk = tag.value;
 									}
 								}
 							});
 
 							if (idk) {
-								const account = (await get_state()).get_olm_pickled_account();
-								const stored_session_json = await get_session(x.attributedTo);
-
-								console.warn(stored_session_json);
-
 								let session: string | undefined = undefined;
 								let session_uuid: string | undefined = undefined;
-								let encrypted_session_id: string | undefined = undefined;
 
-								if (stored_session_json) {
-									const stored_session: OlmSessionResponse = JSON.parse(stored_session_json);
-									console.warn(stored_session);
-									session = stored_session.session_pickle;
-									session_uuid = stored_session.uuid;
+								const id = queue_item.attributedTo;
+								const actor: UserProfile = JSON.parse(String(await get_actor(id)));
+
+								let icon: string | undefined = undefined;
+								if (actor.icon && actor.icon.type === 'Image') {
+									icon = actor.icon.url;
+								}
+
+								if (
+									queue_item.instrument &&
+									(<Instrument>queue_item.instrument).type == 'OlmSession'
+								) {
+									const instrument: Instrument = <Instrument>queue_item.instrument;
+									console.warn(instrument);
+									session = decrypt(instrument.content);
+									session_uuid = instrument.uuid;
 								}
 
 								const message = decrypt_olm_message(
-									x.attributedTo,
-									x.content,
+									queue_item.attributedTo,
+									queue_item.content,
 									String(account),
 									String(idk),
 									session
@@ -142,9 +237,9 @@
 
 									if (message.message === 'SESSION_INIT') {
 										const ack = create_olm_message(
-											x.attributedTo,
+											queue_item.attributedTo,
 											'SESSION_ACK',
-											String(pickled_account),
+											String(account),
 											idk,
 											undefined,
 											message.session
@@ -152,13 +247,16 @@
 
 										if (ack) {
 											const params = (
-												await (await SendParams.new()).add_recipient_id(x.attributedTo, false)
+												await (
+													await SendParams.new()
+												).add_recipient_id(queue_item.attributedTo, false)
 											)
 												.set_encrypted()
-												.set_identity_key(get_identity_public_key(String(pickled_account)))
+												.set_identity_key(get_identity_public_key(String(account)))
 												.set_session_data(ack.session)
+												.set_session_uuid(session_uuid)
 												.set_content(ack.message)
-												.resolves(`${x.id}#processing`);
+												.resolves(`${queue_item.id}#processing`);
 
 											send_encrypted_note(params).then(() => {
 												console.info('SESSION ACK SENT');
@@ -166,16 +264,27 @@
 										}
 									} else {
 										// send it to the vault
-										const vault_data = JSON.stringify({'message': message.message, 'published': x.published});
+										const vault_data = JSON.stringify({
+											message: message.message,
+											published: queue_item.published
+										});
 
 										store_to_vault(
 											vault_data,
-											x.attributedTo,
-											`${x.id}#processing`,
+											queue_item.attributedTo,
+											`${queue_item.id}#processing`,
 											String(session_uuid),
 											message.session,
 											String(get_hash(String(session)))
-										).then(() => {
+										).then(async () => {
+											established.set(id, [
+												id,
+												await get_webfinger_from_id(id),
+												actor.name,
+												icon,
+												session_uuid,
+												message.session
+											]);
 											console.info('STORED TO VAULT');
 										});
 									}
@@ -201,8 +310,10 @@
 	};
 
 	type Instrument = {
-		type: 'IdentityKey' | 'SessionKey';
+		type: 'IdentityKey' | 'SessionKey' | 'OlmSession';
 		content: string;
+		hash?: string;
+		uuid?: string;
 	};
 
 	type QueueItem = {
@@ -211,11 +322,11 @@
 		id: string;
 		tag?: object[];
 		type: 'EncryptedNote' | 'EncryptedSession';
-		to: string[];
+		to: string[] | string;
 		published: string;
 		content: string;
 		conversations: string;
-		instrument?: Instrument[];
+		instrument?: Instrument[] | Instrument | undefined;
 	};
 
 	type Collection = {
@@ -232,37 +343,68 @@
 
 		console.log(data);
 
-		// write code to check for existing session
-		if (message && address) {
-			// we're going to do this differently by assuming that a session already exists and retrieving that 
+		if (selected) {
+			const cached = established.get(selected);
 
-			/* const otk = get_external_one_time_key(address);
-			const idk = get_external_identity_key(address);
+			if (cached) {
+				const [id, webfinger, name, image, session_uuid, session_pickle] = cached;
+				// write code to check for existing session
+				if (session_pickle) {
+					const encrypted = create_olm_message(
+						selected,
+						String(message),
+						String(account),
+						undefined,
+						undefined,
+						session_pickle
+					);
+					console.debug(encrypted);
 
-			if (idk && otk) {
-				const encrypted = create_olm_message(address, String(message), idk, otk);
-				console.log(`encrypted\n${encrypted}`);
+					if (encrypted) {
+						console.info('ENCRYPTED');
+						console.debug(encrypted.message);
 
-				if (encrypted) {
-					let note = await SendParams.new();
-					note = await note.add_recipient_id(address, false);
-					note = note.set_content(encrypted.message);
-					// write code to include the session and maybe? remote_actor
-					note = note.set_encrypted();
+						const params = (await (await SendParams.new()).add_recipient_id(selected, false))
+							.set_encrypted()
+							.set_identity_key(get_identity_public_key(String(account)))
+							.set_session_data(encrypted.session)
+							.set_session_uuid(session_uuid)
+							.set_content(encrypted.message);
 
-					send_encrypted_note(note).then(() => {
-						console.log('note sent');
-					});
+						send_encrypted_note(params).then(() => {
+							console.log('NOTE SENT');
+						});
+					}
 				}
-			} */
+			}
 		}
 	}
 
+	function selectSession(event: any) {
+		selected = event.target.dataset.recipient;
+		console.log(`SELECTED: ${selected}`);
+	}
+	// id -> [id, webfinger, display_name, image_url, session_uuid, session_pickle]
+	let established = new Map<string, any[]>();
+
+	let selected: string | null = null;
 	let username = get(appData).username;
-	let address: string | null = $page.url.searchParams.get('address');
+	let account: string | undefined = undefined;
 </script>
 
 <main>
+	<ul>
+		{#each Array.from(established.values()) as [id, webfinger, name, image, uuid, session]}
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<li data-recipient={id} on:click|preventDefault={selectSession}>
+				<div><img alt="Profile" src={image} /></div>
+				<div>
+					<span>{name}</span>
+					<span>{webfinger}</span>
+				</div>
+			</li>
+		{/each}
+	</ul>
 	<form id="message" method="POST" on:submit|preventDefault={handleMessage}>
 		<label>
 			Message
@@ -272,3 +414,47 @@
 		<button>Send Message</button>
 	</form>
 </main>
+
+<style lang="scss">
+	main {
+		ul {
+			margin: 0;
+			padding: 0;
+			list-style: none;
+
+			li {
+				display: flex;
+				flex-direction: row;
+
+				div:first-child {
+					width: 55px;
+					pointer-events: none;
+					:global(img) {
+						width: 100%;
+						height: unset;
+						clip-path: inset(0 0 0 0 round 20%);
+					}
+				}
+
+				div {
+					width: calc(100% - 55px);
+					display: flex;
+					flex-direction: column;
+					pointer-events: none;
+
+					span {
+						font-family: 'Open Sans';
+						display: inline-block;
+						width: 100%;
+						pointer-events: none;
+					}
+
+					span:first-child {
+						font-weight: 600;
+						font-size: 18px;
+					}
+				}
+			}
+		}
+	}
+</style>
