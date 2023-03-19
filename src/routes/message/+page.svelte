@@ -16,6 +16,7 @@
 		store_to_vault,
 		decrypt,
 		get_sessions,
+		get_vault,
 		get_actor,
 		get_webfinger_from_id
 	} from 'enigmatick_wasm';
@@ -78,7 +79,7 @@
 				console.info('SESSIONS');
 				console.debug(sessions);
 
-				sessions.items.forEach(async (session) => {
+				sessions.items?.forEach(async (session) => {
 					if ('string' === typeof session.to) {
 						let resp = await get_actor(session.to);
 						const actor: UserProfile = JSON.parse(String(resp));
@@ -122,27 +123,94 @@
 				console.info(established);
 			});
 
-			get_processing_queue().then(async (s) => {
-				console.info('QUEUE');
-				console.debug(s);
-				const queue: Collection = JSON.parse(String(s));
-				console.log(queue);
+			processQueue();
+		}
+	});
 
-				queue.items.forEach(async (queue_item) => {
-					if (queue_item.type === 'EncryptedSession') {
-						console.info('ENCRYPTED SESSION');
+	function processQueue() {
+		get_processing_queue().then(async (s) => {
+			console.info('QUEUE');
+			console.debug(s);
+			const queue: Collection = JSON.parse(String(s));
+			console.log(queue);
 
+			queue.items?.forEach(async (queue_item) => {
+				if (queue_item.type === 'EncryptedSession') {
+					console.info('ENCRYPTED SESSION');
+
+					let idk: string | null = null;
+					let otk: string | null = null;
+					if (queue_item.instrument && (<Instrument[]>queue_item.instrument).forEach) {
+						(<Instrument[]>queue_item.instrument).forEach((instrument) => {
+							console.info(`TYPE ${instrument.type}, CONTENT ${instrument.content}`);
+							if (instrument.type === 'IdentityKey') {
+								idk = instrument.content;
+							} else if (instrument.type === 'SessionKey') {
+								otk = instrument.content;
+							}
+						});
+
+						const id = queue_item.attributedTo;
+						const actor: UserProfile = JSON.parse(String(await get_actor(id)));
+
+						let icon: string | undefined = undefined;
+						if (actor.icon && actor.icon.type === 'Image') {
+							icon = actor.icon.url;
+						}
+
+						if (idk && otk) {
+							let message = create_olm_message(id, 'SESSION_INIT', String(account), idk, otk);
+							if (message) {
+								console.info('SESSION INIT');
+								console.info(message.message);
+								console.info(message.session);
+
+								const session = message.session;
+
+								let params = (await (await SendParams.new()).add_recipient_id(id, false))
+									.set_encrypted()
+									.set_identity_key(get_identity_public_key(String(account)))
+									.set_session_data(session)
+									.set_content(message.message);
+
+								send_encrypted_note(params).then(async () => {
+									const item = `${queue_item.id}#processing`;
+
+									resolve_processed_item(item).then(() => {
+										console.info(`QUEUE ITEM RESOLVED: ${item}`);
+									});
+
+									established.set(id, [
+										id,
+										await get_webfinger_from_id(id),
+										actor.name,
+										icon,
+										undefined,
+										session
+									]);
+									console.info('SESSION INIT SENT');
+								});
+							}
+						}
+					}
+				} else if (queue_item.type === 'EncryptedNote') {
+					console.info('ENCRYPTED NOTE');
+					if (queue_item.tag) {
 						let idk: string | null = null;
-						let otk: string | null = null;
-						if (queue_item.instrument && (<Instrument[]>queue_item.instrument).forEach) {
-							(<Instrument[]>queue_item.instrument).forEach((instrument) => {
-								console.info(`TYPE ${instrument.type}, CONTENT ${instrument.content}`);
-								if (instrument.type === 'IdentityKey') {
-									idk = instrument.content;
-								} else if (instrument.type === 'SessionKey') {
-									otk = instrument.content;
+
+						queue_item.tag.forEach((t) => {
+							const tag = <Tag>t;
+
+							if (tag.type === 'Mention') {
+								if (tag.name === queue_item.attributedTo) {
+									idk = tag.value;
 								}
-							});
+							}
+						});
+
+						if (idk) {
+							let session: string | undefined = undefined;
+							let session_uuid: string | undefined = undefined;
 
 							const id = queue_item.attributedTo;
 							const actor: UserProfile = JSON.parse(String(await get_actor(id)));
@@ -152,150 +220,87 @@
 								icon = actor.icon.url;
 							}
 
-							if (idk && otk) {
-								let message = create_olm_message(id, 'SESSION_INIT', String(account), idk, otk);
-								if (message) {
-									console.info('SESSION INIT');
-									console.info(message.message);
-									console.info(message.session);
+							if (
+								queue_item.instrument &&
+								(<Instrument>queue_item.instrument).type == 'OlmSession'
+							) {
+								const instrument: Instrument = <Instrument>queue_item.instrument;
+								console.warn(instrument);
+								session = decrypt(instrument.content);
+								session_uuid = instrument.uuid;
+							}
 
-									const session = message.session;
+							const message = decrypt_olm_message(
+								queue_item.attributedTo,
+								queue_item.content,
+								String(account),
+								String(idk),
+								session
+							);
 
-									let params = (await (await SendParams.new()).add_recipient_id(id, false))
-										.set_encrypted()
-										.set_identity_key(get_identity_public_key(String(account)))
-										.set_session_data(session)
-										.set_content(message.message);
+							if (message) {
+								console.info(`MESSAGE: ${message.message}`);
 
-									send_encrypted_note(params).then(async () => {
-										const item = `${queue_item.id}#processing`;
+								if (message.message === 'SESSION_INIT') {
+									const ack = create_olm_message(
+										queue_item.attributedTo,
+										'SESSION_ACK',
+										String(account),
+										idk,
+										undefined,
+										message.session
+									);
 
-										resolve_processed_item(item).then(() => {
-											console.info(`QUEUE ITEM RESOLVED: ${item}`);
+									if (ack) {
+										const params = (
+											await (
+												await SendParams.new()
+											).add_recipient_id(queue_item.attributedTo, false)
+										)
+											.set_encrypted()
+											.set_identity_key(get_identity_public_key(String(account)))
+											.set_session_data(ack.session)
+											.set_session_uuid(session_uuid)
+											.set_content(ack.message)
+											.resolves(`${queue_item.id}#processing`);
+
+										send_encrypted_note(params).then(() => {
+											console.info('SESSION ACK SENT');
 										});
+									}
+								} else {
+									// send it to the vault
+									const vault_data = JSON.stringify({
+										message: message.message,
+										published: queue_item.published
+									});
 
+									store_to_vault(
+										vault_data,
+										queue_item.attributedTo,
+										`${queue_item.id}#processing`,
+										String(session_uuid),
+										message.session,
+										String(get_hash(String(session)))
+									).then(async () => {
 										established.set(id, [
 											id,
 											await get_webfinger_from_id(id),
 											actor.name,
 											icon,
-											undefined,
-											session
+											session_uuid,
+											message.session
 										]);
-										console.info('SESSION INIT SENT');
+										console.info('STORED TO VAULT');
 									});
 								}
 							}
 						}
-					} else if (queue_item.type === 'EncryptedNote') {
-						console.info('ENCRYPTED NOTE');
-						if (queue_item.tag) {
-							let idk: string | null = null;
-
-							queue_item.tag.forEach((t) => {
-								const tag = <Tag>t;
-
-								if (tag.type === 'Mention') {
-									if (tag.name === queue_item.attributedTo) {
-										idk = tag.value;
-									}
-								}
-							});
-
-							if (idk) {
-								let session: string | undefined = undefined;
-								let session_uuid: string | undefined = undefined;
-
-								const id = queue_item.attributedTo;
-								const actor: UserProfile = JSON.parse(String(await get_actor(id)));
-
-								let icon: string | undefined = undefined;
-								if (actor.icon && actor.icon.type === 'Image') {
-									icon = actor.icon.url;
-								}
-
-								if (
-									queue_item.instrument &&
-									(<Instrument>queue_item.instrument).type == 'OlmSession'
-								) {
-									const instrument: Instrument = <Instrument>queue_item.instrument;
-									console.warn(instrument);
-									session = decrypt(instrument.content);
-									session_uuid = instrument.uuid;
-								}
-
-								const message = decrypt_olm_message(
-									queue_item.attributedTo,
-									queue_item.content,
-									String(account),
-									String(idk),
-									session
-								);
-
-								if (message) {
-									console.info(`MESSAGE: ${message.message}`);
-
-									if (message.message === 'SESSION_INIT') {
-										const ack = create_olm_message(
-											queue_item.attributedTo,
-											'SESSION_ACK',
-											String(account),
-											idk,
-											undefined,
-											message.session
-										);
-
-										if (ack) {
-											const params = (
-												await (
-													await SendParams.new()
-												).add_recipient_id(queue_item.attributedTo, false)
-											)
-												.set_encrypted()
-												.set_identity_key(get_identity_public_key(String(account)))
-												.set_session_data(ack.session)
-												.set_session_uuid(session_uuid)
-												.set_content(ack.message)
-												.resolves(`${queue_item.id}#processing`);
-
-											send_encrypted_note(params).then(() => {
-												console.info('SESSION ACK SENT');
-											});
-										}
-									} else {
-										// send it to the vault
-										const vault_data = JSON.stringify({
-											message: message.message,
-											published: queue_item.published
-										});
-
-										store_to_vault(
-											vault_data,
-											queue_item.attributedTo,
-											`${queue_item.id}#processing`,
-											String(session_uuid),
-											message.session,
-											String(get_hash(String(session)))
-										).then(async () => {
-											established.set(id, [
-												id,
-												await get_webfinger_from_id(id),
-												actor.name,
-												icon,
-												session_uuid,
-												message.session
-											]);
-											console.info('STORED TO VAULT');
-										});
-									}
-								}
-							}
-						}
 					}
-				});
+				}
 			});
-		}
-	});
+		});
+	}
 
 	type OlmSessionResponse = {
 		session_pickle: string;
@@ -321,11 +326,11 @@
 		attributedTo: string;
 		id: string;
 		tag?: object[];
-		type: 'EncryptedNote' | 'EncryptedSession';
+		type: 'EncryptedNote' | 'EncryptedSession' | 'VaultNote';
 		to: string[] | string;
 		published: string;
 		content: string;
-		conversations: string;
+		conversations?: string;
 		instrument?: Instrument[] | Instrument | undefined;
 	};
 
@@ -334,7 +339,8 @@
 		type: 'Collection' | 'OrderedCollection';
 		id: string;
 		totalItems: number;
-		items: QueueItem[];
+		items?: QueueItem[];
+		orderedItems?: QueueItem[];
 	};
 
 	async function handleMessage(event: any) {
@@ -380,9 +386,34 @@
 		}
 	}
 
-	function selectSession(event: any) {
+	type VaultedMessage = {
+		message: string;
+		published: string;
+		attributedTo?: string;
+	};
+
+	async function selectSession(event: any) {
 		selected = event.target.dataset.recipient;
+
+		let vaultStr = await get_vault(0, 40, String(selected));
 		console.log(`SELECTED: ${selected}`);
+		console.log(`VAULT: ${vaultStr}`);
+		messages = [];
+
+		if (vaultStr) {
+			let vaultItems: Collection = JSON.parse(vaultStr);
+			console.info(vaultItems);
+
+			vaultItems.orderedItems?.forEach((item) => {
+				let message: VaultedMessage = JSON.parse(String(decrypt(item.content)));
+				get_webfinger_from_id(item.attributedTo).then((x) => {
+					message.attributedTo = x;
+					messages.push(message);
+
+					messages = messages;
+				});
+			});
+		}
 	}
 	// id -> [id, webfinger, display_name, image_url, session_uuid, session_pickle]
 	let established = new Map<string, any[]>();
@@ -390,9 +421,13 @@
 	let selected: string | null = null;
 	let username = get(appData).username;
 	let account: string | undefined = undefined;
+
+	let messages: VaultedMessage[] = [];
 </script>
 
 <main>
+	<button on:click|preventDefault={processQueue}>Process Queue</button>
+
 	<ul>
 		{#each Array.from(established.values()) as [id, webfinger, name, image, uuid, session]}
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -405,14 +440,27 @@
 			</li>
 		{/each}
 	</ul>
-	<form id="message" method="POST" on:submit|preventDefault={handleMessage}>
-		<label>
-			Message
-			<textarea name="message" />
-		</label>
 
-		<button>Send Message</button>
-	</form>
+	{#if selected}
+		<form id="message" method="POST" on:submit|preventDefault={handleMessage}>
+			<label>
+				Message
+				<textarea name="message" />
+			</label>
+
+			<button>Send Message</button>
+		</form>
+	{/if}
+
+	<ul>
+		{#each messages as message}
+			<li>
+				<span>{message.attributedTo}</span>
+				<span>{message.published}</span>
+				<span>{message.message}</span>
+			</li>
+		{/each}
+	</ul>
 </main>
 
 <style lang="scss">

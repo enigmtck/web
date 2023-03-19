@@ -3,10 +3,10 @@
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
-		"wasm": "wasm-pack build ../enigmatick_wasm --target web",
-		"olm": "wasm-pack build ../enigmatick_olm --target web",
+		"wasm": "wasm-pack build ../wasm/enigmatick_wasm --target web",
+		"olm": "wasm-pack build ../wasm/enigmatick_olm --target web",
 		"dev": "yarn wasm && yarn olm && vite",
-		"build": "vite build",
+		"build": "yarn wasm && yarn olm && vite build",
 		"preview": "vite preview",
 		"test": "playwright test",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -37,6 +37,7 @@
 	},
 	"type": "module",
 	"dependencies": {
+		"@sveltejs/adapter-node": "^1.2.2",
 		"showdown": "^2.1.0"
 	}
 }

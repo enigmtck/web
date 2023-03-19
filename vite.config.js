@@ -8,7 +8,7 @@ import wasmPack from 'vite-plugin-wasm-pack';
 // };
 
 export default defineConfig({
-	plugins: [sveltekit(), wasmPack('../enigmatick_wasm'), wasmPack('../enigmatick_olm')],
+	plugins: [sveltekit(), wasmPack('../wasm/enigmatick_wasm'), wasmPack('../wasm/enigmatick_olm')],
 	server: {
 		hmr: {
 			host: "127.0.0.1",
