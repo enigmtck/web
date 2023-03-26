@@ -46,9 +46,9 @@
 			padding: 0;
 			display: grid;
 			grid-template:
-				[row1-start] 'header header header' [row1-end]
-				[row2-start] 'left-aside content right-aside' [row2-end]
-				/ 1fr auto 1fr;
+				[row1-start] 'header header header header header' [row1-end]
+				[row2-start] 'left-gutter left-aside content right-aside right-gutter' [row2-end]
+				/ 1fr auto auto auto 1fr;
 		}
 	</style>
 </svelte:head>
@@ -166,6 +166,7 @@
 		font-family: 'Open Sans';
 		font-size: 22px;
 		font-weight: 600;
+		grid-area: header;
 		display: grid;
 		grid-template-columns: 1fr auto 1fr;
 		grid-template-areas: 'left center right';
@@ -289,7 +290,7 @@
 		margin-top: 41px;
 		grid-area: content;
 		min-width: 400px;
-		max-width: 600px;
+		max-width: 700px;
 
 		@media screen and (max-width: 600px) {
 			min-width: unset;
@@ -342,6 +343,7 @@
 	:global(body div > nav) {
 		margin-top: 41px;
 		height: calc(100vh - 41px);
+		max-width: 170px;
 		grid-area: right-aside;
 		background: #eee;
 
@@ -352,7 +354,7 @@
 		div {
 			width: 100%;
 			padding: 0;
-			margin: 10px 20px;
+			margin: 10px;
 
 			img {
 				width: 40px;

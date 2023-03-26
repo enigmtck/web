@@ -125,6 +125,7 @@
 		attachment?: Attachment[];
 		conversation: string | null;
 		ephemeralAnnounce?: string | null;
+		ephemeralActors?: UserProfile[];
 	};
 
 	type StreamConnect = {
@@ -164,10 +165,7 @@
 		return Math.floor(seconds) + 's';
 	}
 
-	function insert_emojis(text: string, profile: UserProfile | Note) {
-		console.log(`EVALUATING: ${text}`);
-		console.log(profile);
-
+	function insertEmojis(text: string, profile: UserProfile | Note) {
 		if (profile.tag) {
 			profile.tag.forEach((tag) => {
 				if (tag.type === 'Emoji') {
@@ -181,19 +179,20 @@
 		return text;
 	}
 
-	async function addNote(e: Note) {
-		//console.log(e);
+	async function addNote(note: Note) {
+		if (note.ephemeralActors) {
+			note.ephemeralActors.forEach((actor) => {
+				if (actor.id) {
+					ap_cache.set(actor.id, JSON.stringify(actor));
+				}
+			});
+		}
 
-		if (e.attributedTo) {
-			const actor = await cachedActor(e.attributedTo);
+		if (note.attributedTo) {
+			const actor = await cachedActor(note.attributedTo);
 
 			if (actor) {
 				const profile: UserProfile = JSON.parse(actor);
-				//console.log(profile);
-				if (profile.tag) {
-					console.log(`TAGS! ${profile.id}`);
-					console.log(profile.tag);
-				}
 
 				let icon = '';
 
@@ -202,9 +201,8 @@
 				}
 
 				let attachments = '';
-				console.log('attachments: ' + e.attachment);
-				if (e.attachment && e.attachment.length > 0) {
-					e.attachment.forEach((x) => {
+				if (note.attachment && note.attachment.length > 0) {
+					note.attachment.forEach((x) => {
 						if (x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))) {
 							attachments += `<div><img src="${x.url}" width="${x.width}" height="${x.height}"/></div>`;
 						} else if (x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))) {
@@ -215,12 +213,12 @@
 
 				let announce_html = '';
 
-				if (e.ephemeralAnnounce) {
-					const announce_actor = await cachedActor(e.ephemeralAnnounce);
+				if (note.ephemeralAnnounce) {
+					const announce_actor = await cachedActor(note.ephemeralAnnounce);
 
 					if (announce_actor) {
 						const announce_profile: UserProfile = JSON.parse(announce_actor);
-						const name = insert_emojis(
+						const name = insertEmojis(
 							announce_profile.name || announce_profile.preferredUsername,
 							announce_profile
 						);
@@ -231,8 +229,8 @@
 
 				let reply_html = '';
 
-				if (e.inReplyTo) {
-					const reply_note = await cachedNote(e.inReplyTo);
+				if (note.inReplyTo) {
+					const reply_note = await cachedNote(note.inReplyTo);
 
 					if (reply_note) {
 						const note: Note = JSON.parse(String(reply_note));
@@ -240,16 +238,16 @@
 						const reply_actor = await cachedActor(note.attributedTo);
 						const sender: UserProfile = JSON.parse(String(reply_actor));
 
-						const name = insert_emojis(sender.name || sender.preferredUsername, sender);
+						const name = insertEmojis(sender.name || sender.preferredUsername, sender);
 
 						reply_html = `<span class="reply"><i class="fa-solid fa-reply"></i> In reply to ${name}</span>`;
 					}
 				}
 
-				const attributed_name = insert_emojis(profile.name || profile.preferredUsername, profile);
-
-				notes.set(String(e.id), [
-					e.published,
+				const attributed_name = insertEmojis(profile.name || profile.preferredUsername, profile);
+				const displayNote = new DisplayNote(
+					profile,
+					note,
 					announce_html +
 						reply_html +
 						`<header>` +
@@ -259,18 +257,81 @@
 						`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
 						`</address>` +
 						`</header>` +
-						`<section>${insert_emojis(String(e.content), e)}</section>` +
-						`<section class="attachments">${attachments}</section>`,
-					0,
-					profile.name || profile.preferredUsername,
-					profile.preferredUsername,
-					profile.id,
-					profile.url,
-					e.id,
-					e.conversation
-				]);
+						`<section>${insertEmojis(String(note.content), note)}</section>` +
+						`<section class="attachments">${attachments}</section>`
+				);
+
+				if (note.inReplyTo) {
+					let stored = notes.get(note.inReplyTo);
+
+					if (stored) {
+						stored.replies?.push(displayNote);
+						notes.set(stored.noteId, stored);
+					}
+				} else {
+					let toDelete: string[] = [];
+
+					Array.from(notes.values()).forEach((stored) => {
+						if (stored.inReplyTo == note.id) {
+							displayNote.replies.push(stored);
+							toDelete.push(stored.noteId);
+						}
+					});
+
+					toDelete.forEach((n) => {
+						notes.delete(n);
+					});
+
+					notes.set(String(note.id), displayNote);
+				}
+
 				notes = notes;
-				console.log(notes);
+			}
+		}
+	}
+
+	class DisplayNote {
+		published: string;
+		content: string;
+		replies: DisplayNote[];
+		actorDisplayName: string;
+		actorUsername: string;
+		actorId: string;
+		actorUrl: string;
+		noteId: string;
+		conversationId: string;
+		inReplyTo: string | null | undefined;
+
+		constructor(profile: UserProfile, note: Note, content: string, replies?: DisplayNote[]) {
+			this.published = String(note.published);
+			this.content = content;
+			this.replies = replies || [];
+			this.actorDisplayName = profile.name || profile.preferredUsername;
+			this.actorUsername = profile.preferredUsername;
+			this.actorId = String(profile.id);
+			this.actorUrl = String(profile.url);
+			this.noteId = String(note.id);
+			this.conversationId = String(note.conversation);
+			this.inReplyTo = note.inReplyTo;
+		}
+	}
+
+	async function loadMinimum() {
+		let topLevel = 0;
+
+		notes.forEach((note) => {
+			if (!note.inReplyTo) {
+				topLevel += 1;
+			}
+		});
+
+		if (topLevel < 10) {
+			console.info('insufficient top level articles; loading more');
+			try {
+				await loadTimelineData();
+				await loadMinimum();
+			} catch (e) {
+				console.error(e);
 			}
 		}
 	}
@@ -278,15 +339,24 @@
 	async function loadTimelineData() {
 		let x = await get_timeline(offset, 5);
 
-		console.log(x);
-		let timeline = JSON.parse(String(x));
-		console.log(timeline);
+		try {
+			let timeline = JSON.parse(String(x));
 
-		timeline.forEach((t: Note) => {
-			addNote(t);
-		});
+			try {
+				timeline.forEach((t: Note) => {
+					addNote(t);
+				});
+			} catch (e) {
+				console.error(e);
+				console.debug(timeline);
+			}
 
-		offset += 5;
+			offset += 5;
+		} catch (e) {
+			console.error(e);
+			console.debug(x);
+			throw e;
+		}
 	}
 
 	beforeNavigate((navigation) => {
@@ -315,7 +385,8 @@
 	onMount(() => {
 		let main = document.getElementsByTagName('main')[0];
 		main.addEventListener('scroll', handleInfiniteScroll);
-		if (username) {
+
+		init_wasm().then(() => {
 			load_instance_information().then((instance) => {
 				console.log(instance?.domain);
 				console.log(instance?.url);
@@ -328,9 +399,12 @@
 				}
 				console.log('init WASM');
 
-				loadTimelineData();
+				//loadTimelineData();
+				loadMinimum();
 			});
+		});
 
+		if (username) {
 			let sse = new EventSource('/api/user/' + username + '/events');
 
 			function onMessage(event: any) {
@@ -353,7 +427,6 @@
 				} else if ((<Announce>e).type == 'Announce') {
 					let announce = <Announce>e;
 					get_note(announce.object).then((x) => {
-						console.log('announce: ' + x);
 						let note: Note = JSON.parse(String(x));
 						note.ephemeralAnnounce = announce.actor;
 						note.id = announce.id;
@@ -385,15 +458,13 @@
 					sse.close();
 				}
 			};
-		} else {
-			goto('/');
 		}
 	});
 
-	function compare(a: any[], b: any[]) {
-		if (Date.parse(a[0]) < Date.parse(b[0])) {
+	function compare(a: DisplayNote, b: DisplayNote) {
+		if (Date.parse(a.published) < Date.parse(b.published)) {
 			return -1;
-		} else if (Date.parse(a[0]) > Date.parse(b[0])) {
+		} else if (Date.parse(a.published) > Date.parse(b.published)) {
 			return 1;
 		} else {
 			return 0;
@@ -495,7 +566,7 @@
 		if (!loading) {
 			loading = true;
 
-			if (main.scrollTop + main.offsetHeight >= main.scrollHeight - 300) {
+			if (main.scrollTop + main.offsetHeight >= main.scrollHeight * 0.7) {
 				await loadTimelineData();
 			}
 			loading = false;
@@ -519,7 +590,7 @@
 
 	async function cachedActor(id: string) {
 		if (!ap_cache.has(id)) {
-			ap_cache.set(id, String(await get_actor(id)));
+			ap_cache.set(id, await get_actor(id));
 		}
 
 		return ap_cache.get(id);
@@ -527,7 +598,7 @@
 
 	async function cachedNote(id: string) {
 		if (!ap_cache.has(id)) {
-			ap_cache.set(id, String(await get_note(id)));
+			ap_cache.set(id, await get_note(id));
 		}
 
 		return ap_cache.get(id);
@@ -552,7 +623,7 @@
 
 	// HTML formatted notes to display in the Timeline
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
-	let notes = new Map<string, any[]>();
+	let notes = new Map<string, DisplayNote>();
 
 	// used very temporarily to control requests to the API for new data
 	let loading = false;
@@ -561,7 +632,7 @@
 	let offset = 0;
 
 	// used to reduce calls to the API for Actor data
-	let ap_cache = new Map<string, string>();
+	let ap_cache = new Map<string, string | undefined>();
 
 	let profile: UserProfile | null = null;
 	let username = get(appData).username;
@@ -619,35 +690,36 @@
 </aside>
 
 <main>
-	{#each Array.from(notes.values())
-		.sort(compare)
-		.reverse() as [published, note, replies, sender_name, sender_username, sender_id, sender_url, in_reply_to, conversation]}
-		{#if note}
+	{#each Array.from(notes.values()).sort(compare).reverse() as note}
+		{#if note.content && !note.inReplyTo}
 			<article>
-				{@html note}
-				<time datetime={published}>{timeSince(new Date(String(published)))}</time>
-				<nav>
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<i
-						class="fa-solid fa-comments"
-						on:click={async () => {
-							await goto(`/thread?conversation=${conversation}`);
-						}}
-					/>
-					<i class="fa-solid fa-repeat" />
-					<i class="fa-solid fa-star" />
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<i
-						class="fa-solid fa-reply"
-						data-reply={in_reply_to}
-						data-display={sender_name}
-						data-url={sender_url}
-						data-username={sender_username}
-						data-recipient={sender_id}
-						data-conversation={conversation}
-						on:click={handleReplyTo}
-					/>
-				</nav>
+				{@html note.content}
+				<time datetime={note.published}>{timeSince(new Date(String(note.published)))}</time>
+				{#if username}
+					<nav>
+						<!-- svelte-ignore a11y-click-events-have-key-events -->
+						<i
+							class="fa-solid fa-comments"
+							on:click={async () => {
+								await goto(`/thread?conversation=${note.conversationId}`);
+							}}
+						/>
+						<span>{note.replies?.length}</span>
+						<i class="fa-solid fa-repeat" />
+						<i class="fa-solid fa-star" />
+						<!-- svelte-ignore a11y-click-events-have-key-events -->
+						<i
+							class="fa-solid fa-reply"
+							data-reply={note.noteId}
+							data-display={note.actorDisplayName}
+							data-url={note.actorUrl}
+							data-username={note.actorUsername}
+							data-recipient={note.actorId}
+							data-conversation={note.conversationId}
+							on:click={handleReplyTo}
+						/>
+					</nav>
+				{/if}
 			</article>
 		{/if}
 	{/each}
@@ -676,7 +748,7 @@
 	}
 
 	aside {
-		grid-area: left-aside;
+		grid-area: content;
 		height: calc(100vh - 42px);
 		width: 100%;
 		margin-top: 42px;
@@ -1025,7 +1097,7 @@
 					width: unset;
 					height: unset;
 					text-align: center;
-					padding: 0 10px;
+					padding: 0;
 					width: 100%;
 				}
 

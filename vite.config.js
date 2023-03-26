@@ -2,11 +2,6 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import wasmPack from 'vite-plugin-wasm-pack';
 
-// /** @type {import('vite').UserConfig} */
-// const config = {
-// 	plugins: [sveltekit()]
-// };
-
 export default defineConfig({
 	plugins: [sveltekit(), wasmPack('../wasm/enigmatick_wasm'), wasmPack('../wasm/enigmatick_olm')],
 	server: {
