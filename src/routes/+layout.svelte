@@ -31,7 +31,36 @@
 
 <svelte:head>
 	<style>
-		@import url(https://fonts.bunny.net/css?family=almarai:300,400,700,800|open-sans:300,300i,400,400i,500,500i,600,600i,700,700i,800,800i|open-sans-condensed:300,300i,700);
+		@font-face {
+			font-family: "Open Sans";
+			src: URL("fonts/OpenSans-Light.ttf");
+			font-weight: 300;
+		}
+		
+		@font-face {
+			font-family: "Open Sans";
+			src: URL("fonts/OpenSans-Regular.ttf");
+			font-weight: 400;
+		}
+
+		@font-face {
+			font-family: "Open Sans";
+			src: URL("fonts/OpenSans-Medium.ttf");
+			font-weight: 500;
+		}
+
+		@font-face {
+			font-family: "Open Sans";
+			src: URL("fonts/OpenSans-SemiBold.ttf");
+			font-weight: 600;
+		}
+
+		@font-face {
+			font-family: "Open Sans";
+			src: URL("fonts/OpenSans-Bold.ttf");
+			font-weight: 700;
+		}
+
 		* {
 			box-sizing: border-box;
 		}
@@ -60,7 +89,7 @@
 		</div>
 		<nav>
 			{#if avatar}
-				<a href="/@{username}"><img src="/{avatar}" /></a>
+				<a href="/@{username}"><img src="/{avatar}" alt="You"/></a>
 			{/if}
 			<div class="toggle">
 				<label>
@@ -156,7 +185,7 @@
 	}
 
 	header {
-		z-index: 30;
+		z-index: 25;
 		position: fixed;
 		width: 100%;
 		padding: 0;
@@ -380,6 +409,27 @@
 
 			.selected {
 				color: darkred;
+			}
+
+			button {
+				background: darkred;
+				font-family: 'Open Sans';
+				font-weight: 500;
+				font-size: 18px;
+				border: 0;
+				outline: 0;
+				color: white;
+				padding: 10px;
+				border-radius: 25px;
+				width: calc(100% - 30px);
+				margin: 15px;
+				transition-duration: 1s;
+			}
+
+			button:hover {
+				background: red;
+				transition-duration: 1s;
+				cursor: pointer;
 			}
 		}
 	}

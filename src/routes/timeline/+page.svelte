@@ -6,6 +6,8 @@
 	import { get } from 'svelte/store';
 	import { wasmState, olmState, appData } from '../../stores';
 	import { Converter } from 'showdown';
+	import showdownHighlight from 'showdown-highlight';
+
 	import init_wasm, {
 		authenticate,
 		SendParams,
@@ -19,6 +21,7 @@
 		get_webfinger_from_id,
 		load_instance_information,
 		send_follow,
+		send_like,
 		send_unfollow,
 		send_authorization,
 		get_state as get_wasm_state,
@@ -165,6 +168,21 @@
 		return Math.floor(seconds) + 's';
 	}
 
+	function parseProfile(text: string | null | undefined): UserProfile | null {
+		if (text) {
+			try {
+				return JSON.parse(text);
+			} catch (e) {
+				console.error('UNABLE TO PARSE PROFILE');
+				console.debug(text);
+				return null;
+			}
+		} else {
+			console.error('UNABLE TO PARSE NULL OR UNDEFINED');
+			return null;
+		}
+	}
+
 	function insertEmojis(text: string, profile: UserProfile | Note) {
 		if (profile.tag) {
 			profile.tag.forEach((tag) => {
@@ -177,6 +195,72 @@
 		}
 
 		return text;
+	}
+
+	async function replyToHeader(note: Note): Promise<String> {
+		if (note.inReplyTo) {
+			const reply_note = await cachedNote(note.inReplyTo);
+
+			if (reply_note) {
+				const note: Note = JSON.parse(String(reply_note));
+
+				const reply_actor = await cachedActor(note.attributedTo);
+
+				const sender: UserProfile | null = parseProfile(reply_actor);
+
+				if (sender) {
+					const name = insertEmojis(sender.name || sender.preferredUsername, sender);
+
+					return `<span class="reply"><i class="fa-solid fa-reply"></i> In reply to ${name}</span>`;
+				} else {
+					return '';
+				}
+			} else {
+				return '';
+			}
+		} else {
+			return '';
+		}
+	}
+
+	async function announceHeader(note: Note): Promise<String> {
+		if (note.ephemeralAnnounce) {
+			const announce_actor = await cachedActor(note.ephemeralAnnounce);
+
+			if (announce_actor) {
+				const announce_profile: UserProfile | null = parseProfile(announce_actor);
+
+				if (announce_profile) {
+					const name = insertEmojis(
+						announce_profile.name || announce_profile.preferredUsername,
+						announce_profile
+					);
+
+					return `<span class="repost"><i class="fa-solid fa-retweet"></i> Reposted by ${name}</span>`;
+				} else {
+					return '';
+				}
+			} else {
+				return '';
+			}
+		} else {
+			return '';
+		}
+	}
+
+	function attachmentsDisplay(note: Note): String {
+		let attachments = '';
+		if (note.attachment && note.attachment.length > 0) {
+			note.attachment.forEach((x) => {
+				if (x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))) {
+					attachments += `<div><img src="${x.url}" width="${x.width}" height="${x.height}"/></div>`;
+				} else if (x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))) {
+					attachments += `<div><video width="${x.width}" height="${x.height}" controls><source src="${x.url}" type="${x.mediaType}"></video></div>`;
+				}
+			});
+		}
+
+		return attachments;
 	}
 
 	async function addNote(note: Note) {
@@ -192,97 +276,47 @@
 			const actor = await cachedActor(note.attributedTo);
 
 			if (actor) {
-				const profile: UserProfile = JSON.parse(actor);
+				const profile: UserProfile | null = parseProfile(actor);
 
-				let icon = '';
+				if (profile) {
+					let icon = '';
 
-				if (profile.icon) {
-					icon = `<img src="${profile.icon.url}" />`;
-				}
+					if (profile.icon) {
+						icon = `<img src="${profile.icon.url}" />`;
+					}
 
-				let attachments = '';
-				if (note.attachment && note.attachment.length > 0) {
-					note.attachment.forEach((x) => {
-						if (x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))) {
-							attachments += `<div><img src="${x.url}" width="${x.width}" height="${x.height}"/></div>`;
-						} else if (x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))) {
-							attachments += `<div><video width="${x.width}" height="${x.height}" controls><source src="${x.url}" type="${x.mediaType}"></video></div>`;
+					const displayNote = new DisplayNote(profile, note);
+
+					if (note.inReplyTo) {
+						// if this is a reply to another note, see if that parent note exists to add to
+						let stored = notes.get(note.inReplyTo);
+
+						if (stored) {
+							// parent note exists, put this one in its replies
+							stored.replies?.push(displayNote);
+							notes.set(String(stored.note.id), stored);
+						} else {
+							// parent note does not (yet) exist, add this one to the main list
+							notes.set(String(note.id), displayNote);
 						}
-					});
-				}
+					} else {
+						// this is a top-level note, check other notes to see if they
+						// should be moved to this note's replies
+						let toDelete: string[] = [];
 
-				let announce_html = '';
+						Array.from(notes.values()).forEach((stored) => {
+							if (stored.note.inReplyTo == note.id) {
+								displayNote.replies.push(stored);
+								toDelete.push(String(stored.note.id));
+							}
+						});
 
-				if (note.ephemeralAnnounce) {
-					const announce_actor = await cachedActor(note.ephemeralAnnounce);
+						toDelete.forEach((n) => {
+							notes.delete(n);
+						});
 
-					if (announce_actor) {
-						const announce_profile: UserProfile = JSON.parse(announce_actor);
-						const name = insertEmojis(
-							announce_profile.name || announce_profile.preferredUsername,
-							announce_profile
-						);
-
-						announce_html = `<span class="repost"><i class="fa-solid fa-retweet"></i> Reposted by ${name}</span>`;
+						notes.set(String(note.id), displayNote);
 					}
-				}
-
-				let reply_html = '';
-
-				if (note.inReplyTo) {
-					const reply_note = await cachedNote(note.inReplyTo);
-
-					if (reply_note) {
-						const note: Note = JSON.parse(String(reply_note));
-
-						const reply_actor = await cachedActor(note.attributedTo);
-						const sender: UserProfile = JSON.parse(String(reply_actor));
-
-						const name = insertEmojis(sender.name || sender.preferredUsername, sender);
-
-						reply_html = `<span class="reply"><i class="fa-solid fa-reply"></i> In reply to ${name}</span>`;
-					}
-				}
-
-				const attributed_name = insertEmojis(profile.name || profile.preferredUsername, profile);
-				const displayNote = new DisplayNote(
-					profile,
-					note,
-					announce_html +
-						reply_html +
-						`<header>` +
-						`<div>${icon}</div>` +
-						`<address>` +
-						`<span>${attributed_name}</span>` +
-						`<a href="/search?actor=${profile.id}">${profile.url}</a>` +
-						`</address>` +
-						`</header>` +
-						`<section>${insertEmojis(String(note.content), note)}</section>` +
-						`<section class="attachments">${attachments}</section>`
-				);
-
-				if (note.inReplyTo) {
-					let stored = notes.get(note.inReplyTo);
-
-					if (stored) {
-						stored.replies?.push(displayNote);
-						notes.set(stored.noteId, stored);
-					}
-				} else {
-					let toDelete: string[] = [];
-
-					Array.from(notes.values()).forEach((stored) => {
-						if (stored.inReplyTo == note.id) {
-							displayNote.replies.push(stored);
-							toDelete.push(stored.noteId);
-						}
-					});
-
-					toDelete.forEach((n) => {
-						notes.delete(n);
-					});
-
-					notes.set(String(note.id), displayNote);
 				}
 
 				notes = notes;
@@ -291,28 +325,16 @@
 	}
 
 	class DisplayNote {
+		note: Note;
+		actor: UserProfile;
 		published: string;
-		content: string;
 		replies: DisplayNote[];
-		actorDisplayName: string;
-		actorUsername: string;
-		actorId: string;
-		actorUrl: string;
-		noteId: string;
-		conversationId: string;
-		inReplyTo: string | null | undefined;
 
-		constructor(profile: UserProfile, note: Note, content: string, replies?: DisplayNote[]) {
+		constructor(profile: UserProfile, note: Note, replies?: DisplayNote[]) {
+			this.note = note;
+			this.actor = profile;
 			this.published = String(note.published);
-			this.content = content;
 			this.replies = replies || [];
-			this.actorDisplayName = profile.name || profile.preferredUsername;
-			this.actorUsername = profile.preferredUsername;
-			this.actorId = String(profile.id);
-			this.actorUrl = String(profile.url);
-			this.noteId = String(note.id);
-			this.conversationId = String(note.conversation);
-			this.inReplyTo = note.inReplyTo;
 		}
 	}
 
@@ -320,16 +342,18 @@
 		let topLevel = 0;
 
 		notes.forEach((note) => {
-			if (!note.inReplyTo) {
+			if (!note.note.inReplyTo) {
 				topLevel += 1;
 			}
 		});
 
 		if (topLevel < 10) {
-			console.info('insufficient top level articles; loading more');
 			try {
-				await loadTimelineData();
-				await loadMinimum();
+				// if loadTimelineData returns 0, that means it's reached the end
+				// of what is available and we should stop
+				if (await loadTimelineData()) {
+					await loadMinimum();
+				}
 			} catch (e) {
 				console.error(e);
 			}
@@ -352,10 +376,10 @@
 			}
 
 			offset += 5;
+			return timeline.length;
 		} catch (e) {
 			console.error(e);
 			console.debug(x);
-			throw e;
 		}
 	}
 
@@ -401,64 +425,71 @@
 
 				//loadTimelineData();
 				loadMinimum();
-			});
-		});
 
-		if (username) {
-			let sse = new EventSource('/api/user/' + username + '/events');
+				if (username) {
+					let sse = new EventSource('/api/user/' + username + '/events');
 
-			function onMessage(event: any) {
-				console.log('event: ' + event.data);
-				let e: Note | StreamConnect | Announce = JSON.parse(event.data);
-				console.log(e);
+					function onMessage(event: any) {
+						console.log('event: ' + event.data);
+						let e: Note | StreamConnect | Announce = JSON.parse(event.data);
+						console.log(e);
 
-				if ((<Note>e).type === 'Note') {
-					if (live_loading) {
-						// display the note immediately
-						addNote(<Note>e);
-					} else {
-						// place the note in the queue to be added when scrolled to the top
-						note_queue.push(<Note>e);
+						if ((<Note>e).type === 'Note') {
+							if (live_loading) {
+								// display the note immediately
+								addNote(<Note>e);
+							} else {
+								// place the note in the queue to be added when scrolled to the top
+								note_queue.push(<Note>e);
+							}
+
+							offset += 1;
+						} else if ((<StreamConnect>e).uuid) {
+							send_authorization((<StreamConnect>e).uuid).then((x) => {
+								console.info('AUTHORIZATION SENT');
+							});
+						} else if ((<Announce>e).type == 'Announce') {
+							let announce = <Announce>e;
+							get_note(announce.object).then((x) => {
+								try {
+									let note: Note = JSON.parse(String(x));
+									note.ephemeralAnnounce = announce.actor;
+									note.id = announce.id;
+									note.published = announce.published;
+									addNote(note);
+									offset += 1;
+								} catch (e) {
+									console.error('FAILED TO ADD NOTE');
+									console.error(x);
+								}
+							});
+						}
 					}
 
-					offset += 1;
-				} else if ((<StreamConnect>e).uuid) {
-					send_authorization((<StreamConnect>e).uuid);
-				} else if ((<Announce>e).type == 'Announce') {
-					let announce = <Announce>e;
-					get_note(announce.object).then((x) => {
-						let note: Note = JSON.parse(String(x));
-						note.ephemeralAnnounce = announce.actor;
-						note.id = announce.id;
-						note.published = announce.published;
-						addNote(note);
-						offset += 1;
-					});
+					function restartEventSource(event: any) {
+						console.log(event);
+						console.log(sse);
+
+						if (sse.readyState == 2) {
+							sleep(2000).then(() => {
+								sse = new EventSource('/api/user/' + username + '/events');
+								sse.onerror = restartEventSource;
+								sse.onmessage = onMessage;
+							});
+						}
+					}
+
+					sse.onerror = restartEventSource;
+					sse.onmessage = onMessage;
+
+					return () => {
+						if (sse.readyState === 1) {
+							sse.close();
+						}
+					};
 				}
-			}
-
-			function restartEventSource(event: any) {
-				console.log(event);
-				console.log(sse);
-
-				if (sse.readyState == 2) {
-					sleep(2000).then(() => {
-						sse = new EventSource('/api/user/' + username + '/events');
-						sse.onerror = restartEventSource;
-						sse.onmessage = onMessage;
-					});
-				}
-			}
-
-			sse.onerror = restartEventSource;
-			sse.onmessage = onMessage;
-
-			return () => {
-				if (sse.readyState === 1) {
-					sse.close();
-				}
-			};
-		}
+			});
+		});
 	});
 
 	function compare(a: DisplayNote, b: DisplayNote) {
@@ -476,7 +507,14 @@
 	}
 
 	function convertToHtml(data: string) {
-		let converter = new Converter();
+		let converter = new Converter({
+			extensions: [
+				showdownHighlight({
+					pre: true,
+					auto_detection: true
+				})
+			]
+		});
 		converter.setFlavor('vanilla');
 		converter.setOption('tables', true);
 		converter.setOption('requireSpaceBeforeHeadingText', true);
@@ -510,6 +548,13 @@
 		html_note = '';
 	}
 
+	async function handleLike(event: any) {
+		const object: string = String(event.target.dataset.object);
+		const actor: string = String(event.target.dataset.actor);
+
+		await send_like(actor, object);
+	}
+
 	async function handlePublish() {
 		captureChanges();
 
@@ -538,6 +583,27 @@
 
 		return text;
 	}
+
+	function handleNoteSelect(event: any) {
+		focus_conversation = event.target.dataset.conversation;
+		focus_note = event.target.dataset.note;
+
+		y_position = scrollToTop();
+		infinite_scroll_disabled = true;
+	}
+
+	function clearNoteSelect() {
+		focus_conversation = null;
+		focus_note = null;
+
+		sleep(500).then(() => {
+			const main = document.getElementsByTagName('main')[0];
+			main.scrollTop = y_position;
+		});
+
+		infinite_scroll_disabled = false;
+	}
+
 	async function handleReplyTo(event: any) {
 		reply_to_recipient = event.target.dataset.recipient;
 		reply_to_note = event.target.dataset.reply;
@@ -558,17 +624,27 @@
 		reply_to_display = null;
 		reply_to_conversation = null;
 		reply_to_recipient = null;
+		markdown_note = '';
+	}
+
+	function scrollToTop(): number {
+		const main = document.getElementsByTagName('main')[0];
+		let current: number = main.scrollTop;
+		main.scrollTop = 0;
+
+		return current;
 	}
 
 	async function handleInfiniteScroll() {
 		const main = document.getElementsByTagName('main')[0];
 
-		if (!loading) {
+		if (!loading && !infinite_scroll_disabled) {
 			loading = true;
 
-			if (main.scrollTop + main.offsetHeight >= main.scrollHeight * 0.7) {
+			while (main.scrollTop + main.offsetHeight >= main.scrollHeight * 0.7) {
 				await loadTimelineData();
 			}
+
 			loading = false;
 		}
 
@@ -606,24 +682,31 @@
 
 	function closeAside(event: any) {
 		cancelReplyTo();
-		const aside = document.getElementsByTagName('aside')[0];
-		aside.classList.add('closed');
+		const dialog = document.getElementsByTagName('dialog')[0];
+		dialog.close();
+
+		const mask = document.getElementsByClassName('mask')[0];
+		mask.classList.add('closed');
 	}
 
 	function openAside(event: any) {
-		const aside = document.getElementsByTagName('aside')[0];
-		aside.classList.remove('closed');
+		const dialog = document.getElementsByTagName('dialog')[0];
+		dialog.showModal();
+
+		const mask = document.getElementsByClassName('mask')[0];
+		mask.classList.remove('closed');
 	}
 
 	// controls whether messages from EventSource are immediately displayed or queued
 	let live_loading = true;
+	let infinite_scroll_disabled = false;
 
 	// the queue used when the page is not scrolled to the top
 	let note_queue: Note[] = [];
 
 	// HTML formatted notes to display in the Timeline
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
-	let notes = new Map<string, DisplayNote>();
+	$: notes = new Map<string, DisplayNote>();
 
 	// used very temporarily to control requests to the API for new data
 	let loading = false;
@@ -646,88 +729,187 @@
 	let reply_to_note: string | null = null;
 	let reply_to_display: string | null = null;
 	let reply_to_conversation: string | null = null;
+
+	let focus_note: string | null = null;
+	let focus_conversation: string | null = null;
+
+	let y_position: number = 0;
 </script>
 
-<svelte:head>
-	<script src="https://kit.fontawesome.com/66f38a391f.js" crossorigin="anonymous"></script>
-</svelte:head>
+<div class="mask closed" />
 
-<aside class="closed">
+<dialog>
 	{#if username}
-		{#if $page.url.pathname === '/timeline'}
-			<div class="mask" />
-			<div>
-				{#if reply_to_display}
-					<span
-						>Replying to {reply_to_display}
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<i class="fa-solid fa-xmark" on:click={cancelReplyTo} /></span
-					>
-				{/if}
-				{#if !preview}
-					<pre id="compose" contenteditable="true">{markdown_note}</pre>
-				{:else}
-					<div>{@html html_note}</div>
-				{/if}
-
-				<form method="POST" on:submit|preventDefault={handleComposeSubmit}>
-					<i class="fa-solid fa-paperclip" />
-					{#if preview}
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<i class="fa-solid fa-pen-nib" on:click|preventDefault={handlePreview} />
-					{:else}
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<i class="fa-solid fa-eye" on:click|preventDefault={handlePreview} />
-					{/if}
-					<button on:click|preventDefault={handlePublish}>Publish</button>
-				</form>
-			</div>
-
+		<div>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<i class="fa-solid fa-xmark" on:click={closeAside} />
-		{/if}
+			{#if reply_to_display}
+				<span
+					>Replying to {reply_to_display}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<i class="fa-solid fa-xmark" on:click={cancelReplyTo} /></span
+				>
+			{/if}
+			{#if !preview}
+				<pre id="compose" contenteditable="true">{markdown_note}</pre>
+			{:else}
+				<div>{@html html_note}</div>
+			{/if}
+
+			<form method="POST" on:submit|preventDefault={handleComposeSubmit}>
+				<i class="fa-solid fa-paperclip" />
+				{#if preview}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<i class="fa-solid fa-pen-nib" on:click|preventDefault={handlePreview} />
+				{:else}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<i class="fa-solid fa-eye" on:click|preventDefault={handlePreview} />
+				{/if}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i class="fa-regular fa-paper-plane" on:click|preventDefault={handlePublish} />
+			</form>
+		</div>
 	{/if}
-</aside>
+</dialog>
 
 <main>
 	{#each Array.from(notes.values()).sort(compare).reverse() as note}
-		{#if note.content && !note.inReplyTo}
+		{#if note.note && ((!focus_note && !note.note.inReplyTo) || note.note.id == focus_note)}
 			<article>
-				{@html note.content}
+				{#await replyToHeader(note.note) then replyTo}
+					{@html replyTo}
+				{/await}
+				{#await announceHeader(note.note) then announce}
+					{@html announce}
+				{/await}
+
+				<header>
+					<div>
+						{#if note.actor.icon}
+							<img src={note.actor.icon.url} alt="Sender" />
+						{/if}
+					</div>
+					<address>
+						<span
+							>{@html insertEmojis(
+								note.actor.name || note.actor.preferredUsername,
+								note.actor
+							)}</span
+						>
+						<a href="/search?actor=${note.actor.id}">{note.actor.url}</a>
+					</address>
+				</header>
+				<section>{@html insertEmojis(note.note.content || '', note.note)}</section>
+				{#if note.note.attachment && note.note.attachment.length > 0}
+					<section class="attachments">{@html attachmentsDisplay(note.note)}</section>
+				{/if}
+
+				{#if note.replies?.length}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<span class="comments"
+						><i
+							class="fa-solid fa-comments"
+							data-conversation={note.note.conversation}
+							data-note={note.note.id}
+							on:click|preventDefault={handleNoteSelect}
+						/>
+						{note.replies?.length}</span
+					>
+				{/if}
 				<time datetime={note.published}>{timeSince(new Date(String(note.published)))}</time>
 				{#if username}
 					<nav>
 						<!-- svelte-ignore a11y-click-events-have-key-events -->
 						<i
-							class="fa-solid fa-comments"
-							on:click={async () => {
-								await goto(`/thread?conversation=${note.conversationId}`);
-							}}
+							class="fa-solid fa-expand"
+							data-conversation={note.note.conversation}
+							data-note={note.note.id}
+							on:click|preventDefault={handleNoteSelect}
 						/>
-						<span>{note.replies?.length}</span>
 						<i class="fa-solid fa-repeat" />
 						<i class="fa-solid fa-star" />
 						<!-- svelte-ignore a11y-click-events-have-key-events -->
 						<i
 							class="fa-solid fa-reply"
-							data-reply={note.noteId}
-							data-display={note.actorDisplayName}
-							data-url={note.actorUrl}
-							data-username={note.actorUsername}
-							data-recipient={note.actorId}
-							data-conversation={note.conversationId}
+							data-reply={note.note.id}
+							data-display={note.actor.name || note.actor.preferredUsername}
+							data-url={note.actor.url}
+							data-username={note.actor.name}
+							data-recipient={note.actor.id}
+							data-conversation={note.note.conversation}
 							on:click={handleReplyTo}
 						/>
 					</nav>
 				{/if}
 			</article>
+
+			{#if note.note.id == focus_note && note.replies?.length}
+				<div class="replies">
+					{#each Array.from(note.replies).sort(compare) as reply}
+						<article>
+							<div class="avatar">
+								<div>
+									{#if reply.actor.icon}
+										<img src={reply.actor.icon.url} alt="Sender" />
+									{/if}
+								</div>
+							</div>
+							<address>
+								<a href="/search?actor=${reply.actor.id}"
+									>{@html insertEmojis(
+										reply.actor.name || reply.actor.preferredUsername,
+										reply.actor
+									)}</a
+								>
+							</address>
+							<section>{@html insertEmojis(reply.note.content || '', reply.note)}</section>
+							{#if reply.note.attachment && reply.note.attachment.length > 0}
+								<section class="attachments">{@html attachmentsDisplay(reply.note)}</section>
+							{/if}
+
+							{#if reply.replies?.length}
+								<!-- svelte-ignore a11y-click-events-have-key-events -->
+								<span class="comments"
+									><i
+										class="fa-solid fa-comments"
+										data-conversation={reply.note.conversation}
+										data-note={reply.note.id}
+										on:click|preventDefault={handleNoteSelect}
+									/>
+									{reply.replies?.length}</span
+								>
+							{/if}
+							<time datetime={reply.published}>{timeSince(new Date(String(reply.published)))}</time>
+							{#if username}
+								<nav>
+									<i class="fa-solid fa-repeat" />
+									<i class="fa-solid fa-star" />
+									<!-- svelte-ignore a11y-click-events-have-key-events -->
+									<i
+										class="fa-solid fa-reply"
+										data-reply={reply.note.id}
+										data-display={reply.actor.name || reply.actor.preferredUsername}
+										data-url={reply.actor.url}
+										data-username={reply.actor.name}
+										data-recipient={reply.actor.id}
+										data-conversation={reply.note.conversation}
+										on:click={handleReplyTo}
+									/>
+								</nav>
+							{/if}
+						</article>
+					{/each}
+				</div>
+			{/if}
 		{/if}
 	{/each}
 
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<div class="compose" on:click={openAside}>
-		<i class="fa-solid fa-pencil" />
-	</div>
+	{#if username}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<div class="compose" on:click={openAside}>
+			<i class="fa-solid fa-pencil" />
+		</div>
+	{/if}
 
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
 	<div
@@ -739,6 +921,13 @@
 	>
 		<i class="fa-solid fa-square-caret-up" />
 	</div>
+
+	{#if focus_note || focus_conversation}
+		<div class="back">
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<i class="fa-solid fa-angles-left" on:click|preventDefault={clearNoteSelect} />
+		</div>
+	{/if}
 </main>
 
 <style lang="scss">
@@ -747,30 +936,47 @@
 		color: red;
 	}
 
-	aside {
-		grid-area: content;
-		height: calc(100vh - 42px);
+	.mask {
+		background: #999;
+		opacity: 0.9;
+		position: fixed;
+		top: 0;
+		left: 0;
 		width: 100%;
-		margin-top: 42px;
-		text-align: right;
+		height: 100vh;
+		z-index: 25;
+		pointer-events: all;
+	}
 
-		> i {
-			display: none;
-		}
+	.closed {
+		display: none;
+	}
 
-		.mask {
-			display: none;
-			background: #999;
-		}
+	dialog {
+		margin-top: unset;
+		position: fixed;
+		top: calc(50vh - 100px);
+		left: 0;
+		z-index: 30;
+		text-align: unset;
+		padding: 0;
+		border: 0;
+		border-radius: 10px;
 
 		div {
 			display: inline-block;
-			max-width: 400px;
+			max-width: 600px;
 			min-width: 350px;
-			margin: 10px;
-			padding: 15px 10px 0 10px;
+			margin: 0;
+			padding: 25px 10px 0 10px;
 			border-radius: 10px;
 			background: #ddd;
+
+			> i {
+				position: absolute;
+				right: 10px;
+				top: 5px;
+			}
 
 			> span {
 				display: inline-block;
@@ -793,6 +999,8 @@
 				border: 1px solid #eee;
 				font-family: 'Open Sans';
 				border-radius: 10px;
+				word-wrap: break-word;
+				overflow: hidden;
 			}
 
 			div {
@@ -806,7 +1014,7 @@
 
 				i {
 					font-size: 24px;
-					padding: 0 10px;
+					padding: 10px;
 				}
 
 				i:hover {
@@ -836,38 +1044,21 @@
 
 		@media screen and (max-width: 600px) {
 			margin-top: unset;
-			grid-area: content;
-			position: absolute;
-			top: 35px;
+			position: fixed;
+			top: 0;
 			left: 0;
-			width: 100%;
-			height: calc(100vh - 42px);
+			width: 100vw;
+			max-width: unset;
+			max-height: unset;
+			margin: 0;
+			height: 100vh;
 			z-index: 21;
 			text-align: unset;
+			background: #ddd;
+			border-radius: unset;
 
 			.mask {
-				display: block;
-				position: fixed;
-				border: 0;
-				outline: 0;
-				top: 0;
-				left: 0;
-				width: 100%;
-				height: 100vh;
-				opacity: 0.9;
-			}
-
-			> i {
-				display: inline-block;
-				position: fixed;
-				top: 45px;
-				left: 20px;
-				font-size: 36px;
-				color: #aaa;
-			}
-
-			> i:hover {
-				color: red;
+				display: none;
 			}
 
 			div {
@@ -879,9 +1070,18 @@
 				border-radius: 0;
 				height: auto;
 				width: 100%;
-				padding-top: 45px;
+				padding-top: 35px;
 				max-width: unset;
 				min-width: unset;
+
+				> i {
+					font-size: 28px;
+					color: #222;
+				}
+
+				> i:hover {
+					color: red;
+				}
 
 				span {
 					margin: 5px;
@@ -927,16 +1127,25 @@
 	}
 
 	:global(body.dark) {
-		aside {
+		dialog {
+			background: #444;
+
 			div {
 				background: #444;
-				border: 1px solid #777;
 
 				pre,
 				div {
 					background: #333;
 					color: white;
 					border: 1px solid #777;
+				}
+
+				> i {
+					color: #ccc;
+				}
+
+				> i:hover {
+					color: red;
 				}
 			}
 
@@ -965,7 +1174,51 @@
 		overflow-y: auto;
 
 		.compose {
-			display: none;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			position: fixed;
+			right: calc(50% - 30px);
+			bottom: 10px;
+			background: #eee;
+			width: 60px;
+			height: 60px;
+			border-radius: 10px;
+			opacity: 0.9;
+			border: 1px solid #ccc;
+			color: #444;
+			transition-duration: 1s;
+
+			i {
+				font-size: 24px;
+			}
+		}
+
+		.compose:hover {
+			cursor: pointer;
+			color: red;
+			opacity: 1;
+			transition-duration: 1s;
+		}
+
+		.back {
+			position: fixed;
+			left: 10px;
+			top: 50px;
+			width: 50px;
+			text-align: center;
+			border-radius: 10px;
+			font-size: 28px;
+			color: #777;
+			opacity: 0.6;
+			transition-duration: 1s;
+			z-index: 31;
+		}
+
+		.back:hover {
+			opacity: 1;
+			color: red;
+			transition-duration: 1s;
 		}
 
 		.scroll {
@@ -981,10 +1234,14 @@
 			color: #777;
 			opacity: 0.3;
 			border: 1px solid #bbb;
+			transition-duration: 1s;
 		}
 
 		.scroll:hover {
 			opacity: 0.8;
+			color: red;
+			cursor: pointer;
+			transition-duration: 1s;
 		}
 
 		article {
@@ -996,6 +1253,7 @@
 			border-bottom: 1px solid #ddd;
 			font-family: 'Open Sans';
 			background: #fafafa;
+			overflow: hidden;
 
 			:global(a) {
 				color: darkgoldenrod;
@@ -1007,7 +1265,11 @@
 
 			:global(.reply),
 			:global(.repost) {
-				width: 100%;
+				width: calc(100% - 130px);
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				overflow: hidden;
+				display: block;
 				padding: 10px 10px 5px 10px;
 				font-weight: 600;
 				font-size: 14px;
@@ -1018,12 +1280,42 @@
 			:global(header) {
 				padding: 10px 20px;
 				color: #222;
+
+				:global(address) {
+					position: relative;
+					width: calc(100% - 130px);
+					padding: 0 15px;
+
+					:global(span),
+					:global(a) {
+						display: block;
+						overflow: hidden;
+						white-space: nowrap;
+						text-overflow: ellipsis;
+					}
+				}
 			}
 
-			:global(address) {
-				position: relative;
-				width: 100%;
-				padding: 0 15px;
+			:global(.comments) {
+				display: inline-block;
+				position: absolute;
+				top: 10px;
+				right: 50px;
+				font-size: 14px;
+				font-weight: 600;
+				color: inherit;
+
+				:global(i) {
+					color: #555;
+				}
+			}
+
+			:global(.comments:hover) {
+				color: red;
+
+				:global(i) {
+					color: red;
+				}
 			}
 
 			:global(time) {
@@ -1112,20 +1404,97 @@
 
 			nav {
 				width: 100%;
-				background: #fafafa;
+				position: absolute;
+				z-index: unset;
+				top: unset;
+				right: unset;
+				bottom: 0;
+				left: 0;
+				background: #eee;
 				padding: 5px 0;
-				margin: 0 0 10px 0;
+				margin: 0;
+				opacity: 0.3;
+				transform: translateY(100%);
+				transition-duration: 300ms;
 
 				i {
 					text-align: center;
-					font-size: 22px;
-					color: #777;
+					font-size: 14px;
+					color: #444;
 					width: calc(95% / 4);
 				}
 
 				i:hover {
 					cursor: pointer;
 					color: red;
+				}
+			}
+
+			nav:hover {
+				opacity: 1;
+			}
+		}
+
+		article:hover {
+			nav {
+				transform: translateY(0);
+			}
+		}
+
+		div.replies {
+			article {
+				display: grid;
+				grid-template-columns: 75px 1fr;
+				grid-auto-rows: minmax(10px, auto);
+				grid-template-areas:
+					'avatar address'
+					'avatar content'
+					'avatar attachments';
+
+				.avatar {
+					grid-area: avatar;
+					padding: 10px;
+
+					img {
+						width: 55px;
+					}
+				}
+
+				address {
+					grid-area: address;
+					padding-top: 10px;
+					width: calc(100% - 100px);
+
+					span:first-child,
+					a {
+						display: block;
+						font-size: 16px;
+						overflow: hidden;
+						white-space: nowrap;
+						text-overflow: ellipsis;
+					}
+				}
+
+				section {
+					grid-area: content;
+					padding: 0;
+
+					p {
+						width: 100%;
+						margin: 5px 0;
+						padding: 0 5px 0 0;
+						font-size: 14px;
+					}
+				}
+
+				.attachments {
+					grid-area: attachments;
+				}
+
+				nav {
+					i {
+						width: calc(95% / 3);
+					}
 				}
 			}
 		}
@@ -1169,27 +1538,11 @@
 			width: 100vw;
 
 			.compose {
-				display: flex;
-				justify-content: center;
-				align-items: center;
-				position: fixed;
-				right: 10px;
 				bottom: 60px;
-				background: #eee;
-				width: 60px;
-				height: 60px;
-				border-radius: 10px;
-				opacity: 0.8;
-				border: 1px solid #ccc;
-				color: #444;
-
-				i {
-					font-size: 24px;
-				}
 			}
 
-			.compose:hover {
-				cursor: pointer;
+			.back {
+				top: 5px;
 			}
 		}
 	}
@@ -1198,7 +1551,7 @@
 		article {
 			background: #000;
 			color: #fff;
-			border-bottom: 1px solid #444;
+			border-bottom: 1px solid #222;
 
 			:global(.reply),
 			:global(.repost) {
@@ -1223,8 +1576,16 @@
 				color: red;
 			}
 
-			:global(code) {
-				background: #444;
+			nav {
+				background: #555;
+
+				i {
+					color: #fff;
+				}
+
+				i:hover {
+					color: red;
+				}
 			}
 		}
 

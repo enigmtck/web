@@ -15,9 +15,9 @@ export default defineConfig({
 		proxy: {
 			'/events': {
 				target: 'http://127.0.0.1:8010/',
-				changeOrigin: false,
+				changeOrigin: true,
 				secure: false,
-				ws: false
+				ws: false,
 			},
 			'/api': {
 				target: 'http://127.0.0.1:8010/',
