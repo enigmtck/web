@@ -129,6 +129,9 @@
 		conversation: string | null;
 		ephemeralAnnounce?: string | null;
 		ephemeralActors?: UserProfile[];
+		ephemeralLiked?: boolean | null;
+		ephemeralTargeted?: boolean | null;
+		ephemeralTimestamp?: string | null;
 	};
 
 	type StreamConnect = {
@@ -272,6 +275,10 @@
 			});
 		}
 
+		if (note.ephemeralTimestamp) {
+			console.debug(note.ephemeralTimestamp);
+		}
+
 		if (note.attributedTo) {
 			const actor = await cachedActor(note.attributedTo);
 
@@ -294,10 +301,21 @@
 						if (stored) {
 							// parent note exists, put this one in its replies
 							stored.replies?.push(displayNote);
-							notes.set(String(stored.note.id), stored);
+
+							// There's a race condition here with the async calls where a back-to-back duplicate in 
+							// the timeline (which can happen with Announces) could overwrite an existing entry and
+							// reset its replies; this check guards against that, but probably doesn't eliminate it
+							// I should eliminate the possibility of duplicate entries in the timeline eventually.
+							// The logic here is duplicated below for each call to notes.set - moving that check
+							// to the top of this function allows the race condition to manifest.
+							if (!notes.get(String(note.id))) {
+								notes.set(String(stored.note.id), stored);
+							}
 						} else {
 							// parent note does not (yet) exist, add this one to the main list
-							notes.set(String(note.id), displayNote);
+							if (!notes.get(String(note.id))) {
+								notes.set(String(note.id), displayNote);
+							}
 						}
 					} else {
 						// this is a top-level note, check other notes to see if they
@@ -315,7 +333,9 @@
 							notes.delete(n);
 						});
 
-						notes.set(String(note.id), displayNote);
+						if (!notes.get(String(note.id))) {
+							notes.set(String(note.id), displayNote);
+						}
 					}
 				}
 
@@ -333,7 +353,7 @@
 		constructor(profile: UserProfile, note: Note, replies?: DisplayNote[]) {
 			this.note = note;
 			this.actor = profile;
-			this.published = String(note.published);
+			this.published = String(note.ephemeralTimestamp);
 			this.replies = replies || [];
 		}
 	}
@@ -351,7 +371,9 @@
 			try {
 				// if loadTimelineData returns 0, that means it's reached the end
 				// of what is available and we should stop
-				if (await loadTimelineData()) {
+				const results = await loadTimelineData();
+				console.debug('TIMELINE LENGTH: ' + results);
+				if (results > 0) {
 					await loadMinimum();
 				}
 			} catch (e) {
@@ -361,7 +383,9 @@
 	}
 
 	async function loadTimelineData() {
-		let x = await get_timeline(offset, 5);
+		const pageSize = 40;
+
+		let x = await get_timeline(offset, pageSize);
 
 		try {
 			let timeline = JSON.parse(String(x));
@@ -375,11 +399,14 @@
 				console.debug(timeline);
 			}
 
-			offset += 5;
+			offset += pageSize;
 			return timeline.length;
 		} catch (e) {
 			console.error(e);
 			console.debug(x);
+			// this will stop execution on a parsing error, but the alternative is an infinite loop in the wasm
+			// module if the server becomes unavailable
+			throw e;
 		}
 	}
 
@@ -406,6 +433,8 @@
 		}
 	});
 
+	let stateLoaded = false;
+
 	onMount(() => {
 		let main = document.getElementsByTagName('main')[0];
 		main.addEventListener('scroll', handleInfiniteScroll);
@@ -416,14 +445,10 @@
 				console.log(instance?.url);
 
 				if (get(wasmState)) {
-					get_wasm_state().then(() => {
-						import_wasm_state(get(wasmState));
-						console.log('loaded state from store');
-					});
+					import_wasm_state(get(wasmState));
+					console.log('loaded state from store');
 				}
-				console.log('init WASM');
 
-				//loadTimelineData();
 				loadMinimum();
 
 				if (username) {
@@ -548,11 +573,23 @@
 		html_note = '';
 	}
 
-	async function handleLike(event: any) {
+	function handleLike(event: any) {
 		const object: string = String(event.target.dataset.object);
 		const actor: string = String(event.target.dataset.actor);
 
-		await send_like(actor, object);
+		send_like(actor, object).then(() => {
+			// this will only work for top-level notes
+			let note = notes.get(object);
+			if (note) {
+				note.note.ephemeralLiked = true;
+			}
+			event.target.classList.add('selected');
+		});
+	}
+
+	function handleUnlike(event: any) {
+		const object: string = String(event.target.dataset.object);
+		const actor: string = String(event.target.dataset.actor);
 	}
 
 	async function handlePublish() {
@@ -641,8 +678,9 @@
 		if (!loading && !infinite_scroll_disabled) {
 			loading = true;
 
-			while (main.scrollTop + main.offsetHeight >= main.scrollHeight * 0.7) {
-				await loadTimelineData();
+			let results = 1;
+			while (main.scrollTop + main.offsetHeight >= main.scrollHeight * 0.7 && results > 0) {
+				results = await loadTimelineData();
 			}
 
 			loading = false;
@@ -796,7 +834,7 @@
 								note.actor
 							)}</span
 						>
-						<a href="/search?actor=${note.actor.id}">{note.actor.url}</a>
+						<a href="/search?actor={note.actor.id}">{note.actor.url}</a>
 					</address>
 				</header>
 				<section>{@html insertEmojis(note.note.content || '', note.note)}</section>
@@ -806,13 +844,12 @@
 
 				{#if note.replies?.length}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<span class="comments"
-						><i
-							class="fa-solid fa-comments"
-							data-conversation={note.note.conversation}
-							data-note={note.note.id}
-							on:click|preventDefault={handleNoteSelect}
-						/>
+					<span
+						class="comments"
+						data-conversation={note.note.conversation}
+						data-note={note.note.id}
+						on:click|preventDefault={handleNoteSelect}
+						><i class="fa-solid fa-comments" />
 						{note.replies?.length}</span
 					>
 				{/if}
@@ -826,8 +863,26 @@
 							data-note={note.note.id}
 							on:click|preventDefault={handleNoteSelect}
 						/>
+
 						<i class="fa-solid fa-repeat" />
-						<i class="fa-solid fa-star" />
+
+						{#if note.note.ephemeralLiked}
+							<!-- svelte-ignore a11y-click-events-have-key-events -->
+							<i
+								class="fa-solid fa-star selected"
+								data-actor={note.note.attributedTo}
+								data-object={note.note.id}
+								on:click|preventDefault={handleUnlike}
+							/>
+						{:else}
+							<!-- svelte-ignore a11y-click-events-have-key-events -->
+							<i
+								class="fa-solid fa-star"
+								data-actor={note.note.attributedTo}
+								data-object={note.note.id}
+								on:click|preventDefault={handleLike}
+							/>
+						{/if}
 						<!-- svelte-ignore a11y-click-events-have-key-events -->
 						<i
 							class="fa-solid fa-reply"
@@ -855,11 +910,11 @@
 								</div>
 							</div>
 							<address>
-								<a href="/search?actor=${reply.actor.id}"
+								<a href="/search?actor={reply.actor.id}"
 									>{@html insertEmojis(
 										reply.actor.name || reply.actor.preferredUsername,
 										reply.actor
-									)}</a
+									)} &bull; <span class="url">{reply.actor.url}</span></a
 								>
 							</address>
 							<section>{@html insertEmojis(reply.note.content || '', reply.note)}</section>
@@ -869,13 +924,12 @@
 
 							{#if reply.replies?.length}
 								<!-- svelte-ignore a11y-click-events-have-key-events -->
-								<span class="comments"
-									><i
-										class="fa-solid fa-comments"
-										data-conversation={reply.note.conversation}
-										data-note={reply.note.id}
-										on:click|preventDefault={handleNoteSelect}
-									/>
+								<span
+									class="comments"
+									data-conversation={reply.note.conversation}
+									data-note={reply.note.id}
+									on:click|preventDefault={handleNoteSelect}
+									><i class="fa-solid fa-comments" />
 									{reply.replies?.length}</span
 								>
 							{/if}
@@ -883,7 +937,23 @@
 							{#if username}
 								<nav>
 									<i class="fa-solid fa-repeat" />
-									<i class="fa-solid fa-star" />
+									{#if note.note.ephemeralLiked}
+										<!-- svelte-ignore a11y-click-events-have-key-events -->
+										<i
+											class="fa-solid fa-star selected"
+											data-actor={reply.note.attributedTo}
+											data-object={reply.note.id}
+											on:click|preventDefault={handleUnlike}
+										/>
+									{:else}
+										<!-- svelte-ignore a11y-click-events-have-key-events -->
+										<i
+											class="fa-solid fa-star"
+											data-actor={reply.note.attributedTo}
+											data-object={reply.note.id}
+											on:click|preventDefault={handleLike}
+										/>
+									{/if}
 									<!-- svelte-ignore a11y-click-events-have-key-events -->
 									<i
 										class="fa-solid fa-reply"
@@ -1044,14 +1114,13 @@
 
 		@media screen and (max-width: 600px) {
 			margin-top: unset;
-			position: fixed;
 			top: 0;
 			left: 0;
 			width: 100vw;
 			max-width: unset;
 			max-height: unset;
 			margin: 0;
-			height: 100vh;
+			height: 100%;
 			z-index: 21;
 			text-align: unset;
 			background: #ddd;
@@ -1068,7 +1137,7 @@
 				padding: 0;
 				border: 0;
 				border-radius: 0;
-				height: auto;
+				height: 100%;
 				width: 100%;
 				padding-top: 35px;
 				max-width: unset;
@@ -1091,7 +1160,7 @@
 				div {
 					position: relative;
 					display: block;
-					height: calc(100% - 105px);
+					height: calc(100% - 60px);
 					width: calc(100vw - 12px);
 					margin: 5px;
 					border-radius: 0;
@@ -1304,9 +1373,12 @@
 				font-size: 14px;
 				font-weight: 600;
 				color: inherit;
+				user-select: none;
+				cursor: pointer;
 
 				:global(i) {
 					color: #555;
+					pointer-events: none;
 				}
 			}
 
@@ -1364,14 +1436,33 @@
 			}
 
 			:global(section > p) {
-				margin: 10px 0;
+				user-select: none;
+				margin: 0 0 10px 0;
+
+				:global(a) {
+					display: inline-flex;
+
+					:global(span.invisible) {
+						display: none;
+					}
+
+					:global(span.ellipsis) {
+						text-overflow: ellipsis;
+						overflow: hidden;
+						white-space: nowrap;
+						max-width: 80%;
+					}
+				}
 			}
 
 			:global(.emoji) {
-				max-height: 1em;
-				padding: 0 0.25em;
+				display: inline;
+				max-height: calc(1em - 2px);
+				padding: 0;
+				margin-bottom: 4px;
 				width: auto;
 				height: auto;
+				vertical-align: middle;
 			}
 
 			:global(.attachments) {
@@ -1428,6 +1519,10 @@
 					cursor: pointer;
 					color: red;
 				}
+
+				i.selected {
+					color: goldenrod;
+				}
 			}
 
 			nav:hover {
@@ -1444,7 +1539,7 @@
 		div.replies {
 			article {
 				display: grid;
-				grid-template-columns: 75px 1fr;
+				grid-template-columns: 90px 1fr;
 				grid-auto-rows: minmax(10px, auto);
 				grid-template-areas:
 					'avatar address'
@@ -1453,7 +1548,7 @@
 
 				.avatar {
 					grid-area: avatar;
-					padding: 10px;
+					padding: 10px 15px 10px 20px;
 
 					img {
 						width: 55px;
@@ -1464,14 +1559,23 @@
 					grid-area: address;
 					padding-top: 10px;
 					width: calc(100% - 100px);
+					overflow: hidden;
+					text-overflow: ellipsis;
 
 					span:first-child,
 					a {
 						display: block;
-						font-size: 16px;
+						font-size: 13px;
 						overflow: hidden;
 						white-space: nowrap;
 						text-overflow: ellipsis;
+						font-weight: 600;
+						color: #222;
+					}
+
+					span.url {
+						color: #555;
+						display: inline;
 					}
 				}
 
@@ -1479,7 +1583,7 @@
 					grid-area: content;
 					padding: 0;
 
-					p {
+					:global(p) {
 						width: 100%;
 						margin: 5px 0;
 						padding: 0 5px 0 0;
@@ -1487,8 +1591,13 @@
 					}
 				}
 
+				time {
+					font-size: 13px;
+				}
+
 				.attachments {
 					grid-area: attachments;
+					padding: 0 5px 0 0;
 				}
 
 				nav {
@@ -1534,7 +1643,7 @@
 
 	@media screen and (max-width: 600px) {
 		main {
-			height: calc(100vh - 91px);
+			height: calc(100vh - 40px);
 			width: 100vw;
 
 			.compose {
@@ -1585,6 +1694,20 @@
 
 				i:hover {
 					color: red;
+				}
+
+				i.selected {
+					color: goldenrod;
+				}
+			}
+		}
+
+		.replies {
+			article {
+				address {
+					a {
+						color: #ddd;
+					}
 				}
 			}
 		}
