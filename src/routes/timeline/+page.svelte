@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import LinkPreview from './components/LinkPreview.svelte';
 
 	import { onMount, setContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
@@ -111,6 +112,21 @@
 		height?: number | null;
 	};
 
+	type Metadata = {
+		twitterTitle?: string | null;
+		description?: string | null;
+		ogDescription?: string | null;
+		ogTitle?: string | null;
+		ogImage?: string | null;
+		ogSiteName?: string | null;
+		twitterImage?: string | null;
+		ogUrl?: string | null;
+		twitterDescription?: string | null;
+		published?: string | null;
+		twitterSite?: string | null;
+		ogType?: string | null;
+	};
+
 	type Note = {
 		'@context': string;
 		type: 'Note';
@@ -132,6 +148,7 @@
 		ephemeralLiked?: boolean | null;
 		ephemeralTargeted?: boolean | null;
 		ephemeralTimestamp?: string | null;
+		ephemeralMetadata?: Metadata[] | null;
 	};
 
 	type StreamConnect = {
@@ -275,10 +292,6 @@
 			});
 		}
 
-		if (note.ephemeralTimestamp) {
-			console.debug(note.ephemeralTimestamp);
-		}
-
 		if (note.attributedTo) {
 			const actor = await cachedActor(note.attributedTo);
 
@@ -302,7 +315,7 @@
 							// parent note exists, put this one in its replies
 							stored.replies?.push(displayNote);
 
-							// There's a race condition here with the async calls where a back-to-back duplicate in 
+							// There's a race condition here with the async calls where a back-to-back duplicate in
 							// the timeline (which can happen with Announces) could overwrite an existing entry and
 							// reset its replies; this check guards against that, but probably doesn't eliminate it
 							// I should eliminate the possibility of duplicate entries in the timeline eventually.
@@ -481,7 +494,14 @@
 									note.ephemeralAnnounce = announce.actor;
 									note.id = announce.id;
 									note.published = announce.published;
-									addNote(note);
+									note.ephemeralTimestamp = announce.published;
+
+									if (live_loading) {
+										addNote(note);
+									} else {
+										note_queue.push(note);
+									}
+
 									offset += 1;
 								} catch (e) {
 									console.error('FAILED TO ADD NOTE');
@@ -652,6 +672,7 @@
 
 		//const webfinger_acct = await get_webfinger_from_id(String(reply_to_recipient));
 		markdown_note = `<span class="h-card"><a href="${reply_to_url}" class="u-url mention" rel="noopener noreferrer">@${reply_to_username}</a></span> `;
+		html_note = convertToHtml(markdown_note);
 
 		openAside(event);
 	}
@@ -842,6 +863,10 @@
 					<section class="attachments">{@html attachmentsDisplay(note.note)}</section>
 				{/if}
 
+				{#if note.note.ephemeralMetadata && note.note.ephemeralMetadata.length}
+					<LinkPreview links={note.note.ephemeralMetadata}/>
+				{/if}
+
 				{#if note.replies?.length}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<span
@@ -1023,10 +1048,14 @@
 	}
 
 	dialog {
-		margin-top: unset;
+		margin: 0;
 		position: fixed;
-		top: calc(50vh - 100px);
-		left: 0;
+		min-height: 220px;
+		min-width: 400px;
+		max-height: 100%;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
 		z-index: 30;
 		text-align: unset;
 		padding: 0;
@@ -1034,9 +1063,10 @@
 		border-radius: 10px;
 
 		div {
-			display: inline-block;
-			max-width: 600px;
-			min-width: 350px;
+			position: relative;
+			display: block;
+			height: 100%;
+			width: 100%;
 			margin: 0;
 			padding: 25px 10px 0 10px;
 			border-radius: 10px;
@@ -1060,17 +1090,19 @@
 
 			pre,
 			div {
+				position: relative;
 				text-align: left;
 				width: 100%;
 				padding: 10px;
 				margin: 0;
 				background: white;
 				min-height: 150px;
+				max-height: 80vh;
 				border: 1px solid #eee;
 				font-family: 'Open Sans';
 				border-radius: 10px;
 				word-wrap: break-word;
-				overflow: hidden;
+				overflow: scroll;
 			}
 
 			div {
@@ -1113,7 +1145,6 @@
 		}
 
 		@media screen and (max-width: 600px) {
-			margin-top: unset;
 			top: 0;
 			left: 0;
 			width: 100vw;
@@ -1125,6 +1156,7 @@
 			text-align: unset;
 			background: #ddd;
 			border-radius: unset;
+			transform: unset;
 
 			.mask {
 				display: none;
@@ -1433,6 +1465,10 @@
 			:global(section) {
 				padding: 0 20px;
 				overflow-wrap: break-word;
+
+				:global(pre) {
+					white-space: pre;
+				}
 			}
 
 			:global(section > p) {
@@ -1657,10 +1693,23 @@
 	}
 
 	:global(body.dark) {
+		:global(a) {
+			color: darkgoldenrod;
+		}
+
+		:global(a:hover) {
+			color: red;
+		}
+
 		article {
 			background: #000;
 			color: #fff;
 			border-bottom: 1px solid #222;
+
+			:global(> code),
+			:global(p > code) {
+				background: #222;
+			}
 
 			:global(.reply),
 			:global(.repost) {
@@ -1675,14 +1724,6 @@
 			:global(address > span:first-child) {
 				font-size: 18px;
 				color: #eee;
-			}
-
-			:global(a) {
-				color: darkgoldenrod;
-			}
-
-			:global(a:hover) {
-				color: red;
 			}
 
 			nav {
