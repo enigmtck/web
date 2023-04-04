@@ -19,17 +19,24 @@
 	let selectedIndex: number = 0;
 </script>
 
-<a href={links[selectedIndex].ogUrl} target="_blank" rel="noreferrer">
-	<div>
-		<div class="image">
-			<img src={links[selectedIndex].ogImage} alt="Link Preview" />
-		</div>
+{#if links[selectedIndex].ogUrl && links[selectedIndex].ogTitle}
+	<a href={links[selectedIndex].ogUrl} target="_blank" rel="noreferrer">
 		<div>
-			<span>{links[selectedIndex].ogTitle}</span>
-			<span>{links[selectedIndex].ogDescription}</span>
+			{#if links[selectedIndex].ogImage?.length}
+				<div class="image">
+					<img src={links[selectedIndex].ogImage} alt="Link Preview" />
+				</div>
+			{/if}
+			<div>
+				<span>{links[selectedIndex].ogTitle}</span>
+
+				{#if links[selectedIndex].ogDescription}
+					<span>{links[selectedIndex].ogDescription}</span>
+				{/if}
+			</div>
 		</div>
-	</div>
-</a>
+	</a>
+{/if}
 
 <style lang="scss">
 	a {
@@ -53,7 +60,7 @@
 				span {
 					font-size: 13px;
 					padding-bottom: 5px;
-                    color: black;
+					color: black;
 				}
 				span:first-child {
 					font-weight: 600;
@@ -63,7 +70,8 @@
 
 			.image {
 				max-width: 150px;
-				padding: 5px;
+				padding: 5px 0 5px 5px;
+				margin: 10px 0 10px 10px;
 
 				img {
 					width: unset;
@@ -71,6 +79,26 @@
 					clip-path: unset;
 					width: 100%;
 					border: 1px solid #777;
+				}
+			}
+		}
+	}
+
+	:global(body.dark) {
+		a {
+			div {
+				background: #151515;
+				border: 1px solid #222;
+
+				div {
+					border: 0;
+
+					span {
+						color: white;
+					}
+					span:first-child {
+						color: #aaa;
+					}
 				}
 			}
 		}

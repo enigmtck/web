@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import LinkPreview from './components/LinkPreview.svelte';
+	import Reply from './components/Reply.svelte';
+	import Article from './components/Article.svelte';
 
 	import { onMount, setContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
@@ -8,184 +9,25 @@
 	import { wasmState, olmState, appData } from '../../stores';
 	import { Converter } from 'showdown';
 	import showdownHighlight from 'showdown-highlight';
+	import type { UserProfile, Note, StreamConnect, Announce } from '../../common';
+	import { insertEmojis, compare } from '../../common';
 
 	import init_wasm, {
-		authenticate,
 		SendParams,
 		get_note,
 		send_note,
-		send_encrypted_note,
 		get_actor,
-		get_inbox,
 		get_timeline,
-		get_processing_queue,
-		get_webfinger_from_id,
 		load_instance_information,
-		send_follow,
 		send_like,
-		send_unfollow,
 		send_authorization,
 		get_state as get_wasm_state,
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
 	import { goto } from '$app/navigation';
 
-	type Image = {
-		mediaType?: string;
-		type: string;
-		url: string;
-	};
-
-	type UserProfile = {
-		'@context': string;
-		type: string;
-		name?: string;
-		summary?: string;
-		id?: string;
-		preferredUsername: string;
-		inbox: string;
-		outbox: string;
-		followers: string;
-		following: string;
-		liked?: string;
-		publicKey: object;
-		featured?: string;
-		featuredTags?: string;
-		url?: string;
-		manuallyApprovesFollowers?: boolean;
-		published?: string;
-		tag?: Tag[];
-		attachment?: object;
-		endpoints?: object;
-		icon?: Image;
-		image?: Image;
-		ephemeralFollowing?: boolean;
-		ephemeralLeaderApId?: string;
-	};
-
-	type EnigmatickEventObject = {
-		id: string;
-	};
-
-	type EnigmatickEvent = {
-		'@context': string;
-		type: string;
-		id?: string;
-		actor?: string | null;
-		to?: string | null;
-		cc?: string | null;
-		object?: EnigmatickEventObject | string | null;
-		attributedTo?: string | null;
-		content?: string | null;
-		published: string;
-		inReplyTo?: string | null;
-	};
-
-	type Announce = {
-		'@context': string;
-		id: string;
-		actor: string;
-		cc: string[];
-		to: string[];
-		object: string;
-		published: string;
-		type: 'Announce';
-	};
-
-	type Tag = {
-		type: 'Mention' | 'Emoji' | 'Hashtag';
-		name: string;
-		href?: string;
-		id?: string;
-		updated?: string;
-		icon?: Image;
-	};
-
-	type Attachment = {
-		type: 'PropertyValue' | 'Document' | 'IdentityProof';
-		name?: string | null;
-		value?: string | null;
-		mediaType?: string | null;
-		url?: string | null;
-		blurhash?: string | null;
-		width?: number | null;
-		height?: number | null;
-	};
-
-	type Metadata = {
-		twitterTitle?: string | null;
-		description?: string | null;
-		ogDescription?: string | null;
-		ogTitle?: string | null;
-		ogImage?: string | null;
-		ogSiteName?: string | null;
-		twitterImage?: string | null;
-		ogUrl?: string | null;
-		twitterDescription?: string | null;
-		published?: string | null;
-		twitterSite?: string | null;
-		ogType?: string | null;
-	};
-
-	type Note = {
-		'@context': string;
-		type: 'Note';
-		tag?: Tag[];
-		id?: string;
-		actor?: string | null;
-		to?: string[];
-		cc?: string[];
-		url?: string;
-		attributedTo: string;
-		content?: string | null;
-		replies?: object | null;
-		published: string | null;
-		inReplyTo?: string | null;
-		attachment?: Attachment[];
-		conversation: string | null;
-		ephemeralAnnounce?: string | null;
-		ephemeralActors?: UserProfile[];
-		ephemeralLiked?: boolean | null;
-		ephemeralTargeted?: boolean | null;
-		ephemeralTimestamp?: string | null;
-		ephemeralMetadata?: Metadata[] | null;
-	};
-
-	type StreamConnect = {
-		uuid: string;
-	};
-
 	function sleep(ms: number) {
 		return new Promise((resolve) => setTimeout(resolve, ms));
-	}
-
-	function timeSince(date: any) {
-		let now: any = new Date();
-
-		var seconds = Math.floor((now - date) / 1000);
-
-		var interval = seconds / 31536000;
-
-		if (interval > 1) {
-			return Math.floor(interval) + 'yr';
-		}
-		interval = seconds / 2592000;
-		if (interval > 1) {
-			return Math.floor(interval) + 'mo';
-		}
-		interval = seconds / 86400;
-		if (interval > 1) {
-			return Math.floor(interval) + 'd';
-		}
-		interval = seconds / 3600;
-		if (interval > 1) {
-			return Math.floor(interval) + 'h';
-		}
-		interval = seconds / 60;
-		if (interval > 1) {
-			return Math.floor(interval) + 'm';
-		}
-		return Math.floor(seconds) + 's';
 	}
 
 	function parseProfile(text: string | null | undefined): UserProfile | null {
@@ -203,21 +45,7 @@
 		}
 	}
 
-	function insertEmojis(text: string, profile: UserProfile | Note) {
-		if (profile.tag) {
-			profile.tag.forEach((tag) => {
-				if (tag.type === 'Emoji') {
-					if (tag.icon) {
-						text = text.replaceAll(tag.name, `<img class="emoji" src="${tag.icon.url}"/>`);
-					}
-				}
-			});
-		}
-
-		return text;
-	}
-
-	async function replyToHeader(note: Note): Promise<String> {
+	async function replyToHeader(note: Note): Promise<string> {
 		if (note.inReplyTo) {
 			const reply_note = await cachedNote(note.inReplyTo);
 
@@ -243,7 +71,7 @@
 		}
 	}
 
-	async function announceHeader(note: Note): Promise<String> {
+	async function announceHeader(note: Note): Promise<string> {
 		if (note.ephemeralAnnounce) {
 			const announce_actor = await cachedActor(note.ephemeralAnnounce);
 
@@ -268,19 +96,49 @@
 		}
 	}
 
-	function attachmentsDisplay(note: Note): String {
-		let attachments = '';
-		if (note.attachment && note.attachment.length > 0) {
-			note.attachment.forEach((x) => {
-				if (x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))) {
-					attachments += `<div><img src="${x.url}" width="${x.width}" height="${x.height}"/></div>`;
-				} else if (x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))) {
-					attachments += `<div><video width="${x.width}" height="${x.height}" controls><source src="${x.url}" type="${x.mediaType}"></video></div>`;
-				}
-			});
-		}
+	function placeNote(displayNote: DisplayNote) {
+		const note = displayNote.note;
 
-		return attachments;
+		if (note.inReplyTo) {
+			// lookup the parent note in the locator to get its traversal path
+			let traversal = locator.get(String(note.inReplyTo));
+
+			if (traversal) {
+				// set the cursor to the first step in the traversal
+				let cursor = notes.get(traversal[0]);
+
+				// traverse through the steps, updating the cursor to find the
+				// deepest point
+				traversal.forEach((id, key, arr) => {
+					if (key > 0) {
+						cursor = cursor?.replies.get(id);
+					}
+				});
+
+				if (cursor?.note.id == note.inReplyTo) {
+					// attch this note to its parent
+					cursor.replies.set(String(note.id), displayNote);
+
+					// copy the traversal path and add this note's id to the end
+					let traversalCopy = [...traversal];
+					traversalCopy.push(String(note.id));
+
+					// update the locator map with the traversal path for this note
+					locator.set(String(note.id), traversalCopy);
+				} else {
+					console.error('TRAVERSAL ENDED SOMEWHERE UNEXPECTED');
+				}
+			} else {
+				// we don't have this note's parent yet; queue it for review later
+				orphans.add(displayNote);
+			}
+		} else {
+			// this is a top-level note, add it to the notes and locator maps
+			if (!notes.get(String(note.id))) {
+				notes.set(String(note.id), displayNote);
+				locator.set(String(note.id), [String(note.id)]);
+			}
+		}
 	}
 
 	async function addNote(note: Note) {
@@ -306,50 +164,7 @@
 					}
 
 					const displayNote = new DisplayNote(profile, note);
-
-					if (note.inReplyTo) {
-						// if this is a reply to another note, see if that parent note exists to add to
-						let stored = notes.get(note.inReplyTo);
-
-						if (stored) {
-							// parent note exists, put this one in its replies
-							stored.replies?.push(displayNote);
-
-							// There's a race condition here with the async calls where a back-to-back duplicate in
-							// the timeline (which can happen with Announces) could overwrite an existing entry and
-							// reset its replies; this check guards against that, but probably doesn't eliminate it
-							// I should eliminate the possibility of duplicate entries in the timeline eventually.
-							// The logic here is duplicated below for each call to notes.set - moving that check
-							// to the top of this function allows the race condition to manifest.
-							if (!notes.get(String(note.id))) {
-								notes.set(String(stored.note.id), stored);
-							}
-						} else {
-							// parent note does not (yet) exist, add this one to the main list
-							if (!notes.get(String(note.id))) {
-								notes.set(String(note.id), displayNote);
-							}
-						}
-					} else {
-						// this is a top-level note, check other notes to see if they
-						// should be moved to this note's replies
-						let toDelete: string[] = [];
-
-						Array.from(notes.values()).forEach((stored) => {
-							if (stored.note.inReplyTo == note.id) {
-								displayNote.replies.push(stored);
-								toDelete.push(String(stored.note.id));
-							}
-						});
-
-						toDelete.forEach((n) => {
-							notes.delete(n);
-						});
-
-						if (!notes.get(String(note.id))) {
-							notes.set(String(note.id), displayNote);
-						}
-					}
+					placeNote(displayNote);
 				}
 
 				notes = notes;
@@ -361,13 +176,13 @@
 		note: Note;
 		actor: UserProfile;
 		published: string;
-		replies: DisplayNote[];
+		replies: Map<string, DisplayNote>;
 
-		constructor(profile: UserProfile, note: Note, replies?: DisplayNote[]) {
+		constructor(profile: UserProfile, note: Note, replies?: Map<string, DisplayNote>) {
 			this.note = note;
 			this.actor = profile;
 			this.published = String(note.ephemeralTimestamp);
-			this.replies = replies || [];
+			this.replies = replies || new Map<string, DisplayNote>();
 		}
 	}
 
@@ -412,6 +227,15 @@
 				console.debug(timeline);
 			}
 
+			let orphans_copy = new Set(orphans);
+			orphans_copy.forEach((orphan) => {
+				orphans.delete(orphan);
+				placeNote(orphan);
+			});
+
+			console.log(locator);
+			console.info(orphans);
+
 			offset += pageSize;
 			return timeline.length;
 		} catch (e) {
@@ -445,8 +269,6 @@
 			}
 		}
 	});
-
-	let stateLoaded = false;
 
 	onMount(() => {
 		let main = document.getElementsByTagName('main')[0];
@@ -537,16 +359,6 @@
 		});
 	});
 
-	function compare(a: DisplayNote, b: DisplayNote) {
-		if (Date.parse(a.published) < Date.parse(b.published)) {
-			return -1;
-		} else if (Date.parse(a.published) > Date.parse(b.published)) {
-			return 1;
-		} else {
-			return 0;
-		}
-	}
-
 	function handleComposeSubmit(event: any) {
 		console.log(event);
 	}
@@ -593,9 +405,9 @@
 		html_note = '';
 	}
 
-	function handleLike(event: any) {
-		const object: string = String(event.target.dataset.object);
-		const actor: string = String(event.target.dataset.actor);
+	function handleLike(message: any) {
+		const object: string = String(message.detail.object);
+		const actor: string = String(message.detail.actor);
 
 		send_like(actor, object).then(() => {
 			// this will only work for top-level notes
@@ -603,7 +415,6 @@
 			if (note) {
 				note.note.ephemeralLiked = true;
 			}
-			event.target.classList.add('selected');
 		});
 	}
 
@@ -641,9 +452,9 @@
 		return text;
 	}
 
-	function handleNoteSelect(event: any) {
-		focus_conversation = event.target.dataset.conversation;
-		focus_note = event.target.dataset.note;
+	function handleNoteSelect(message: any) {
+		focus_conversation = message.detail.conversation;
+		focus_note = message.detail.note;
 
 		y_position = scrollToTop();
 		infinite_scroll_disabled = true;
@@ -661,20 +472,22 @@
 		infinite_scroll_disabled = false;
 	}
 
-	async function handleReplyTo(event: any) {
-		reply_to_recipient = event.target.dataset.recipient;
-		reply_to_note = event.target.dataset.reply;
-		reply_to_display = event.target.dataset.display;
-		reply_to_conversation = event.target.dataset.conversation;
+	async function handleReplyToMessage(message: any) {
+		console.log(message);
 
-		const reply_to_url = event.target.dataset.url;
-		const reply_to_username = event.target.dataset.username;
+		reply_to_recipient = message.detail.reply_to_recipient;
+		reply_to_note = message.detail.reply_to_note;
+		reply_to_display = message.detail.reply_to_display;
+		reply_to_conversation = message.detail.reply_to_conversation;
+
+		const reply_to_url = message.detail.reply_to_url;
+		const reply_to_username = message.detail.reply_to_username;
 
 		//const webfinger_acct = await get_webfinger_from_id(String(reply_to_recipient));
 		markdown_note = `<span class="h-card"><a href="${reply_to_url}" class="u-url mention" rel="noopener noreferrer">@${reply_to_username}</a></span> `;
 		html_note = convertToHtml(markdown_note);
 
-		openAside(event);
+		openAside();
 	}
 
 	function cancelReplyTo() {
@@ -748,7 +561,7 @@
 		mask.classList.add('closed');
 	}
 
-	function openAside(event: any) {
+	function openAside() {
 		const dialog = document.getElementsByTagName('dialog')[0];
 		dialog.showModal();
 
@@ -766,6 +579,11 @@
 	// HTML formatted notes to display in the Timeline
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
 	$: notes = new Map<string, DisplayNote>();
+
+	// this is a map to locate a note within the nested notes structure;
+	// the list is an ordered set of steps to access a note's location
+	let locator = new Map<string, string[]>();
+	let orphans: Set<DisplayNote> = new Set<DisplayNote>();
 
 	// used very temporarily to control requests to the API for new data
 	let loading = false;
@@ -834,165 +652,16 @@
 <main>
 	{#each Array.from(notes.values()).sort(compare).reverse() as note}
 		{#if note.note && ((!focus_note && !note.note.inReplyTo) || note.note.id == focus_note)}
-			<article>
-				{#await replyToHeader(note.note) then replyTo}
-					{@html replyTo}
-				{/await}
+			{#await replyToHeader(note.note) then replyTo}
 				{#await announceHeader(note.note) then announce}
-					{@html announce}
+					<Article {note} {username} replyToHeader={replyTo} announceHeader={announce} on:reply_to={handleReplyToMessage} on:note_select={handleNoteSelect} on:like={handleLike}/>
 				{/await}
+			{/await}
 
-				<header>
-					<div>
-						{#if note.actor.icon}
-							<img src={note.actor.icon.url} alt="Sender" />
-						{/if}
-					</div>
-					<address>
-						<span
-							>{@html insertEmojis(
-								note.actor.name || note.actor.preferredUsername,
-								note.actor
-							)}</span
-						>
-						<a href="/search?actor={note.actor.id}">{note.actor.url}</a>
-					</address>
-				</header>
-				<section>{@html insertEmojis(note.note.content || '', note.note)}</section>
-				{#if note.note.attachment && note.note.attachment.length > 0}
-					<section class="attachments">{@html attachmentsDisplay(note.note)}</section>
-				{/if}
-
-				{#if note.note.ephemeralMetadata && note.note.ephemeralMetadata.length}
-					<LinkPreview links={note.note.ephemeralMetadata}/>
-				{/if}
-
-				{#if note.replies?.length}
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<span
-						class="comments"
-						data-conversation={note.note.conversation}
-						data-note={note.note.id}
-						on:click|preventDefault={handleNoteSelect}
-						><i class="fa-solid fa-comments" />
-						{note.replies?.length}</span
-					>
-				{/if}
-				<time datetime={note.published}>{timeSince(new Date(String(note.published)))}</time>
-				{#if username}
-					<nav>
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<i
-							class="fa-solid fa-expand"
-							data-conversation={note.note.conversation}
-							data-note={note.note.id}
-							on:click|preventDefault={handleNoteSelect}
-						/>
-
-						<i class="fa-solid fa-repeat" />
-
-						{#if note.note.ephemeralLiked}
-							<!-- svelte-ignore a11y-click-events-have-key-events -->
-							<i
-								class="fa-solid fa-star selected"
-								data-actor={note.note.attributedTo}
-								data-object={note.note.id}
-								on:click|preventDefault={handleUnlike}
-							/>
-						{:else}
-							<!-- svelte-ignore a11y-click-events-have-key-events -->
-							<i
-								class="fa-solid fa-star"
-								data-actor={note.note.attributedTo}
-								data-object={note.note.id}
-								on:click|preventDefault={handleLike}
-							/>
-						{/if}
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<i
-							class="fa-solid fa-reply"
-							data-reply={note.note.id}
-							data-display={note.actor.name || note.actor.preferredUsername}
-							data-url={note.actor.url}
-							data-username={note.actor.name}
-							data-recipient={note.actor.id}
-							data-conversation={note.note.conversation}
-							on:click={handleReplyTo}
-						/>
-					</nav>
-				{/if}
-			</article>
-
-			{#if note.note.id == focus_note && note.replies?.length}
+			{#if note.note.id == focus_note && note.replies?.size}
 				<div class="replies">
-					{#each Array.from(note.replies).sort(compare) as reply}
-						<article>
-							<div class="avatar">
-								<div>
-									{#if reply.actor.icon}
-										<img src={reply.actor.icon.url} alt="Sender" />
-									{/if}
-								</div>
-							</div>
-							<address>
-								<a href="/search?actor={reply.actor.id}"
-									>{@html insertEmojis(
-										reply.actor.name || reply.actor.preferredUsername,
-										reply.actor
-									)} &bull; <span class="url">{reply.actor.url}</span></a
-								>
-							</address>
-							<section>{@html insertEmojis(reply.note.content || '', reply.note)}</section>
-							{#if reply.note.attachment && reply.note.attachment.length > 0}
-								<section class="attachments">{@html attachmentsDisplay(reply.note)}</section>
-							{/if}
-
-							{#if reply.replies?.length}
-								<!-- svelte-ignore a11y-click-events-have-key-events -->
-								<span
-									class="comments"
-									data-conversation={reply.note.conversation}
-									data-note={reply.note.id}
-									on:click|preventDefault={handleNoteSelect}
-									><i class="fa-solid fa-comments" />
-									{reply.replies?.length}</span
-								>
-							{/if}
-							<time datetime={reply.published}>{timeSince(new Date(String(reply.published)))}</time>
-							{#if username}
-								<nav>
-									<i class="fa-solid fa-repeat" />
-									{#if note.note.ephemeralLiked}
-										<!-- svelte-ignore a11y-click-events-have-key-events -->
-										<i
-											class="fa-solid fa-star selected"
-											data-actor={reply.note.attributedTo}
-											data-object={reply.note.id}
-											on:click|preventDefault={handleUnlike}
-										/>
-									{:else}
-										<!-- svelte-ignore a11y-click-events-have-key-events -->
-										<i
-											class="fa-solid fa-star"
-											data-actor={reply.note.attributedTo}
-											data-object={reply.note.id}
-											on:click|preventDefault={handleLike}
-										/>
-									{/if}
-									<!-- svelte-ignore a11y-click-events-have-key-events -->
-									<i
-										class="fa-solid fa-reply"
-										data-reply={reply.note.id}
-										data-display={reply.actor.name || reply.actor.preferredUsername}
-										data-url={reply.actor.url}
-										data-username={reply.actor.name}
-										data-recipient={reply.actor.id}
-										data-conversation={reply.note.conversation}
-										on:click={handleReplyTo}
-									/>
-								</nav>
-							{/if}
-						</article>
+					{#each Array.from(note.replies.values()).sort(compare) as reply}
+						<Reply note={reply} {username} on:reply_to={handleReplyToMessage} on:note_select={handleNoteSelect} on:like={handleLike}/>
 					{/each}
 				</div>
 			{/if}
@@ -1345,305 +1014,6 @@
 			transition-duration: 1s;
 		}
 
-		article {
-			display: flex;
-			position: relative;
-			flex-direction: column;
-			width: 100%;
-			margin: 0;
-			border-bottom: 1px solid #ddd;
-			font-family: 'Open Sans';
-			background: #fafafa;
-			overflow: hidden;
-
-			:global(a) {
-				color: darkgoldenrod;
-			}
-
-			:global(a:hover) {
-				color: red;
-			}
-
-			:global(.reply),
-			:global(.repost) {
-				width: calc(100% - 130px);
-				white-space: nowrap;
-				text-overflow: ellipsis;
-				overflow: hidden;
-				display: block;
-				padding: 10px 10px 5px 10px;
-				font-weight: 600;
-				font-size: 14px;
-				background: #fafafa;
-				color: darkred;
-			}
-
-			:global(header) {
-				padding: 10px 20px;
-				color: #222;
-
-				:global(address) {
-					position: relative;
-					width: calc(100% - 130px);
-					padding: 0 15px;
-
-					:global(span),
-					:global(a) {
-						display: block;
-						overflow: hidden;
-						white-space: nowrap;
-						text-overflow: ellipsis;
-					}
-				}
-			}
-
-			:global(.comments) {
-				display: inline-block;
-				position: absolute;
-				top: 10px;
-				right: 50px;
-				font-size: 14px;
-				font-weight: 600;
-				color: inherit;
-				user-select: none;
-				cursor: pointer;
-
-				:global(i) {
-					color: #555;
-					pointer-events: none;
-				}
-			}
-
-			:global(.comments:hover) {
-				color: red;
-
-				:global(i) {
-					color: red;
-				}
-			}
-
-			:global(time) {
-				display: inline-block;
-				position: absolute;
-				top: 10px;
-				right: 10px;
-				font-style: normal;
-				font-size: 14px;
-				text-decoration: none;
-				color: inherit;
-				font-weight: 600;
-			}
-
-			:global(address > span),
-			:global(address > a) {
-				display: inline-block;
-				font-style: normal;
-				font-size: 12px;
-				text-decoration: none;
-			}
-
-			:global(address > span) {
-				display: inline-block;
-				position: relative;
-				width: 100%;
-			}
-
-			:global(address > a) {
-				color: inherit;
-				font-weight: 400;
-			}
-
-			:global(address > a:hover) {
-				color: red;
-			}
-
-			:global(address > span:first-child) {
-				font-size: 18px;
-				color: #222;
-			}
-
-			:global(section) {
-				padding: 0 20px;
-				overflow-wrap: break-word;
-
-				:global(pre) {
-					white-space: pre;
-				}
-			}
-
-			:global(section > p) {
-				user-select: none;
-				margin: 0 0 10px 0;
-
-				:global(a) {
-					display: inline-flex;
-
-					:global(span.invisible) {
-						display: none;
-					}
-
-					:global(span.ellipsis) {
-						text-overflow: ellipsis;
-						overflow: hidden;
-						white-space: nowrap;
-						max-width: 80%;
-					}
-				}
-			}
-
-			:global(.emoji) {
-				display: inline;
-				max-height: calc(1em - 2px);
-				padding: 0;
-				margin-bottom: 4px;
-				width: auto;
-				height: auto;
-				vertical-align: middle;
-			}
-
-			:global(.attachments) {
-				overflow: hidden;
-				padding-bottom: 10px;
-				display: flex;
-				flex-direction: row;
-				flex-wrap: wrap;
-				align-items: center;
-				justify-content: center;
-
-				:global(div) {
-					min-width: unset;
-					min-height: unset;
-					width: unset;
-					height: unset;
-					text-align: center;
-					padding: 0;
-					width: 100%;
-				}
-
-				:global(img),
-				:global(video) {
-					width: unset;
-					height: unset;
-					clip-path: unset;
-					width: 100%;
-				}
-			}
-
-			nav {
-				width: 100%;
-				position: absolute;
-				z-index: unset;
-				top: unset;
-				right: unset;
-				bottom: 0;
-				left: 0;
-				background: #eee;
-				padding: 5px 0;
-				margin: 0;
-				opacity: 0.3;
-				transform: translateY(100%);
-				transition-duration: 300ms;
-
-				i {
-					text-align: center;
-					font-size: 14px;
-					color: #444;
-					width: calc(95% / 4);
-				}
-
-				i:hover {
-					cursor: pointer;
-					color: red;
-				}
-
-				i.selected {
-					color: goldenrod;
-				}
-			}
-
-			nav:hover {
-				opacity: 1;
-			}
-		}
-
-		article:hover {
-			nav {
-				transform: translateY(0);
-			}
-		}
-
-		div.replies {
-			article {
-				display: grid;
-				grid-template-columns: 90px 1fr;
-				grid-auto-rows: minmax(10px, auto);
-				grid-template-areas:
-					'avatar address'
-					'avatar content'
-					'avatar attachments';
-
-				.avatar {
-					grid-area: avatar;
-					padding: 10px 15px 10px 20px;
-
-					img {
-						width: 55px;
-					}
-				}
-
-				address {
-					grid-area: address;
-					padding-top: 10px;
-					width: calc(100% - 100px);
-					overflow: hidden;
-					text-overflow: ellipsis;
-
-					span:first-child,
-					a {
-						display: block;
-						font-size: 13px;
-						overflow: hidden;
-						white-space: nowrap;
-						text-overflow: ellipsis;
-						font-weight: 600;
-						color: #222;
-					}
-
-					span.url {
-						color: #555;
-						display: inline;
-					}
-				}
-
-				section {
-					grid-area: content;
-					padding: 0;
-
-					:global(p) {
-						width: 100%;
-						margin: 5px 0;
-						padding: 0 5px 0 0;
-						font-size: 14px;
-					}
-				}
-
-				time {
-					font-size: 13px;
-				}
-
-				.attachments {
-					grid-area: attachments;
-					padding: 0 5px 0 0;
-				}
-
-				nav {
-					i {
-						width: calc(95% / 3);
-					}
-				}
-			}
-		}
-
 		:global(header) {
 			display: flex;
 			flex-direction: row;
@@ -1699,66 +1069,6 @@
 
 		:global(a:hover) {
 			color: red;
-		}
-
-		article {
-			background: #000;
-			color: #fff;
-			border-bottom: 1px solid #222;
-
-			:global(> code),
-			:global(p > code) {
-				background: #222;
-			}
-
-			:global(.reply),
-			:global(.repost) {
-				background: #000;
-				color: #aaa;
-			}
-
-			:global(header) {
-				color: #aaa;
-			}
-
-			:global(address > span:first-child) {
-				font-size: 18px;
-				color: #eee;
-			}
-
-			nav {
-				background: #555;
-
-				i {
-					color: #fff;
-				}
-
-				i:hover {
-					color: red;
-				}
-
-				i.selected {
-					color: goldenrod;
-				}
-			}
-		}
-
-		.replies {
-			article {
-				address {
-					a {
-						color: #ddd;
-					}
-				}
-			}
-		}
-
-		nav {
-			background: #000;
-
-			i {
-				color: #ccc;
-			}
 		}
 	}
 </style>
