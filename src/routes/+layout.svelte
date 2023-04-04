@@ -10,10 +10,58 @@
 		import_state as import_wasm_state
 	} from 'enigmatick_wasm';
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 
 	$: username = get(appData).username;
 	$: display_name = get(appData).display_name;
 	$: avatar = get(appData).avatar;
+
+	onMount(() => {
+		const theme = localStorage.getItem("theme");
+
+		if (theme && theme === "dark") {
+			setDark();
+		} else if (theme && theme === "light") {
+			setLight();
+		} else {
+			setDark();
+		}
+	});
+
+	function isDark() {
+		let body = document.getElementsByTagName('body')[0];
+		if (body && body.classList.contains('dark')) {	
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	function setDark() {
+		let body = document.getElementsByTagName('body')[0];
+		let control = document.getElementById('theme') as HTMLInputElement | null;
+		if (body && !body.classList.contains('dark')) {
+			body.classList.add('dark');
+			localStorage.setItem("theme", "dark");
+		}
+
+		if (control) {
+			control.checked = false;
+		}
+	}
+
+	function setLight() {
+		let body = document.getElementsByTagName('body')[0];
+		let control = document.getElementById('theme') as HTMLInputElement | null;
+		if (body && body.classList.contains('dark')) {
+			body.classList.remove('dark');
+			localStorage.setItem("theme", "light");
+		}
+
+		if (control) {
+			control.checked = true;
+		}
+	}
 
 	function update() {
 		username = get(appData).username;
@@ -22,10 +70,12 @@
 		return true;
 	}
 
-	function dark_mode(event: any) {
-		console.log(event);
-		let body = document.getElementsByTagName('body')[0];
-		body?.classList.toggle('dark');
+	function darkMode(event: any) {
+		if (isDark()) {
+			setLight();
+		} else {
+			setDark();
+		}
 	}
 </script>
 
@@ -93,7 +143,7 @@
 			{/if}
 			<div class="toggle">
 				<label>
-					<input type="checkbox" on:change|preventDefault={dark_mode} checked={true} />
+					<input type="checkbox" id="theme" on:change|preventDefault={darkMode} />
 					<span class="slider" />
 				</label>
 			</div>
