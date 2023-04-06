@@ -2,30 +2,30 @@
 	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
 	import { wasmState, olmState, appData } from '../../stores';
-	import init_wasm, {
-		authenticate,
-		load_instance_information,
-		get_state as get_wasm_state,
-		import_state as import_wasm_state
-	} from 'enigmatick_wasm';
 	import { goto } from '$app/navigation';
 
-	function load_enigmatick() {
-		init_wasm().then(() => {
-			load_instance_information().then((instance) => {
-				console.log(instance?.domain);
-				console.log(instance?.url);
+	let authenticate: any;
+	let getState: any;
 
-				if (get(wasmState)) {
-					get_wasm_state().then(() => {
-						import_wasm_state(get(wasmState));
-						console.log('loaded state from store');
-					});
-				}
-				console.log('init WASM');
+	onMount(async () => {
+		import('enigmatick_wasm').then((enigmatick_wasm) => {
+			enigmatick_wasm.default().then(() => {
+				authenticate = enigmatick_wasm.authenticate;
+				getState = enigmatick_wasm.get_state;
+
+				enigmatick_wasm.load_instance_information().then((instance) => {
+					console.log(instance?.domain);
+					console.log(instance?.url);
+
+					if (get(wasmState)) {
+						enigmatick_wasm.get_state().then(() => {
+							enigmatick_wasm.import_state(get(wasmState));
+						});
+					}
+				});
 			});
 		});
-	}
+	});
 
 	let username = get(appData).username;
 
@@ -35,25 +35,22 @@
 		});
 	}
 
-	onMount(() => {
-		load_enigmatick();
-	});
-
 	function handleLogin(event: any) {
 		let data = new FormData(event.target);
+		console.log('clicked');
 
 		authenticate(
 			String(data.get('username')),
 			String(data.get('password')),
 			String(data.get('passphrase'))
-		).then((profile) => {
+		).then((profile: any) => {
 			appData.set({
 				username: String(profile?.username),
 				display_name: String(profile?.display_name),
 				avatar: String(profile?.avatar_filename)
 			});
 			username = get(appData).username;
-			get_wasm_state().then((x) => {
+			getState().then((x: any) => {
 				console.log(x);
 				wasmState.set(x.export());
 				let data = JSON.stringify({

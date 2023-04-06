@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { UserProfile, Note, Tag, Attachment, DisplayNote } from '../../../common';
-	import { insertEmojis, timeSince, compare } from '../../../common';
-	import { attachmentsDisplay } from './common';
+	import { insertEmojis, timeSince, compare, getWebFingerFromId } from '../../../common';
+	import { attachmentsDisplay, replyCount } from './common';
 
-	import { createEventDispatcher } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	const dispatch = createEventDispatcher();
 
 	export let note: DisplayNote;
@@ -52,10 +52,10 @@
 		</div>
 	</div>
 	<address>
-		<a href="/search?actor={note.actor.id}"
-			>{@html insertEmojis(note.actor.name || note.actor.preferredUsername, note.actor)} &bull;
-			<span class="url">{note.actor.url}</span></a
-		>
+		<a href="/search?actor={note.actor.id}">
+			{@html insertEmojis(note.actor.name || note.actor.preferredUsername, note.actor)} &bull;
+			<span class="url">{getWebFingerFromId(note.actor)}</span>
+		</a>
 	</address>
 	<section>{@html insertEmojis(note.note.content || '', note.note)}</section>
 	{#if note.note.attachment && note.note.attachment.length > 0}
@@ -63,12 +63,9 @@
 	{/if}
 
 	{#if note.replies?.size}
-		<span
-			class="comments"
-			data-conversation={note.note.conversation}
-			data-note={note.note.id}
+		<span class="comments" data-conversation={note.note.conversation} data-note={note.note.id}
 			><i class="fa-solid fa-comments" />
-			{note.replies?.size}</span
+			{replyCount(note)}</span
 		>
 	{/if}
 	<time datetime={note.published}>{timeSince(new Date(String(note.published)))}</time>
@@ -148,6 +145,14 @@
 			vertical-align: middle;
 		}
 
+		:global(img),
+		:global(video) {
+			width: unset;
+			height: unset;
+			clip-path: unset;
+			width: 100%;
+		}
+
 		.comments {
 			display: inline-block;
 			position: absolute;
@@ -195,6 +200,10 @@
 			span.url {
 				color: #555;
 				display: inline;
+			}
+
+			span.url:hover {
+				color: red;
 			}
 		}
 
@@ -274,9 +283,10 @@
 		}
 	}
 
-    .replies {
-        margin-left: 20px;
-    }
+	.replies {
+		margin-left: 1px;
+		border-left: 2px solid darkred;
+	}
 
 	:global(body.dark) {
 		:global(a) {
@@ -330,6 +340,8 @@
 		}
 
 		.replies {
+			background: #000;
+
 			article {
 				address {
 					a {

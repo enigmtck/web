@@ -5,34 +5,87 @@
 	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
 	import { wasmState, olmState, appData } from '../../stores';
-	import init_wasm, {
-		authenticate,
-		SendParams,
-		send_note,
-		send_encrypted_note,
-		get_actor,
-		get_inbox,
-		get_processing_queue,
-		send_authorization,
-		load_instance_information,
-		send_follow,
-		send_unfollow,
-		KexInitParams,
-		send_kex_init,
-		get_state as get_wasm_state,
-		import_state as import_wasm_state
-	} from 'enigmatick_wasm';
-	import init_olm, {
-		create_olm_message,
-		decrypt_olm_message,
-		get_identity_public_key
-	} from 'enigmatick_olm';
 
-	function load_enigmatick() {
-		init_olm().then(() => {
-			console.log('init OLM');
+	let enigmatickWasm: any;
+	let getActor: any;
+	let sendAuthorization: any;
+	let sendFollow: any;
+	let sendUnfollow: any;
+	let sendKexInit: any;
+
+	let enigmatickOlm: any;
+	let getIdentityPublicKey: any;
+	
+
+	onMount(() => {
+		import('enigmatick_wasm').then((enigmatick_wasm) => {
+			enigmatick_wasm.default().then(() => {
+
+				enigmatickWasm = enigmatick_wasm;
+				getActor = enigmatick_wasm.get_actor;
+				sendAuthorization = enigmatick_wasm.send_authorization;
+				sendFollow = enigmatick_wasm.send_follow;
+				sendUnfollow = enigmatick_wasm.send_unfollow;
+				sendKexInit = enigmatick_wasm.send_kex_init;
+
+				import('enigmatick_olm').then((enigmatick_olm) => {
+					enigmatick_olm.default().then(() => {
+						enigmatickOlm = enigmatick_olm;
+						getIdentityPublicKey = enigmatick_olm.get_identity_public_key;
+
+						if (username) {
+							enigmatick_wasm.load_instance_information().then((instance) => {
+								console.log(instance?.domain);
+								console.log(instance?.url);
+
+								if (get(wasmState)) {
+									enigmatick_wasm.get_state().then(() => {
+										enigmatick_wasm.import_state(get(wasmState));
+										load_profile();
+									});
+								}
+							});
+
+							const sse = new EventSource('/api/user/' + username + '/events');
+							sse.onmessage = (event) => {
+								console.log('event: ' + event.data);
+								let e: Note | StreamConnect | EnigmatickEvent = JSON.parse(event.data);
+								console.log(e);
+
+								if ((<StreamConnect>e).uuid) {
+									sendAuthorization((<StreamConnect>e).uuid);
+								} else if ((<EnigmatickEvent>e).type) {
+									let ev: EnigmatickEvent = <EnigmatickEvent>e;
+
+									if (ev.type == 'Follow' && ev.object !== undefined && String(ev.object) == profile?.id) {
+										load_profile();
+									} else if (ev.type == 'Accept' && ev.actor && ev.actor == profile?.id) {
+										load_profile();
+									} else if (
+										ev.type == 'Undo' &&
+										ev.object &&
+										typeof ev.object == 'object' &&
+										ev.object.id == profile?.ephemeralLeaderApId
+									) {
+										load_profile().then(() => {
+											console.log('profile loaded');
+										});
+									}
+								}
+							};
+							return () => {
+								if (sse.readyState === 1) {
+									sse.close();
+								}
+							};
+						} else {
+							goto('/');
+						}
+					});
+				});
+			});
 		});
-	}
+	});
 
 	type Image = {
 		mediaType?: string;
@@ -120,62 +173,6 @@
 		uuid: string;
 	};
 
-	onMount(() => {
-		load_enigmatick();
-
-		if (username) {
-			load_instance_information().then((instance) => {
-				console.log(instance?.domain);
-				console.log(instance?.url);
-
-				if (get(wasmState)) {
-					get_wasm_state().then(() => {
-						import_wasm_state(get(wasmState));
-						console.log('loaded state from store');
-					});
-				}
-				console.log('init WASM');
-
-				load_profile();
-			});
-
-			const sse = new EventSource('/api/user/' + username + '/events');
-			sse.onmessage = (event) => {
-				console.log('event: ' + event.data);
-				let e: Note | StreamConnect | EnigmatickEvent = JSON.parse(event.data);
-				console.log(e);
-
-				if ((<StreamConnect>e).uuid) {
-					send_authorization((<StreamConnect>e).uuid);
-				} else if ((<EnigmatickEvent>e).type) {
-					let ev: EnigmatickEvent = <EnigmatickEvent>e;
-
-					if (ev.type == 'Follow' && ev.object !== undefined && String(ev.object) == profile?.id) {
-						load_profile();
-					} else if (ev.type == 'Accept' && ev.actor && ev.actor == profile?.id) {
-						load_profile();
-					} else if (
-						ev.type == 'Undo' &&
-						ev.object &&
-						typeof ev.object == 'object' &&
-						ev.object.id == profile?.ephemeralLeaderApId
-					) {
-						load_profile().then(() => {
-							console.log('profile loaded');
-						});
-					}
-				}
-			};
-			return () => {
-				if (sse.readyState === 1) {
-					sse.close();
-				}
-			};
-		} else {
-			goto('/');
-		}
-	});
-
 	async function load_profile() {
 		olm_session = false;
 		olm_pending = false;
@@ -183,7 +180,7 @@
 		profile = null;
 
 		if (address) {
-			const actor = await get_actor(address);
+			const actor = await getActor(address);
 
 			if (actor) {
 				profile = JSON.parse(actor);
@@ -204,7 +201,7 @@
 		if (profile && profile.id) {
 			console.log('following: ' + profile.id);
 
-			send_follow(profile.id);
+			sendFollow(profile.id);
 		} else {
 			console.log('no profile loaded');
 		}
@@ -214,7 +211,7 @@
 		if (profile && profile.id) {
 			console.log('unfollowing: ' + profile.id);
 
-			send_unfollow(profile.id);
+			sendUnfollow(profile.id);
 		} else {
 			console.log('no profile loaded');
 		}
@@ -223,18 +220,18 @@
 	async function handleKexInit(event: any) {
 		console.log(event);
 
-		let kexinit = KexInitParams.new();
+		let kexinit = enigmatickOlm.KexInitParams.new();
 
 		if (profile && profile.id) {
-			let a = (await get_wasm_state()).get_olm_pickled_account();
+			let a = (await enigmatickWasm.get_state()).get_olm_pickled_account();
 			console.log(a);
-			let x = get_identity_public_key(String(a));
+			let x = getIdentityPublicKey(String(a));
 			console.log("idk");
 			console.log(x);
 			kexinit.set_recipient_id(profile.id)
 			kexinit.set_identity_key(String(x));
 
-			send_kex_init(kexinit).then(() => {
+			sendKexInit(kexinit).then(() => {
 				console.log('kexinit sent');
 			});
 		}

@@ -2,40 +2,37 @@
 	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
 	import { wasmState } from '../../stores';
-	import init_wasm, {
-		SendParams,
-		send_note,
-		get_state,
-		import_state,
-		create_user
-	} from 'enigmatick_wasm';
-	import init_olm, {
-		create_olm_account,
-		get_one_time_keys,
-		get_identity_public_key,
-	} from 'enigmatick_olm';
 
-	function load_enigmatick() {
-		init_wasm().then(() => {
-			if (get(wasmState)) {
-				get_state().then(() => {
-					import_state(get(wasmState));
-					console.log('loaded state from store');
+	let enigmatickWasm: any;
+	let createUser: any;
+
+	let enigmatickOlm: any;
+	let createOlmAccount: any;
+	let getIdentityPublicKey: any;
+	let getOneTimeKeys: any;
+
+	onMount(async () => {
+		import('enigmatick_wasm').then((enigmatick_wasm) => {
+			enigmatick_wasm.default().then(() => {
+				enigmatickWasm = enigmatick_wasm;
+				createUser = enigmatick_wasm.create_user;
+
+				import('enigmatick_olm').then((enigmatick_olm) => {
+					enigmatick_olm.default().then(() => {
+						enigmatickOlm = enigmatick_olm;
+						createOlmAccount = enigmatick_olm.create_olm_account;
+						getIdentityPublicKey = enigmatick_olm.get_identity_public_key;
+						getOneTimeKeys = enigmatick_olm.get_one_time_keys;
+
+						if (get(wasmState)) {
+							enigmatick_wasm.get_state().then(() => {
+								enigmatick_wasm.import_state(get(wasmState));
+							});
+						}
+					});
 				});
-			}
-			console.log('init WASM');
+			});
 		});
-	}
-
-	function load_olm() {
-		init_olm().then(() => {
-			console.log('init Olm');
-		});
-	}
-
-	onMount(() => {
-		load_enigmatick();
-		load_olm();
 	});
 
 	async function handleSignup(event: any) {
@@ -43,9 +40,9 @@
 
 		console.log(data);
 
-		let olm_account = create_olm_account();
-		let olm_identity_public_key = get_identity_public_key(olm_account);
-		let olm_one_time_keys = get_one_time_keys(olm_account);
+		let olm_account = createOlmAccount();
+		let olm_identity_public_key = getIdentityPublicKey(olm_account);
+		let olm_one_time_keys = getOneTimeKeys(olm_account);
 
 		if (
 			data.get('username') &&
@@ -55,21 +52,21 @@
 			olm_identity_public_key &&
 			olm_one_time_keys
 		) {
-			create_user(
+			createUser(
 				String(data.get('username')),
 				String(data.get('display_name')),
 				String(data.get('password')),
 				String(data.get('passphrase')),
 				String(olm_identity_public_key),
 				String(olm_one_time_keys.pickled_account)
-			).then((profile) => {
+			).then((profile: any) => {
 				console.log(profile);
 			});
 		}
 	}
 </script>
 
-<form id="signup" method="POST" on:submit|preventDefault="{handleSignup}">
+<form id="signup" method="POST" on:submit|preventDefault={handleSignup}>
 	<label>
 		Username
 		<input name="username" type="text" />

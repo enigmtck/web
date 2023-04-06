@@ -1,20 +1,43 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { Converter } from 'showdown';
-	console.log($page.params);
-
 	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
 	import { wasmState, appData } from '../../stores';
-	import init_wasm, {
-		update_summary,
-		load_instance_information,
-		upload_avatar,
-		upload_banner,
-		get_state as get_wasm_state,
-		import_state as import_wasm_state
-	} from 'enigmatick_wasm';
 	import { goto } from '$app/navigation';
+
+	let updateSummary: any;
+	let uploadAvatar: any;
+	let uploadBanner: any;
+
+	onMount(async () => {
+		import('enigmatick_wasm').then((enigmatick_wasm) => {
+			enigmatick_wasm.default().then(() => {
+				updateSummary = enigmatick_wasm.update_summary;
+				uploadAvatar = enigmatick_wasm.upload_avatar;
+				uploadBanner = enigmatick_wasm.upload_banner;
+
+				if (username) {
+					enigmatick_wasm.load_instance_information().then((instance) => {
+						console.log(instance?.domain);
+						console.log(instance?.url);
+
+						if (get(wasmState)) {
+							enigmatick_wasm.get_state().then(() => {
+								enigmatick_wasm.import_state(get(wasmState));
+								console.log('loaded state from store');
+							});
+						}
+						console.log('init WASM');
+
+						username = username;
+					});
+				}
+			});
+		});
+
+		loadProfile();
+	});
 
 	type Image = {
 		type: string;
@@ -42,11 +65,11 @@
 
 	let profile: UserProfile | null = null;
 
-	function load_profile() {
+	function loadProfile() {
 		if ($page.params.handle) {
 			fetch('/user/' + $page.params.handle, {
 				headers: {
-					'Accept': 'application/json'
+					Accept: 'application/json'
 				}
 			}).then((x) => {
 				x.json().then((y: UserProfile) => {
@@ -56,29 +79,6 @@
 			});
 		}
 	}
-
-	onMount(() => {
-		if (username) {
-			init_wasm().then(() => {
-				load_instance_information().then((instance) => {
-					console.log(instance?.domain);
-					console.log(instance?.url);
-
-					if (get(wasmState)) {
-						get_wasm_state().then(() => {
-							import_wasm_state(get(wasmState));
-							console.log('loaded state from store');
-						});
-					}
-					console.log('init WASM');
-
-					username = username;
-				});
-			});
-		}
-
-		load_profile();
-	});
 
 	function convertToMarkdown(data: string) {
 		let converter = new Converter();
@@ -125,7 +125,7 @@
 
 	function handleSaveSummary() {
 		if (profile) {
-			update_summary(profile.summary).then((x) => {
+			updateSummary(profile.summary).then((x: any) => {
 				console.log(x);
 				summary_changed = false;
 			});
@@ -147,8 +147,8 @@
 					console.log(avatar);
 					let bytes = new Uint8Array(avatar as ArrayBuffer);
 
-					upload_avatar(bytes, (avatar as ArrayBuffer).byteLength, extension).then(() => {
-						load_profile();
+					uploadAvatar(bytes, (avatar as ArrayBuffer).byteLength, extension).then(() => {
+						loadProfile();
 					});
 				}
 			};
@@ -170,8 +170,8 @@
 					console.log(banner);
 					let bytes = new Uint8Array(banner as ArrayBuffer);
 
-					upload_banner(bytes, (banner as ArrayBuffer).byteLength, extension).then(() => {
-						load_profile();
+					uploadBanner(bytes, (banner as ArrayBuffer).byteLength, extension).then(() => {
+						loadProfile();
 					});
 				}
 			};

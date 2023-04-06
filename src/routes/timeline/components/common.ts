@@ -1,6 +1,6 @@
-export { attachmentsDisplay };
+export { attachmentsDisplay, replyCount };
 
-import type { Note, Attachment } from '../../../common';
+import type { Note, Attachment, DisplayNote } from '../../../common';
 
 function attachmentsDisplay(note: Note): string {
     let attachments = '';
@@ -15,4 +15,16 @@ function attachmentsDisplay(note: Note): string {
     }
 
     return attachments;
+}
+
+function replyCount(note: DisplayNote): number {
+    let count = note.replies.size;
+
+    if (note.replies.size > 0) {	
+        note.replies.forEach((x) => {
+            count += replyCount(x);
+        })
+    } 
+
+    return count;
 }

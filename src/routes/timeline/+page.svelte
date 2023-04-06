@@ -9,27 +9,124 @@
 	import { wasmState, olmState, appData } from '../../stores';
 	import { Converter } from 'showdown';
 	import showdownHighlight from 'showdown-highlight';
-	import type { UserProfile, Note, StreamConnect, Announce } from '../../common';
+	import type { UserProfile, Note, StreamConnect, Announce, AnnounceParams } from '../../common';
 	import { insertEmojis, compare } from '../../common';
 
-	import init_wasm, {
-		SendParams,
-		get_note,
-		send_note,
-		get_actor,
-		get_timeline,
-		load_instance_information,
-		send_like,
-		send_authorization,
-		get_state as get_wasm_state,
-		import_state as import_wasm_state
-	} from 'enigmatick_wasm';
 	import { goto } from '$app/navigation';
 
 	function sleep(ms: number) {
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 
+	let getNote: any;
+	let sendNote: any;
+	let getActor: any;
+	let getTimeline: any;
+	let sendLike: any;
+	let sendAuthorization: any;
+	
+	let enigmatickWasm: any;
+
+	onMount(() => {
+		let main = document.getElementsByTagName('main')[0];
+		main.addEventListener('scroll', handleInfiniteScroll);
+
+		import('enigmatick_wasm').then((enigmatick_wasm) => {
+			enigmatick_wasm.default().then(() => {
+				enigmatickWasm = enigmatick_wasm;
+
+				getNote = enigmatick_wasm.get_note;
+				sendNote = enigmatick_wasm.send_note;
+				getActor = enigmatick_wasm.get_actor;
+				getTimeline = enigmatick_wasm.get_timeline;
+				sendLike = enigmatick_wasm.send_like;
+				sendAuthorization = enigmatick_wasm.send_authorization;
+
+				enigmatick_wasm.load_instance_information().then((instance) => {
+					console.log(instance?.domain);
+					console.log(instance?.url);
+
+					if (get(wasmState)) {
+						enigmatick_wasm.import_state(get(wasmState));
+						console.log('loaded state from store');
+					}
+
+					loadMinimum();
+
+					if (username) {
+						let sse = new EventSource('/api/user/' + username + '/events');
+
+						function onMessage(event: any) {
+							console.log('event: ' + event.data);
+							let e: Note | StreamConnect | Announce = JSON.parse(event.data);
+							console.log(e);
+
+							if ((<Note>e).type === 'Note') {
+								if (live_loading) {
+									// display the note immediately
+									addNote(<Note>e);
+								} else {
+									// place the note in the queue to be added when scrolled to the top
+									note_queue.push(<Note>e);
+								}
+
+								offset += 1;
+							} else if ((<StreamConnect>e).uuid) {
+								sendAuthorization((<StreamConnect>e).uuid).then((x: any) => {
+									console.info('AUTHORIZATION SENT');
+								});
+							} else if ((<Announce>e).type == 'Announce') {
+								let announce = <Announce>e;
+								getNote(announce.object).then((x: any) => {
+									try {
+										let note: Note = JSON.parse(String(x));
+										note.ephemeralAnnounces = [announce.actor];
+										note.id = announce.id;
+										note.published = announce.published;
+										note.ephemeralTimestamp = announce.published;
+
+										if (live_loading) {
+											addNote(note);
+										} else {
+											note_queue.push(note);
+										}
+
+										offset += 1;
+									} catch (e) {
+										console.error('FAILED TO ADD NOTE');
+										console.error(x);
+									}
+								});
+							}
+						}
+
+						function restartEventSource(event: any) {
+							console.log(event);
+							console.log(sse);
+
+							if (sse.readyState == 2) {
+								sleep(2000).then(() => {
+									sse = new EventSource('/api/user/' + username + '/events');
+									sse.onerror = restartEventSource;
+									sse.onmessage = onMessage;
+								});
+							}
+						}
+
+						sse.onerror = restartEventSource;
+						sse.onmessage = onMessage;
+
+						return () => {
+							if (sse.readyState === 1) {
+								sse.close();
+							}
+						};
+					}
+				});
+			});
+		});
+	});
+	
 	function parseProfile(text: string | null | undefined): UserProfile | null {
 		if (text) {
 			try {
@@ -45,7 +142,7 @@
 		}
 	}
 
-	async function replyToHeader(note: Note): Promise<string> {
+	async function replyToHeader(note: Note): Promise<string | null> {
 		if (note.inReplyTo) {
 			const reply_note = await cachedNote(note.inReplyTo);
 
@@ -59,21 +156,28 @@
 				if (sender) {
 					const name = insertEmojis(sender.name || sender.preferredUsername, sender);
 
-					return `<span class="reply"><i class="fa-solid fa-reply"></i> In reply to ${name}</span>`;
+					return name;
 				} else {
-					return '';
+					return null;
 				}
 			} else {
-				return '';
+				return null;
 			}
 		} else {
-			return '';
+			return null;
 		}
 	}
 
-	async function announceHeader(note: Note): Promise<string> {
-		if (note.ephemeralAnnounce) {
-			const announce_actor = await cachedActor(note.ephemeralAnnounce);
+	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
+		if (note.ephemeralAnnounces) {
+			const announce_actor = await cachedActor(note.ephemeralAnnounces[0]);
+			let others = '';
+
+			if (note.ephemeralAnnounces.length == 2) {
+				others = ` and ${note.ephemeralAnnounces.length - 1} other`
+			} else if (note.ephemeralAnnounces.length > 2) {
+				others = ` and ${note.ephemeralAnnounces.length - 1} others`
+			}
 
 			if (announce_actor) {
 				const announce_profile: UserProfile | null = parseProfile(announce_actor);
@@ -84,15 +188,15 @@
 						announce_profile
 					);
 
-					return `<span class="repost"><i class="fa-solid fa-retweet"></i> Reposted by ${name}</span>`;
+					return <AnnounceParams>{ url: announce_profile.url, name, others };
 				} else {
-					return '';
+					return null;
 				}
 			} else {
-				return '';
+				return null;
 			}
 		} else {
-			return '';
+			return null;
 		}
 	}
 
@@ -213,7 +317,7 @@
 	async function loadTimelineData() {
 		const pageSize = 40;
 
-		let x = await get_timeline(offset, pageSize);
+		let x = await getTimeline(offset, pageSize);
 
 		try {
 			let timeline = JSON.parse(String(x));
@@ -270,95 +374,6 @@
 		}
 	});
 
-	onMount(() => {
-		let main = document.getElementsByTagName('main')[0];
-		main.addEventListener('scroll', handleInfiniteScroll);
-
-		init_wasm().then(() => {
-			load_instance_information().then((instance) => {
-				console.log(instance?.domain);
-				console.log(instance?.url);
-
-				if (get(wasmState)) {
-					import_wasm_state(get(wasmState));
-					console.log('loaded state from store');
-				}
-
-				loadMinimum();
-
-				if (username) {
-					let sse = new EventSource('/api/user/' + username + '/events');
-
-					function onMessage(event: any) {
-						console.log('event: ' + event.data);
-						let e: Note | StreamConnect | Announce = JSON.parse(event.data);
-						console.log(e);
-
-						if ((<Note>e).type === 'Note') {
-							if (live_loading) {
-								// display the note immediately
-								addNote(<Note>e);
-							} else {
-								// place the note in the queue to be added when scrolled to the top
-								note_queue.push(<Note>e);
-							}
-
-							offset += 1;
-						} else if ((<StreamConnect>e).uuid) {
-							send_authorization((<StreamConnect>e).uuid).then((x) => {
-								console.info('AUTHORIZATION SENT');
-							});
-						} else if ((<Announce>e).type == 'Announce') {
-							let announce = <Announce>e;
-							get_note(announce.object).then((x) => {
-								try {
-									let note: Note = JSON.parse(String(x));
-									note.ephemeralAnnounce = announce.actor;
-									note.id = announce.id;
-									note.published = announce.published;
-									note.ephemeralTimestamp = announce.published;
-
-									if (live_loading) {
-										addNote(note);
-									} else {
-										note_queue.push(note);
-									}
-
-									offset += 1;
-								} catch (e) {
-									console.error('FAILED TO ADD NOTE');
-									console.error(x);
-								}
-							});
-						}
-					}
-
-					function restartEventSource(event: any) {
-						console.log(event);
-						console.log(sse);
-
-						if (sse.readyState == 2) {
-							sleep(2000).then(() => {
-								sse = new EventSource('/api/user/' + username + '/events');
-								sse.onerror = restartEventSource;
-								sse.onmessage = onMessage;
-							});
-						}
-					}
-
-					sse.onerror = restartEventSource;
-					sse.onmessage = onMessage;
-
-					return () => {
-						if (sse.readyState === 1) {
-							sse.close();
-						}
-					};
-				}
-			});
-		});
-	});
-
 	function handleComposeSubmit(event: any) {
 		console.log(event);
 	}
@@ -409,7 +424,7 @@
 		const object: string = String(message.detail.object);
 		const actor: string = String(message.detail.actor);
 
-		send_like(actor, object).then(() => {
+		sendLike(actor, object).then(() => {
 			// this will only work for top-level notes
 			let note = notes.get(object);
 			if (note) {
@@ -426,7 +441,7 @@
 	async function handlePublish() {
 		captureChanges();
 
-		let params = (await SendParams.new()).set_content(html_note).set_public();
+		let params = (await enigmatickWasm.SendParams.new()).set_content(html_note).set_public();
 
 		if (reply_to_note) {
 			params = await params.add_recipient_id(String(reply_to_recipient), true);
@@ -436,7 +451,7 @@
 
 		//console.log(params.export());
 
-		send_note(params).then((x) => {
+		sendNote(params).then((x: any) => {
 			if (x) {
 				resetCompose();
 				console.log('send successful');
@@ -538,7 +553,7 @@
 
 	async function cachedActor(id: string) {
 		if (!ap_cache.has(id)) {
-			ap_cache.set(id, await get_actor(id));
+			ap_cache.set(id, await getActor(id));
 		}
 
 		return ap_cache.get(id);
@@ -546,7 +561,7 @@
 
 	async function cachedNote(id: string) {
 		if (!ap_cache.has(id)) {
-			ap_cache.set(id, await get_note(id));
+			ap_cache.set(id, await getNote(id));
 		}
 
 		return ap_cache.get(id);
@@ -651,7 +666,7 @@
 
 <main>
 	{#each Array.from(notes.values()).sort(compare).reverse() as note}
-		{#if note.note && ((!focus_note && !note.note.inReplyTo) || note.note.id == focus_note)}
+		{#if note.note && ((!focus_note && (!note.note.inReplyTo || note.note.ephemeralAnnounces?.length)) || note.note.id == focus_note)}
 			{#await replyToHeader(note.note) then replyTo}
 				{#await announceHeader(note.note) then announce}
 					<Article {note} {username} replyToHeader={replyTo} announceHeader={announce} on:reply_to={handleReplyToMessage} on:note_select={handleNoteSelect} on:like={handleLike}/>

@@ -2,13 +2,6 @@
 	import { get } from 'svelte/store';
 	import { appData } from '../stores';
 	import { page } from '$app/stores';
-	import { Converter } from 'showdown';
-	import init_wasm, {
-		send_note,
-		SendParams,
-		get_state as get_wasm_state,
-		import_state as import_wasm_state
-	} from 'enigmatick_wasm';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 

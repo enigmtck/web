@@ -1,5 +1,5 @@
-export type {UserProfile, EnigmatickEvent, EnigmatickEventObject, Announce, Tag, Attachment, Metadata, Note, StreamConnect, DisplayNote };
-export { insertEmojis, timeSince, compare };
+export type {UserProfile, EnigmatickEvent, EnigmatickEventObject, Announce, Tag, Attachment, Metadata, Note, StreamConnect, DisplayNote, AnnounceParams };
+export { insertEmojis, timeSince, compare, getWebFingerFromId };
 
 interface DisplayNote {
     note: Note;
@@ -13,6 +13,12 @@ interface Image {
     type: string;
     url: string;
 };
+
+interface AnnounceParams {
+    url: string;
+    name: string;
+    others: string;
+}
 
 interface UserProfile {
     '@context': string;
@@ -121,9 +127,10 @@ interface Note {
     inReplyTo?: string | null;
     attachment?: Attachment[];
     conversation: string | null;
-    ephemeralAnnounce?: string | null;
+    ephemeralAnnounces?: string[] | null;
     ephemeralActors?: UserProfile[];
     ephemeralLiked?: boolean | null;
+    ephemeralLikes?: string[] | null;
     ephemeralTargeted?: boolean | null;
     ephemeralTimestamp?: string | null;
     ephemeralMetadata?: Metadata[] | null;
@@ -132,6 +139,20 @@ interface Note {
 interface StreamConnect {
     uuid: string;
 };
+
+function getWebFingerFromId(actor: UserProfile): string {
+    const re = /^https:\/\/([a-zA-Z0-9\-.]+?)\/[A-Za-z0-9/\-._]+$/;
+
+    if (actor.id) {
+        const match = actor.id.match(re);
+
+        if (match) {
+            return `@${actor.preferredUsername}@${match[1]}`;
+        }
+    }
+
+    return String(actor.url);
+}
 
 function insertEmojis(text: string, profile: UserProfile | Note) {
     if (profile.tag) {

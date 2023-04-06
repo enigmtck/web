@@ -1,3 +1,11 @@
+<script lang="ts">
+	import { goto } from "$app/navigation";
+	import { onMount } from "svelte";
+
+	onMount(()=> {
+		goto('/@justin');
+	})
+</script>
 <main>
 	<div>
 		<h1>ENIGMATICK</h1>

@@ -1,7 +1,14 @@
 <script lang="ts">
-	import type { UserProfile, Note, Tag, Attachment, DisplayNote } from '../../../common';
-	import { insertEmojis, timeSince } from '../../../common';
-	import { attachmentsDisplay } from './common';
+	import type {
+		UserProfile,
+		Note,
+		Tag,
+		Attachment,
+		DisplayNote,
+		AnnounceParams
+	} from '../../../common';
+	import { insertEmojis, timeSince, getWebFingerFromId } from '../../../common';
+	import { attachmentsDisplay, replyCount } from './common';
 
 	import { createEventDispatcher } from 'svelte';
 	const dispatch = createEventDispatcher();
@@ -11,7 +18,7 @@
 	export let note: DisplayNote;
 	export let username: string | null;
 	export let replyToHeader: string | null;
-	export let announceHeader: string | null;
+	export let announceHeader: AnnounceParams | null;
 	export { attachmentsDisplay };
 
 	function handleLike(event: any) {
@@ -21,7 +28,7 @@
 		dispatch('like', {
 			object,
 			actor
-		})
+		});
 
 		event.target.classList.add('selected');
 	}
@@ -50,10 +57,15 @@
 
 <article>
 	{#if replyToHeader}
-		{@html replyToHeader}
+		<span class="reply">
+			<i class="fa-solid fa-reply" /> In reply to {replyToHeader}
+		</span>
 	{/if}
 	{#if announceHeader}
-		{@html announceHeader}
+		<span class="repost">
+			<i class="fa-solid fa-retweet" /> Reposted by
+			<a href={announceHeader.url}>{announceHeader.name}</a>{announceHeader.others}
+		</span>
 	{/if}
 
 	<header>
@@ -64,7 +76,9 @@
 		</div>
 		<address>
 			<span>{@html insertEmojis(note.actor.name || note.actor.preferredUsername, note.actor)}</span>
-			<a href="/search?actor={note.actor.id}">{note.actor.url}</a>
+			<a href="/search?actor={note.actor.id}">
+				{getWebFingerFromId(note.actor)}
+			</a>
 		</address>
 	</header>
 	<section>{@html insertEmojis(note.note.content || '', note.note)}</section>
@@ -84,7 +98,7 @@
 			data-note={note.note.id}
 			on:click|preventDefault={handleNoteSelect}
 			><i class="fa-solid fa-comments" />
-			{note.replies?.size}</span
+			{replyCount(note)}</span
 		>
 	{/if}
 	<time datetime={note.published}>{timeSince(new Date(String(note.published)))}</time>
@@ -144,16 +158,16 @@
 		background: #fafafa;
 		overflow: hidden;
 
-		:global(a) {
+		a {
 			color: darkgoldenrod;
 		}
 
-		:global(a:hover) {
+		a:hover {
 			color: red;
 		}
 
-		:global(.reply),
-		:global(.repost) {
+		.reply,
+		.repost {
 			width: calc(100% - 130px);
 			white-space: nowrap;
 			text-overflow: ellipsis;
@@ -166,7 +180,7 @@
 			color: darkred;
 		}
 
-		:global(header) {
+		header {
 			padding: 10px 20px;
 			color: #222;
 
@@ -185,7 +199,7 @@
 			}
 		}
 
-		:global(.comments) {
+		.comments {
 			display: inline-block;
 			position: absolute;
 			top: 10px;
@@ -196,13 +210,13 @@
 			user-select: none;
 			cursor: pointer;
 
-			:global(i) {
+			i {
 				color: #555;
 				pointer-events: none;
 			}
 		}
 
-		:global(.comments:hover) {
+		.comments:hover {
 			color: red;
 
 			:global(i) {
@@ -210,7 +224,7 @@
 			}
 		}
 
-		:global(time) {
+		time {
 			display: inline-block;
 			position: absolute;
 			top: 10px;
@@ -223,7 +237,7 @@
 		}
 
 		:global(address > span),
-		:global(address > a) {
+		address > a {
 			display: inline-block;
 			font-style: normal;
 			font-size: 12px;
@@ -231,17 +245,16 @@
 		}
 
 		:global(address > span) {
-			display: inline-block;
 			position: relative;
 			width: 100%;
 		}
 
-		:global(address > a) {
+		address > a {
 			color: inherit;
 			font-weight: 400;
 		}
 
-		:global(address > a:hover) {
+		address > a:hover {
 			color: red;
 		}
 
@@ -250,9 +263,10 @@
 			color: #222;
 		}
 
-		:global(section) {
+		section {
 			padding: 0 20px;
 			overflow-wrap: break-word;
+			font-size: 14px;
 
 			:global(pre) {
 				white-space: pre;
@@ -361,11 +375,11 @@
 	}
 
 	:global(body.dark) {
-		:global(a) {
+		a {
 			color: darkgoldenrod;
 		}
 
-		:global(a:hover) {
+		a:hover {
 			color: red;
 		}
 
@@ -379,13 +393,13 @@
 				background: #222;
 			}
 
-			:global(.reply),
-			:global(.repost) {
+			.reply,
+			.repost {
 				background: #000;
 				color: #aaa;
 			}
 
-			:global(header) {
+			header {
 				color: #aaa;
 			}
 
