@@ -9,6 +9,26 @@
 	export let note: DisplayNote;
 	export let username: string | null;
 
+	function forwardAnnounce(event: any) {
+		dispatch('announce', event.detail);
+	}
+
+	function handleAnnounce(event: any) {
+		const object: string = String(event.target.dataset.object);
+		const actor: string = String(event.target.dataset.actor);
+
+		dispatch('announce', {
+			object,
+			actor
+		});
+
+		event.target.classList.add('selected');
+	}
+
+	function forwardLike(event: any) {
+		dispatch('like', event.detail);
+	}
+
 	function handleLike(event: any) {
 		const object: string = String(event.target.dataset.object);
 		const actor: string = String(event.target.dataset.actor);
@@ -23,11 +43,19 @@
 
 	function handleUnlike(event: any) {}
 
+	function forwardNoteSelect(event: any) {
+		dispatch('note_select', event.detail);
+	}
+
 	function handleNoteSelect(event: any) {
 		dispatch('note_select', {
 			note: event.target.dataset.note,
 			conversation: event.target.dataset.conversation
 		});
+	}
+
+	function forwardReplyTo(event: any) {
+		dispatch('reply_to', event.detail);
 	}
 
 	function handleReplyTo(event: any) {
@@ -71,7 +99,24 @@
 	<time datetime={note.published}>{timeSince(new Date(String(note.published)))}</time>
 	{#if username}
 		<nav>
-			<i class="fa-solid fa-repeat" />
+			{#if note.note.ephemeralAnnounced}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-repeat selected"
+					data-object={note.note.id}
+					data-actor={note.note.attributedTo}
+					on:click|preventDefault={handleAnnounce}
+				/>
+			{:else}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-repeat"
+					data-object={note.note.id}
+					data-actor={note.note.attributedTo}
+					on:click|preventDefault={handleAnnounce}
+				/>
+			{/if}
+
 			{#if note.note.ephemeralLiked}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				<i
@@ -110,9 +155,10 @@
 			<svelte:self
 				note={reply}
 				{username}
-				on:reply_to={handleReplyTo}
-				on:note_select={handleNoteSelect}
-				on:like={handleLike}
+				on:reply_to={forwardReplyTo}
+				on:note_select={forwardNoteSelect}
+				on:like={forwardLike}
+				on:announce={forwardAnnounce}
 			/>
 		{/each}
 	</div>

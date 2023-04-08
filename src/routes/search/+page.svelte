@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 
-	import { onMount, setContext } from 'svelte';
+	import { onMount, onDestroy, setContext } from 'svelte';
 	import { get } from 'svelte/store';
 	import { wasmState, olmState, appData } from '../../stores';
 
@@ -16,6 +16,13 @@
 	let enigmatickOlm: any;
 	let getIdentityPublicKey: any;
 	
+	let eventSource: EventSource | null = null;
+
+	onDestroy(() => {
+		if (eventSource) {
+			eventSource.close()
+		}
+	})
 
 	onMount(() => {
 		import('enigmatick_wasm').then((enigmatick_wasm) => {
@@ -46,8 +53,8 @@
 								}
 							});
 
-							const sse = new EventSource('/api/user/' + username + '/events');
-							sse.onmessage = (event) => {
+							eventSource = new EventSource('/api/user/' + username + '/events');
+							eventSource.onmessage = (event) => {
 								console.log('event: ' + event.data);
 								let e: Note | StreamConnect | EnigmatickEvent = JSON.parse(event.data);
 								console.log(e);
@@ -74,8 +81,8 @@
 								}
 							};
 							return () => {
-								if (sse.readyState === 1) {
-									sse.close();
+								if (eventSource && eventSource.readyState === 1) {
+									eventSource.close();
 								}
 							};
 						} else {

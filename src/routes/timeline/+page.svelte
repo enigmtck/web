@@ -3,7 +3,7 @@
 	import Reply from './components/Reply.svelte';
 	import Article from './components/Article.svelte';
 
-	import { onMount, setContext } from 'svelte';
+	import { onDestroy, onMount, setContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
 	import { wasmState, olmState, appData } from '../../stores';
@@ -23,9 +23,18 @@
 	let getActor: any;
 	let getTimeline: any;
 	let sendLike: any;
+	let sendAnnounce: any;
 	let sendAuthorization: any;
-	
+
 	let enigmatickWasm: any;
+
+	let eventSource: EventSource | null = null;
+
+	onDestroy(() => {
+		if (eventSource) {
+			eventSource.close();
+		}
+	});
 
 	onMount(() => {
 		let main = document.getElementsByTagName('main')[0];
@@ -40,6 +49,7 @@
 				getActor = enigmatick_wasm.get_actor;
 				getTimeline = enigmatick_wasm.get_timeline;
 				sendLike = enigmatick_wasm.send_like;
+				sendAnnounce = enigmatick_wasm.send_announce;
 				sendAuthorization = enigmatick_wasm.send_authorization;
 
 				enigmatick_wasm.load_instance_information().then((instance) => {
@@ -53,80 +63,81 @@
 
 					loadMinimum();
 
-					if (username) {
-						let sse = new EventSource('/api/user/' + username + '/events');
+					if (username && !eventSource) {
+						if (!eventSource) {
+							eventSource = new EventSource('/api/user/' + username + '/events');
 
-						function onMessage(event: any) {
-							console.log('event: ' + event.data);
-							let e: Note | StreamConnect | Announce = JSON.parse(event.data);
-							console.log(e);
+							function onMessage(event: any) {
+								console.log('event: ' + event.data);
+								let e: Note | StreamConnect | Announce = JSON.parse(event.data);
+								console.log(e);
 
-							if ((<Note>e).type === 'Note') {
-								if (live_loading) {
-									// display the note immediately
-									addNote(<Note>e);
-								} else {
-									// place the note in the queue to be added when scrolled to the top
-									note_queue.push(<Note>e);
-								}
-
-								offset += 1;
-							} else if ((<StreamConnect>e).uuid) {
-								sendAuthorization((<StreamConnect>e).uuid).then((x: any) => {
-									console.info('AUTHORIZATION SENT');
-								});
-							} else if ((<Announce>e).type == 'Announce') {
-								let announce = <Announce>e;
-								getNote(announce.object).then((x: any) => {
-									try {
-										let note: Note = JSON.parse(String(x));
-										note.ephemeralAnnounces = [announce.actor];
-										note.id = announce.id;
-										note.published = announce.published;
-										note.ephemeralTimestamp = announce.published;
-
-										if (live_loading) {
-											addNote(note);
-										} else {
-											note_queue.push(note);
-										}
-
-										offset += 1;
-									} catch (e) {
-										console.error('FAILED TO ADD NOTE');
-										console.error(x);
+								if ((<Note>e).type === 'Note') {
+									if (live_loading) {
+										// display the note immediately
+										addNote(<Note>e);
+									} else {
+										// place the note in the queue to be added when scrolled to the top
+										note_queue.push(<Note>e);
 									}
-								});
+
+									offset += 1;
+								} else if ((<StreamConnect>e).uuid) {
+									sendAuthorization((<StreamConnect>e).uuid).then((x: any) => {
+										console.info('AUTHORIZATION SENT');
+									});
+								} else if ((<Announce>e).type == 'Announce') {
+									let announce = <Announce>e;
+									getNote(announce.object).then((x: any) => {
+										try {
+											let note: Note = JSON.parse(String(x));
+											note.ephemeralAnnounces = [announce.actor];
+											note.id = announce.id;
+											note.published = announce.published;
+											note.ephemeralTimestamp = announce.published;
+
+											if (live_loading) {
+												addNote(note);
+											} else {
+												note_queue.push(note);
+											}
+
+											offset += 1;
+										} catch (e) {
+											console.error('FAILED TO ADD NOTE');
+											console.error(x);
+										}
+									});
+								}
 							}
+
+							function restartEventSource(event: any) {
+								console.log(event);
+
+								if (eventSource && eventSource.readyState == 2) {
+									sleep(2000).then(() => {
+										eventSource = new EventSource('/api/user/' + username + '/events');
+										eventSource.onerror = restartEventSource;
+										eventSource.onmessage = onMessage;
+									});
+								}
+							}
+
+							eventSource.onerror = restartEventSource;
+							eventSource.onmessage = onMessage;
+
+							return () => {
+								if (eventSource && eventSource.readyState === 1) {
+									eventSource.close();
+								}
+							};
 						}
-
-						function restartEventSource(event: any) {
-							console.log(event);
-							console.log(sse);
-
-							if (sse.readyState == 2) {
-								sleep(2000).then(() => {
-									sse = new EventSource('/api/user/' + username + '/events');
-									sse.onerror = restartEventSource;
-									sse.onmessage = onMessage;
-								});
-							}
-						}
-
-						sse.onerror = restartEventSource;
-						sse.onmessage = onMessage;
-
-						return () => {
-							if (sse.readyState === 1) {
-								sse.close();
-							}
-						};
 					}
 				});
 			});
 		});
 	});
-	
+
 	function parseProfile(text: string | null | undefined): UserProfile | null {
 		if (text) {
 			try {
@@ -174,9 +185,9 @@
 			let others = '';
 
 			if (note.ephemeralAnnounces.length == 2) {
-				others = ` and ${note.ephemeralAnnounces.length - 1} other`
+				others = ` and ${note.ephemeralAnnounces.length - 1} other`;
 			} else if (note.ephemeralAnnounces.length > 2) {
-				others = ` and ${note.ephemeralAnnounces.length - 1} others`
+				others = ` and ${note.ephemeralAnnounces.length - 1} others`;
 			}
 
 			if (announce_actor) {
@@ -315,7 +326,7 @@
 	}
 
 	async function loadTimelineData() {
-		const pageSize = 40;
+		const pageSize = 10;
 
 		let x = await getTimeline(offset, pageSize);
 
@@ -420,7 +431,27 @@
 		html_note = '';
 	}
 
+	function handleAnnounce(message: any) {
+		console.debug('HANDLING DISPATCHED ANNOUNCE');
+		const object: string | null | undefined = message.detail.object;
+		const actor: string | null | undefined = message.detail.actor;
+
+		if (object && actor) {
+			sendAnnounce(actor, object).then(() => {
+				// this will only work for top-level notes
+				let note = notes.get(object);
+				if (note) {
+					//note.note.ephemeralAnnounced = true;
+				}
+			});
+		} else {
+			console.error('OBJECT OR ACTOR INVALID');
+			console.debug(`OBJECT: ${object}, ACTOR: ${actor}`);
+		}
+	}
+
 	function handleLike(message: any) {
+		console.debug('HANDLING DISPATCHED LIKE');
 		const object: string = String(message.detail.object);
 		const actor: string = String(message.detail.actor);
 
@@ -454,6 +485,7 @@
 		sendNote(params).then((x: any) => {
 			if (x) {
 				resetCompose();
+				closeAside();
 				console.log('send successful');
 			} else {
 				console.log('send unsuccessful');
@@ -528,7 +560,11 @@
 			loading = true;
 
 			let results = 1;
-			while (main.scrollTop + main.offsetHeight >= main.scrollHeight * 0.7 && results > 0) {
+			while (
+				!infinite_scroll_disabled &&
+				main.scrollTop + main.offsetHeight >= main.scrollHeight * 0.7 &&
+				results > 0
+			) {
 				results = await loadTimelineData();
 			}
 
@@ -567,7 +603,7 @@
 		return ap_cache.get(id);
 	}
 
-	function closeAside(event: any) {
+	function closeAside() {
 		cancelReplyTo();
 		const dialog = document.getElementsByTagName('dialog')[0];
 		dialog.close();
@@ -669,14 +705,30 @@
 		{#if note.note && ((!focus_note && (!note.note.inReplyTo || note.note.ephemeralAnnounces?.length)) || note.note.id == focus_note)}
 			{#await replyToHeader(note.note) then replyTo}
 				{#await announceHeader(note.note) then announce}
-					<Article {note} {username} replyToHeader={replyTo} announceHeader={announce} on:reply_to={handleReplyToMessage} on:note_select={handleNoteSelect} on:like={handleLike}/>
+					<Article
+						{note}
+						{username}
+						replyToHeader={replyTo}
+						announceHeader={announce}
+						on:reply_to={handleReplyToMessage}
+						on:note_select={handleNoteSelect}
+						on:like={handleLike}
+						on:announce={handleAnnounce}
+					/>
 				{/await}
 			{/await}
 
 			{#if note.note.id == focus_note && note.replies?.size}
 				<div class="replies">
 					{#each Array.from(note.replies.values()).sort(compare) as reply}
-						<Reply note={reply} {username} on:reply_to={handleReplyToMessage} on:note_select={handleNoteSelect} on:like={handleLike}/>
+						<Reply
+							note={reply}
+							{username}
+							on:reply_to={handleReplyToMessage}
+							on:note_select={handleNoteSelect}
+							on:like={handleLike}
+							on:announce={handleAnnounce}
+						/>
 					{/each}
 				</div>
 			{/if}
@@ -767,7 +819,6 @@
 				background: #efefef;
 				border: 1px solid #ccc;
 				padding: 4px;
-				border-radius: 5px;
 				margin: 5px 0;
 				font-family: 'Open Sans';
 			}
@@ -848,13 +899,15 @@
 
 			div {
 				position: relative;
-				display: inline-block;
+				display: block;
 				margin: 0;
 				padding: 0;
 				border: 0;
 				border-radius: 0;
 				height: 100%;
 				width: 100%;
+				max-height: unset;
+				min-height: unset;
 				padding-top: 35px;
 				max-width: unset;
 				min-width: unset;
@@ -869,7 +922,11 @@
 				}
 
 				span {
-					margin: 5px;
+					position: fixed;
+					top: 10px;
+					left: 10px;
+					z-index: 30;
+					opacity: 0.7;
 				}
 
 				pre,
@@ -881,6 +938,8 @@
 					margin: 5px;
 					border-radius: 0;
 					border: 1px solid #aaa;
+					max-height: unset;
+					min-height: unset;
 				}
 
 				form {
@@ -917,6 +976,12 @@
 
 			div {
 				background: #444;
+
+				span {
+					background: #555;
+					color: white;
+					border: 1px solid #333;
+				}
 
 				pre,
 				div {

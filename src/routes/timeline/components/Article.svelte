@@ -33,6 +33,18 @@
 		event.target.classList.add('selected');
 	}
 
+	function handleAnnounce(event: any) {
+		const object: string = String(event.target.dataset.object);
+		const actor: string = String(event.target.dataset.actor);
+
+		dispatch('announce', {
+			object,
+			actor
+		});
+
+		event.target.classList.add('selected');
+	}
+
 	function handleUnlike(event: any) {}
 
 	function handleNoteSelect(event: any) {
@@ -112,7 +124,23 @@
 				on:click|preventDefault={handleNoteSelect}
 			/>
 
-			<i class="fa-solid fa-repeat" />
+			{#if note.note.ephemeralAnnounced}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-repeat selected"
+					data-object={note.note.id}
+					data-actor={note.note.attributedTo}
+					on:click|preventDefault={handleAnnounce}
+				/>
+			{:else}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-repeat"
+					data-object={note.note.id}
+					data-actor={note.note.attributedTo}
+					on:click|preventDefault={handleAnnounce}
+				/>
+			{/if}
 
 			{#if note.note.ephemeralLiked}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->

@@ -128,6 +128,7 @@ interface Note {
     attachment?: Attachment[];
     conversation: string | null;
     ephemeralAnnounces?: string[] | null;
+    ephemeralAnnounced?: boolean | null;
     ephemeralActors?: UserProfile[];
     ephemeralLiked?: boolean | null;
     ephemeralLikes?: string[] | null;

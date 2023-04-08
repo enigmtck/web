@@ -69,7 +69,7 @@
 			}
 
 			.image {
-				max-width: 150px;
+				max-width: 25%;
 				padding: 5px 0 5px 5px;
 				margin: 10px 0 10px 10px;
 
