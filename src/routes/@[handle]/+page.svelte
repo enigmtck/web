@@ -3,10 +3,12 @@
 	import { Converter } from 'showdown';
 	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
-	import { wasmState, appData } from '../../stores';
+	import { wasmState, appData, enigmatickWasm } from '../../stores';
 	import { goto } from '$app/navigation';
 
-	let updateSummary: any;
+	$: wasm = $enigmatickWasm;
+	
+	/* let updateSummary: any;
 	let uploadAvatar: any;
 	let uploadBanner: any;
 
@@ -37,7 +39,7 @@
 		});
 
 		loadProfile();
-	});
+	}); */
 
 	type Image = {
 		type: string;
@@ -125,7 +127,7 @@
 
 	function handleSaveSummary() {
 		if (profile) {
-			updateSummary(profile.summary).then((x: any) => {
+			wasm?.update_summary(profile.summary).then((x: any) => {
 				console.log(x);
 				summary_changed = false;
 			});
@@ -147,7 +149,7 @@
 					console.log(avatar);
 					let bytes = new Uint8Array(avatar as ArrayBuffer);
 
-					uploadAvatar(bytes, (avatar as ArrayBuffer).byteLength, extension).then(() => {
+					wasm?.upload_avatar(bytes, (avatar as ArrayBuffer).byteLength, extension).then(() => {
 						loadProfile();
 					});
 				}
@@ -170,7 +172,7 @@
 					console.log(banner);
 					let bytes = new Uint8Array(banner as ArrayBuffer);
 
-					uploadBanner(bytes, (banner as ArrayBuffer).byteLength, extension).then(() => {
+					wasm?.upload_banner(bytes, (banner as ArrayBuffer).byteLength, extension).then(() => {
 						loadProfile();
 					});
 				}
@@ -182,6 +184,11 @@
 	let edit_summary = false;
 	let username = get(appData).username;
 	let display_name = get(appData).display_name;
+
+	$: if ($enigmatickWasm) {
+		loadProfile();
+		wasm = $enigmatickWasm;
+	}
 </script>
 
 <svelte:head>

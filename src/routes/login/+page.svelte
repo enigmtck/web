@@ -1,31 +1,10 @@
 <script lang="ts">
-	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
-	import { wasmState, olmState, appData } from '../../stores';
+	import { wasmState, appData, enigmatickWasm } from '../../stores';
 	import { goto } from '$app/navigation';
+	import { object_without_properties } from 'svelte/internal';
 
-	let authenticate: any;
-	let getState: any;
-
-	onMount(async () => {
-		import('enigmatick_wasm').then((enigmatick_wasm) => {
-			enigmatick_wasm.default().then(() => {
-				authenticate = enigmatick_wasm.authenticate;
-				getState = enigmatick_wasm.get_state;
-
-				enigmatick_wasm.load_instance_information().then((instance) => {
-					console.log(instance?.domain);
-					console.log(instance?.url);
-
-					if (get(wasmState)) {
-						enigmatick_wasm.get_state().then(() => {
-							enigmatick_wasm.import_state(get(wasmState));
-						});
-					}
-				});
-			});
-		});
-	});
+	$: wasm = $enigmatickWasm;
 
 	let username = get(appData).username;
 
@@ -39,31 +18,33 @@
 		let data = new FormData(event.target);
 		console.log('clicked');
 
-		authenticate(
-			String(data.get('username')),
-			String(data.get('password')),
-			String(data.get('passphrase'))
-		).then((profile: any) => {
-			appData.set({
-				username: String(profile?.username),
-				display_name: String(profile?.display_name),
-				avatar: String(profile?.avatar_filename)
-			});
-			username = get(appData).username;
-			getState().then((x: any) => {
-				console.log(x);
-				wasmState.set(x.export());
-				let data = JSON.stringify({
-					pickled_account: x.get_olm_pickled_account(),
-					olm_sessions: JSON.parse(x.get_olm_sessions())
+		wasm
+			?.authenticate(
+				String(data.get('username')),
+				String(data.get('password')),
+				String(data.get('passphrase'))
+			)
+			.then((profile: any) => {
+				appData.set({
+					username: String(profile?.username),
+					display_name: String(profile?.display_name),
+					avatar: String(profile?.avatar_filename)
 				});
-				console.log(get(wasmState));
+				username = get(appData).username;
+				wasm?.get_state().then((x: any) => {
+					console.log(x);
+					wasmState.set(x.export());
+					let data = JSON.stringify({
+						pickled_account: x.get_olm_pickled_account(),
+						olm_sessions: JSON.parse(x.get_olm_sessions())
+					});
+					console.log(get(wasmState));
 
-				goto('/@' + username).then(() => {
-					console.log('logged in');
+					goto('/@' + username).then(() => {
+						console.log('logged in');
+					});
 				});
 			});
-		});
 	}
 </script>
 
@@ -86,10 +67,27 @@
 		</label>
 
 		<div>
-			<button>Authenticate</button>
+			<button><i class="fa-solid fa-door-open" /></button>
 		</div>
 	</form>
 </main>
+
+<svelte:head>
+	<style lang="scss">
+		body {
+			margin: 0;
+			padding: 0;
+			height: 100%;
+			width: 100%;
+			display: block;
+			background: white;
+
+			@media screen and (max-width: 600px) {
+				background: #fafafa;
+			}
+		}
+	</style>
+</svelte:head>
 
 <style lang="scss">
 	main {
@@ -97,8 +95,15 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		width: 100vw;
-		height: 100vh;
+		margin: 0;
+		padding: 0;
+		width: 100%;
+		height: 100%;
+		max-width: unset;
+
+		@media screen and (max-width: 600px) {
+			height: unset;
+		}
 
 		h1 {
 			font-family: 'Open Sans';
@@ -106,20 +111,28 @@
 			text-align: center;
 			font-weight: 300;
 			color: darkred;
+			padding: 0;
 			margin: 0;
 			width: 100%;
+			background: white;
 
 			@media screen and (max-width: 600px) {
 				font-size: 13vw;
-				margin: 0 0 30px 0;
+				background: #fafafa;
 			}
 		}
 
 		form {
 			display: flex;
+			background: #fafafa;
 			flex-direction: column;
 			width: 400px;
 			padding: 10px 20px;
+
+			@media screen and (max-width: 600px) {
+				width: 100%;
+				outline: 0;
+			}
 
 			label {
 				width: 100%;
@@ -131,7 +144,6 @@
 					width: 100%;
 					padding: 10px;
 					margin: 5px 0;
-					border-radius: 7px;
 					border: 0;
 					outline: 1px solid #999;
 				}
@@ -144,7 +156,6 @@
 
 			div {
 				text-align: center;
-				border-top: 1px solid #ccc;
 				margin-top: 10px;
 
 				button {
@@ -168,15 +179,29 @@
 	}
 
 	:global(body.dark) {
+		@media screen and (max-width: 600px) {
+			background: #222;
+		}
+
 		main {
 			h1 {
 				color: whitesmoke;
+				background: #222;
+
+				@media screen and (max-width: 600px) {
+					background: #222;
+				}
 			}
 
 			form {
-				background: #222;
+				background: #444;
+				outline: 0;
 				label {
 					color: #ddd;
+				}
+
+				@media screen and (max-width: 600px) {
+					background: #222;
 				}
 			}
 		}

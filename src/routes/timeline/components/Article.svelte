@@ -7,13 +7,19 @@
 		DisplayNote,
 		AnnounceParams
 	} from '../../../common';
+	import { onDestroy, onMount, getContext } from 'svelte';
+	import { beforeNavigate } from '$app/navigation';
+	import { get } from 'svelte/store';
 	import { insertEmojis, timeSince, getWebFingerFromId } from '../../../common';
 	import { attachmentsDisplay, replyCount } from './common';
+	import { enigmatickWasm } from '../../../stores';
 
 	import { createEventDispatcher } from 'svelte';
 	const dispatch = createEventDispatcher();
 
 	import LinkPreview from './LinkPreview.svelte';
+
+	$: wasm = $enigmatickWasm;
 
 	export let note: DisplayNote;
 	export let username: string | null;
@@ -21,31 +27,48 @@
 	export let announceHeader: AnnounceParams | null;
 	export { attachmentsDisplay };
 
+	function handleUnlike(event: any) {
+		const object: string = String(event.target.dataset.object);
+		const actor: string = String(event.target.dataset.actor);
+	}
+
 	function handleLike(event: any) {
 		const object: string = String(event.target.dataset.object);
 		const actor: string = String(event.target.dataset.actor);
 
-		dispatch('like', {
-			object,
-			actor
-		});
+		if (wasm) {
+			wasm.send_like(actor, object).then(() => {
+				// this will only work for top-level notes
+				/* let note = notes.get(object);
+			if (note) {
+				note.note.ephemeralLiked = true;
+			} */
+			});
+		}
 
 		event.target.classList.add('selected');
 	}
 
 	function handleAnnounce(event: any) {
+		console.debug('HANDLING DISPATCHED ANNOUNCE');
 		const object: string = String(event.target.dataset.object);
 		const actor: string = String(event.target.dataset.actor);
 
-		dispatch('announce', {
-			object,
-			actor
-		});
+		if (wasm && object && actor) {
+			wasm.send_announce(actor, object).then(() => {
+				// this will only work for top-level notes
+				//let note = notes.get(object);
+				//if (note) {
+					//note.note.ephemeralAnnounced = true;
+				//}
+			});
 
-		event.target.classList.add('selected');
+			event.target.classList.add('selected');
+		} else {
+			console.error('OBJECT OR ACTOR INVALID');
+			console.debug(`OBJECT: ${object}, ACTOR: ${actor}`);
+		}
 	}
-
-	function handleUnlike(event: any) {}
 
 	function handleNoteSelect(event: any) {
 		dispatch('note_select', {
@@ -76,21 +99,25 @@
 	{#if announceHeader}
 		<span class="repost">
 			<i class="fa-solid fa-retweet" /> Reposted by
-			<a href={announceHeader.url}>{announceHeader.name}</a>{announceHeader.others}
+			<a href={announceHeader.url}>{@html announceHeader.name}</a>{announceHeader.others}
 		</span>
 	{/if}
 
 	<header>
 		<div>
-			{#if note.actor.icon}
+			{#if note.actor && note.actor.icon}
 				<img src={note.actor.icon.url} alt="Sender" />
 			{/if}
 		</div>
 		<address>
-			<span>{@html insertEmojis(note.actor.name || note.actor.preferredUsername, note.actor)}</span>
-			<a href="/search?actor={note.actor.id}">
-				{getWebFingerFromId(note.actor)}
-			</a>
+			{#if note.actor}
+				<span
+					>{@html insertEmojis(note.actor.name || note.actor.preferredUsername, note.actor)}</span
+				>
+				<a href="/search?actor={note.actor.id}">
+					{getWebFingerFromId(note.actor)}
+				</a>
+			{/if}
 		</address>
 	</header>
 	<section>{@html insertEmojis(note.note.content || '', note.note)}</section>
@@ -113,7 +140,11 @@
 			{replyCount(note)}</span
 		>
 	{/if}
-	<time datetime={note.published}>{timeSince(new Date(String(note.published)))}</time>
+	<time datetime={note.published}
+		><a href={note.note.id} target="_blank" rel="noreferrer"
+			>{timeSince(new Date(String(note.published)).getTime())}</a
+		></time
+	>
 	{#if username}
 		<nav>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -159,17 +190,20 @@
 					on:click|preventDefault={handleLike}
 				/>
 			{/if}
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<i
-				class="fa-solid fa-reply"
-				data-reply={note.note.id}
-				data-display={note.actor.name || note.actor.preferredUsername}
-				data-url={note.actor.url}
-				data-username={note.actor.name}
-				data-recipient={note.actor.id}
-				data-conversation={note.note.conversation}
-				on:click={handleReplyTo}
-			/>
+
+			{#if note.actor}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-reply"
+					data-reply={note.note.id}
+					data-display={note.actor.name || note.actor.preferredUsername}
+					data-url={note.actor.url}
+					data-username={note.actor.name}
+					data-recipient={note.actor.id}
+					data-conversation={note.note.conversation}
+					on:click={handleReplyTo}
+				/>
+			{/if}
 		</nav>
 	{/if}
 </article>
@@ -211,6 +245,24 @@
 		header {
 			padding: 10px 20px;
 			color: #222;
+
+			display: flex;
+			flex-direction: row;
+			width: 100%;
+
+			div {
+				display: inline-block;
+				width: calc(100% - 55px);
+			}
+
+			div:first-child {
+				width: 55px;
+			}
+
+			img {
+				width: 100%;
+				clip-path: inset(0 0 0 0 round 20%);
+			}
 
 			:global(address) {
 				position: relative;
@@ -262,6 +314,10 @@
 			text-decoration: none;
 			color: inherit;
 			font-weight: 600;
+
+			a {
+				color: inherit;
+			}
 		}
 
 		:global(address > span),
@@ -331,7 +387,7 @@
 			vertical-align: middle;
 		}
 
-		:global(.attachments) {
+		.attachments {
 			overflow: hidden;
 			padding-bottom: 10px;
 			display: flex;
@@ -348,14 +404,12 @@
 				text-align: center;
 				padding: 0;
 				width: 100%;
-			}
 
-			:global(img),
-			:global(video) {
-				width: unset;
-				height: unset;
-				clip-path: unset;
-				width: 100%;
+				:global(img),
+				:global(video) {
+					height: unset;
+					width: 100%;
+				}
 			}
 		}
 
@@ -415,6 +469,12 @@
 			background: #000;
 			color: #fff;
 			border-bottom: 1px solid #222;
+
+			time {
+				a {
+					color: inherit;
+				}
+			}
 
 			:global(> code),
 			:global(p > code) {

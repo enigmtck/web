@@ -1,11 +1,17 @@
 <script lang="ts">
+	import { onDestroy, setContext, getContext } from 'svelte';
+	import { beforeNavigate } from '$app/navigation';
+	import { get } from 'svelte/store';
 	import type { UserProfile, Note, Tag, Attachment, DisplayNote } from '../../../common';
 	import { insertEmojis, timeSince, compare, getWebFingerFromId } from '../../../common';
 	import { attachmentsDisplay, replyCount } from './common';
+	import { enigmatickWasm } from '../../../stores';
 
 	import { createEventDispatcher, onMount } from 'svelte';
 	const dispatch = createEventDispatcher();
 
+	//export let wasm: typeof import('enigmatick_wasm');
+	$: wasm = $enigmatickWasm;
 	export let note: DisplayNote;
 	export let username: string | null;
 
@@ -14,34 +20,46 @@
 	}
 
 	function handleAnnounce(event: any) {
+		console.debug('HANDLING DISPATCHED ANNOUNCE');
 		const object: string = String(event.target.dataset.object);
 		const actor: string = String(event.target.dataset.actor);
 
-		dispatch('announce', {
-			object,
-			actor
-		});
+		if (wasm && object && actor) {
+			wasm.send_announce(actor, object).then(() => {
+				// this will only work for top-level notes
+				//let note = notes.get(object);
+				//if (note) {
+					//note.note.ephemeralAnnounced = true;
+				//}
+			});
 
-		event.target.classList.add('selected');
-	}
-
-	function forwardLike(event: any) {
-		dispatch('like', event.detail);
+			event.target.classList.add('selected');
+		} else {
+			console.error('OBJECT OR ACTOR INVALID');
+			console.debug(`OBJECT: ${object}, ACTOR: ${actor}`);
+		}
 	}
 
 	function handleLike(event: any) {
+		console.debug('HANDLING DISPATCHED LIKE');
 		const object: string = String(event.target.dataset.object);
 		const actor: string = String(event.target.dataset.actor);
 
-		dispatch('like', {
-			object,
-			actor
-		});
-
-		event.target.classList.add('selected');
+		if (wasm) {
+			wasm.send_like(actor, object).then(() => {
+				// this will only work for top-level notes
+				/* let note = notes.get(object);
+			if (note) {
+				note.note.ephemeralLiked = true;
+			} */
+			});
+		}
 	}
 
-	function handleUnlike(event: any) {}
+	function handleUnlike(event: any) {
+		const object: string = String(event.target.dataset.object);
+		const actor: string = String(event.target.dataset.actor);
+	}
 
 	function forwardNoteSelect(event: any) {
 		dispatch('note_select', event.detail);
@@ -74,16 +92,18 @@
 <article>
 	<div class="avatar">
 		<div>
-			{#if note.actor.icon}
+			{#if note.actor && note.actor.icon}
 				<img src={note.actor.icon.url} alt="Sender" />
 			{/if}
 		</div>
 	</div>
 	<address>
-		<a href="/search?actor={note.actor.id}">
-			{@html insertEmojis(note.actor.name || note.actor.preferredUsername, note.actor)} &bull;
-			<span class="url">{getWebFingerFromId(note.actor)}</span>
-		</a>
+		{#if note.actor}
+			<a href="/search?actor={note.actor.id}">
+				{@html insertEmojis(note.actor.name || note.actor.preferredUsername, note.actor)} &bull;
+				<span class="url">{getWebFingerFromId(note.actor)}</span>
+			</a>
+		{/if}
 	</address>
 	<section>{@html insertEmojis(note.note.content || '', note.note)}</section>
 	{#if note.note.attachment && note.note.attachment.length > 0}
@@ -96,7 +116,7 @@
 			{replyCount(note)}</span
 		>
 	{/if}
-	<time datetime={note.published}>{timeSince(new Date(String(note.published)))}</time>
+	<time datetime={note.published}>{timeSince(new Date(String(note.published)).getTime())}</time>
 	{#if username}
 		<nav>
 			{#if note.note.ephemeralAnnounced}
@@ -134,17 +154,20 @@
 					on:click|preventDefault={handleLike}
 				/>
 			{/if}
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<i
-				class="fa-solid fa-reply"
-				data-reply={note.note.id}
-				data-display={note.actor.name || note.actor.preferredUsername}
-				data-url={note.actor.url}
-				data-username={note.actor.name}
-				data-recipient={note.actor.id}
-				data-conversation={note.note.conversation}
-				on:click={handleReplyTo}
-			/>
+
+			{#if note.actor}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-reply"
+					data-reply={note.note.id}
+					data-display={note.actor.name || note.actor.preferredUsername}
+					data-url={note.actor.url}
+					data-username={note.actor.name}
+					data-recipient={note.actor.id}
+					data-conversation={note.note.conversation}
+					on:click={handleReplyTo}
+				/>
+			{/if}
 		</nav>
 	{/if}
 </article>
@@ -157,8 +180,6 @@
 				{username}
 				on:reply_to={forwardReplyTo}
 				on:note_select={forwardNoteSelect}
-				on:like={forwardLike}
-				on:announce={forwardAnnounce}
 			/>
 		{/each}
 	</div>
@@ -191,14 +212,6 @@
 			vertical-align: middle;
 		}
 
-		:global(img),
-		:global(video) {
-			width: unset;
-			height: unset;
-			clip-path: unset;
-			width: 100%;
-		}
-
 		.comments {
 			display: inline-block;
 			position: absolute;
@@ -221,6 +234,7 @@
 
 			img {
 				width: 55px;
+				clip-path: inset(0 0 0 0 round 20%);
 			}
 		}
 
@@ -265,6 +279,28 @@
 			}
 		}
 
+		.attachments {
+			grid-area: attachments;
+			display: block;
+			padding: 0 20px 0 0;
+
+			:global(div) {
+				min-width: unset;
+				min-height: unset;
+				width: unset;
+				height: unset;
+				text-align: center;
+				padding: 0;
+				width: 100%;
+
+				:global(img),
+				:global(video) {
+					height: unset;
+					width: 100%;
+				}
+			}
+		}
+
 		time {
 			font-size: 13px;
 			display: inline-block;
@@ -275,15 +311,6 @@
 			text-decoration: none;
 			color: inherit;
 			font-weight: 600;
-		}
-
-		.attachments {
-			grid-area: attachments;
-			padding: 0 5px 0 0;
-
-			:global(img) {
-				clip-path: unset;
-			}
 		}
 
 		nav {

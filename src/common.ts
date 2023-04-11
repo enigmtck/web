@@ -1,11 +1,31 @@
-export type {UserProfile, EnigmatickEvent, EnigmatickEventObject, Announce, Tag, Attachment, Metadata, Note, StreamConnect, DisplayNote, AnnounceParams };
-export { insertEmojis, timeSince, compare, getWebFingerFromId };
+export type {UserProfile, EnigmatickEvent, EnigmatickEventObject, Announce, Tag, Attachment, Metadata, Note, StreamConnect, AnnounceParams };
+export { insertEmojis, timeSince, compare, getWebFingerFromId, sleep, DisplayNote, extractUuid };
 
 interface DisplayNote {
     note: Note;
     actor: UserProfile;
     published: string;
     replies: Map<string, DisplayNote>;
+}
+
+class DisplayNote {
+    note: Note;
+    actor: UserProfile;
+    published: string;
+    replies: Map<string, DisplayNote>;
+
+    constructor(profile: UserProfile, note: Note, replies?: Map<string, DisplayNote>) {
+        this.note = note;
+        this.actor = profile;
+
+        if (note.ephemeralTimestamp) {
+            this.published = note.ephemeralTimestamp;
+        } else {
+            this.published = String(note.published);
+        }
+
+        this.replies = replies || new Map<string, DisplayNote>();
+    }
 }
 
 interface Image {
@@ -141,6 +161,10 @@ interface StreamConnect {
     uuid: string;
 };
 
+function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function getWebFingerFromId(actor: UserProfile): string {
     const re = /^https:\/\/([a-zA-Z0-9\-.]+?)\/[A-Za-z0-9/\-._]+$/;
 
@@ -169,8 +193,8 @@ function insertEmojis(text: string, profile: UserProfile | Note) {
     return text;
 }
 
-function timeSince(date: any) {
-    const now: any = new Date();
+function timeSince(date: number) {
+    const now: number = new Date().getTime();
 
     const seconds = Math.floor((now - date) / 1000);
 
@@ -205,5 +229,16 @@ function compare(a: DisplayNote, b: DisplayNote) {
         return 1;
     } else {
         return 0;
+    }
+}
+
+function extractUuid(id: string): string | null {
+    const re = /https:\/\/(?:[a-zA-Z0-9.-]+)(?:\.[a-zA-Z0-9.-]+)+\/(?:notes|conversation)\/([a-zA-Z0-9-]+)/;
+    const match = id.match(re);
+
+    if (match && match[1]) {
+        return match[1]
+    } else {
+        return null;
     }
 }

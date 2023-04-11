@@ -2,96 +2,56 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 
-	import { onMount, onDestroy, setContext } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
-	import { wasmState, olmState, appData } from '../../stores';
+	import { appData, enigmatickWasm, enigmatickOlm } from '../../stores';
 
-	let enigmatickWasm: any;
-	let getActor: any;
-	let sendAuthorization: any;
-	let sendFollow: any;
-	let sendUnfollow: any;
-	let sendKexInit: any;
+	$: wasm = $enigmatickWasm;
+	$: olm = $enigmatickOlm;
 
-	let enigmatickOlm: any;
 	let getIdentityPublicKey: any;
-	
+
 	let eventSource: EventSource | null = null;
 
 	onDestroy(() => {
 		if (eventSource) {
-			eventSource.close()
+			eventSource.close();
 		}
-	})
+	});
 
 	onMount(() => {
-		import('enigmatick_wasm').then((enigmatick_wasm) => {
-			enigmatick_wasm.default().then(() => {
+		eventSource = new EventSource('/api/user/' + username + '/events');
+		eventSource.onmessage = (event) => {
+			console.log('event: ' + event.data);
+			let e: Note | StreamConnect | EnigmatickEvent = JSON.parse(event.data);
+			console.log(e);
 
-				enigmatickWasm = enigmatick_wasm;
-				getActor = enigmatick_wasm.get_actor;
-				sendAuthorization = enigmatick_wasm.send_authorization;
-				sendFollow = enigmatick_wasm.send_follow;
-				sendUnfollow = enigmatick_wasm.send_unfollow;
-				sendKexInit = enigmatick_wasm.send_kex_init;
+			if ((<StreamConnect>e).uuid) {
+				wasm?.send_authorization((<StreamConnect>e).uuid);
+			} else if ((<EnigmatickEvent>e).type) {
+				let ev: EnigmatickEvent = <EnigmatickEvent>e;
 
-				import('enigmatick_olm').then((enigmatick_olm) => {
-					enigmatick_olm.default().then(() => {
-						enigmatickOlm = enigmatick_olm;
-						getIdentityPublicKey = enigmatick_olm.get_identity_public_key;
-
-						if (username) {
-							enigmatick_wasm.load_instance_information().then((instance) => {
-								console.log(instance?.domain);
-								console.log(instance?.url);
-
-								if (get(wasmState)) {
-									enigmatick_wasm.get_state().then(() => {
-										enigmatick_wasm.import_state(get(wasmState));
-										load_profile();
-									});
-								}
-							});
-
-							eventSource = new EventSource('/api/user/' + username + '/events');
-							eventSource.onmessage = (event) => {
-								console.log('event: ' + event.data);
-								let e: Note | StreamConnect | EnigmatickEvent = JSON.parse(event.data);
-								console.log(e);
-
-								if ((<StreamConnect>e).uuid) {
-									sendAuthorization((<StreamConnect>e).uuid);
-								} else if ((<EnigmatickEvent>e).type) {
-									let ev: EnigmatickEvent = <EnigmatickEvent>e;
-
-									if (ev.type == 'Follow' && ev.object !== undefined && String(ev.object) == profile?.id) {
-										load_profile();
-									} else if (ev.type == 'Accept' && ev.actor && ev.actor == profile?.id) {
-										load_profile();
-									} else if (
-										ev.type == 'Undo' &&
-										ev.object &&
-										typeof ev.object == 'object' &&
-										ev.object.id == profile?.ephemeralLeaderApId
-									) {
-										load_profile().then(() => {
-											console.log('profile loaded');
-										});
-									}
-								}
-							};
-							return () => {
-								if (eventSource && eventSource.readyState === 1) {
-									eventSource.close();
-								}
-							};
-						} else {
-							goto('/');
-						}
+				if (ev.type == 'Follow' && ev.object !== undefined && String(ev.object) == profile?.id) {
+					load_profile();
+				} else if (ev.type == 'Accept' && ev.actor && ev.actor == profile?.id) {
+					load_profile();
+				} else if (
+					ev.type == 'Undo' &&
+					ev.object &&
+					typeof ev.object == 'object' &&
+					ev.object.id == profile?.ephemeralLeaderApId
+				) {
+					load_profile().then(() => {
+						console.log('profile loaded');
 					});
-				});
-			});
-		});
+				}
+			}
+		};
+		return () => {
+			if (eventSource && eventSource.readyState === 1) {
+				eventSource.close();
+			}
+		};
 	});
 
 	type Image = {
@@ -187,7 +147,7 @@
 		profile = null;
 
 		if (address) {
-			const actor = await getActor(address);
+			const actor = await wasm?.get_actor(address);
 
 			if (actor) {
 				profile = JSON.parse(actor);
@@ -208,7 +168,7 @@
 		if (profile && profile.id) {
 			console.log('following: ' + profile.id);
 
-			sendFollow(profile.id);
+			wasm?.send_follow(profile.id);
 		} else {
 			console.log('no profile loaded');
 		}
@@ -218,7 +178,7 @@
 		if (profile && profile.id) {
 			console.log('unfollowing: ' + profile.id);
 
-			sendUnfollow(profile.id);
+			wasm?.send_unfollow(profile.id);
 		} else {
 			console.log('no profile loaded');
 		}
@@ -227,18 +187,18 @@
 	async function handleKexInit(event: any) {
 		console.log(event);
 
-		let kexinit = enigmatickOlm.KexInitParams.new();
+		let kexinit = wasm?.KexInitParams.new();
 
-		if (profile && profile.id) {
-			let a = (await enigmatickWasm.get_state()).get_olm_pickled_account();
+		if (wasm && profile && profile.id && kexinit) {
+			let a = (await wasm.get_state()).get_olm_pickled_account();
 			console.log(a);
 			let x = getIdentityPublicKey(String(a));
-			console.log("idk");
+			console.log('idk');
 			console.log(x);
-			kexinit.set_recipient_id(profile.id)
+			kexinit.set_recipient_id(profile.id);
 			kexinit.set_identity_key(String(x));
 
-			sendKexInit(kexinit).then(() => {
+			wasm?.send_kex_init(kexinit).then(() => {
 				console.log('kexinit sent');
 			});
 		}

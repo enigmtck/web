@@ -1,29 +1,46 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { appData } from '../stores';
+	import { appData, wasmState, enigmatickWasm } from '../stores';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { onMount } from 'svelte';
+	import { onMount, setContext } from 'svelte';
 
 	$: username = get(appData).username;
 	$: display_name = get(appData).display_name;
 	$: avatar = get(appData).avatar;
+	$: wasm = $enigmatickWasm;
 
-	onMount(() => {
-		const theme = localStorage.getItem("theme");
+	onMount(async () => {
+		const theme = localStorage.getItem('theme');
 
-		if (theme && theme === "dark") {
+		if (theme && theme === 'dark') {
 			setDark();
-		} else if (theme && theme === "light") {
+		} else if (theme && theme === 'light') {
 			setLight();
 		} else {
 			setDark();
+		}
+
+		if (!wasm) {
+			wasm = await import('enigmatick_wasm');
+			await wasm.default();
+
+			let instance = await wasm.load_instance_information();
+			console.log(instance?.domain);
+			console.log(instance?.url);
+
+			if (get(wasmState)) {
+				wasm.import_state(get(wasmState));
+				console.log('loaded state from store');
+			}
+
+			enigmatickWasm.set(wasm);
 		}
 	});
 
 	function isDark() {
 		let body = document.getElementsByTagName('body')[0];
-		if (body && body.classList.contains('dark')) {	
+		if (body && body.classList.contains('dark')) {
 			return true;
 		} else {
 			return false;
@@ -35,7 +52,7 @@
 		let control = document.getElementById('theme') as HTMLInputElement | null;
 		if (body && !body.classList.contains('dark')) {
 			body.classList.add('dark');
-			localStorage.setItem("theme", "dark");
+			localStorage.setItem('theme', 'dark');
 		}
 
 		if (control) {
@@ -48,7 +65,7 @@
 		let control = document.getElementById('theme') as HTMLInputElement | null;
 		if (body && body.classList.contains('dark')) {
 			body.classList.remove('dark');
-			localStorage.setItem("theme", "light");
+			localStorage.setItem('theme', 'light');
 		}
 
 		if (control) {
@@ -57,9 +74,10 @@
 	}
 
 	function update() {
-		username = get(appData).username;
-		display_name = get(appData).display_name;
-		avatar = get(appData).avatar;
+		username = $appData.username;
+		display_name = $appData.display_name;
+		avatar = $appData.avatar;
+		wasm = $enigmatickWasm;
 		return true;
 	}
 
@@ -75,32 +93,32 @@
 <svelte:head>
 	<style>
 		@font-face {
-			font-family: "Open Sans";
-			src: URL("fonts/OpenSans-Light.ttf");
+			font-family: 'Open Sans';
+			src: URL('/fonts/OpenSans-Light.ttf');
 			font-weight: 300;
 		}
-		
+
 		@font-face {
-			font-family: "Open Sans";
-			src: URL("fonts/OpenSans-Regular.ttf");
+			font-family: 'Open Sans';
+			src: URL('/fonts/OpenSans-Regular.ttf');
 			font-weight: 400;
 		}
 
 		@font-face {
-			font-family: "Open Sans";
-			src: URL("fonts/OpenSans-Medium.ttf");
+			font-family: 'Open Sans';
+			src: URL('/fonts/OpenSans-Medium.ttf');
 			font-weight: 500;
 		}
 
 		@font-face {
-			font-family: "Open Sans";
-			src: URL("fonts/OpenSans-SemiBold.ttf");
+			font-family: 'Open Sans';
+			src: URL('/fonts/OpenSans-SemiBold.ttf');
 			font-weight: 600;
 		}
 
 		@font-face {
-			font-family: "Open Sans";
-			src: URL("fonts/OpenSans-Bold.ttf");
+			font-family: 'Open Sans';
+			src: URL('/fonts/OpenSans-Bold.ttf');
 			font-weight: 700;
 		}
 
@@ -111,11 +129,13 @@
 		html {
 			margin: 0;
 			padding: 0;
+			height: 100%;
 		}
 
 		body {
 			margin: 0;
 			padding: 0;
+			height: 100%;
 			display: grid;
 			grid-template:
 				[row1-start] 'header header header header header' [row1-end]
@@ -132,7 +152,7 @@
 		</div>
 		<nav>
 			{#if avatar}
-				<a href="/@{username}"><img src="/{avatar}" alt="You"/></a>
+				<a href="/@{username}"><img src="/{avatar}" alt="You" /></a>
 			{/if}
 			<div class="toggle">
 				<label>
@@ -143,54 +163,52 @@
 		</nav>
 	</header>
 
-	{#if update()}
-		<slot />
+	<slot />
 
-		{#if username}
-			<footer>
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<i
-					class="fa-solid fa-earth-americas"
-					on:click={async () => {
-						await goto('/timeline');
-					}}
-				/>
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<i
-					class="fa-solid fa-house"
-					on:click={async () => {
-						await goto(`/@${username}`);
-					}}
-				/>
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<i
-					class="fa-solid fa-magnifying-glass"
-					on:click={async () => {
-						await goto('/search');
-					}}
-				/>
-			</footer>
+	{#if update() && username}
+		<footer>
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<i
+				class="fa-solid fa-house {$page.url.pathname == '/@' + username ? 'selected' : ''}"
+				on:click={async () => {
+					await goto(`/@${username}`);
+				}}
+			/>
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<i
+				class="fa-solid fa-earth-americas {$page.url.pathname == '/timeline' ? 'selected' : ''}"
+				on:click={async () => {
+					await goto('/timeline');
+				}}
+			/>
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<i
+				class="fa-solid fa-magnifying-glass {$page.url.pathname == '/search' ? 'selected' : ''}"
+				on:click={async () => {
+					await goto('/search');
+				}}
+			/>
+		</footer>
 
-			<nav>
-				<div>
-					<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
-						><i class="fa-solid fa-earth-americas" />Timeline</a
-					>
-					<a class={$page.url.pathname == '/message' ? 'selected' : ''} href="/message"
-						><i class="fa-solid fa-inbox" />Messages</a
-					>
-					<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
-						><i class="fa-solid fa-magnifying-glass" />Search</a
-					>
-					<a class={$page.url.pathname == '/settings' ? 'selected' : ''} href="/settings"
-						><i class="fa-solid fa-gear" />Settings</a
-					>
-					<a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
-						><i class="fa-solid fa-gear" />TEST</a
-					>
-				</div>
-			</nav>
-		{/if}
+		<nav>
+			<div>
+				<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
+					><i class="fa-solid fa-earth-americas" />Timeline</a
+				>
+				<a class={$page.url.pathname == '/message' ? 'selected' : ''} href="/message"
+					><i class="fa-solid fa-inbox" />Messages</a
+				>
+				<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
+					><i class="fa-solid fa-magnifying-glass" />Search</a
+				>
+				<a class={$page.url.pathname == '/settings' ? 'selected' : ''} href="/settings"
+					><i class="fa-solid fa-gear" />Settings</a
+				>
+				<a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
+					><i class="fa-solid fa-gear" />TEST</a
+				>
+			</div>
+		</nav>
 	{/if}
 {:else}
 	<slot />
@@ -392,7 +410,7 @@
 				margin: 0 20px;
 			}
 
-			i:hover {
+			i.selected {
 				color: red;
 			}
 		}
@@ -406,7 +424,7 @@
 				color: #fafafa;
 			}
 
-			i:hover {
+			i.selected {
 				color: red;
 			}
 		}
@@ -428,10 +446,6 @@
 			padding: 0;
 			margin: 10px;
 
-			img {
-				width: 40px;
-			}
-
 			a {
 				display: inline-block;
 				width: 100%;
@@ -452,27 +466,6 @@
 
 			.selected {
 				color: darkred;
-			}
-
-			button {
-				background: darkred;
-				font-family: 'Open Sans';
-				font-weight: 500;
-				font-size: 18px;
-				border: 0;
-				outline: 0;
-				color: white;
-				padding: 10px;
-				border-radius: 25px;
-				width: calc(100% - 30px);
-				margin: 15px;
-				transition-duration: 1s;
-			}
-
-			button:hover {
-				background: red;
-				transition-duration: 1s;
-				cursor: pointer;
 			}
 		}
 	}

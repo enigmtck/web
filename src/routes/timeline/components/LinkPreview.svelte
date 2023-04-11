@@ -52,26 +52,48 @@
 			background: #fafafa;
 
 			div {
+				min-width: 60%;
 				border: 0;
 				padding: 5px;
 				display: flex;
 				flex-direction: column;
+				mask: linear-gradient(
+							to bottom,
+							rgba(0, 0, 0, 1) 0,
+							rgba(0, 0, 0, 1) 40%,
+							rgba(0, 0, 0, 0) 95%,
+							rgba(0, 0, 0, 0) 0
+						)
+						100% 50% / 100% 100% repeat-x;
 
 				span {
+					display: block;
 					font-size: 13px;
 					padding-bottom: 5px;
 					color: black;
+					max-height: 100px;
+					overflow: hidden;
+					text-overflow: ellipsis;
+					
 				}
 				span:first-child {
+					white-space: nowrap;
+					max-height: 22px;
 					font-weight: 600;
 					font-size: 16px;
+					mask: unset;
 				}
 			}
 
 			.image {
+				min-width: unset;
 				max-width: 25%;
 				padding: 5px 0 5px 5px;
 				margin: 10px 0 10px 10px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				mask: unset;
 
 				img {
 					width: unset;

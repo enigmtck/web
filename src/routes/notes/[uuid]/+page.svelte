@@ -1,1 +1,78 @@
-<main></main>
+<script lang="ts">
+	import { page } from '$app/stores';
+	import Reply from '../../timeline/components/Reply.svelte';
+	import Article from '../../timeline/components/Article.svelte';
+
+	import { enigmatickWasm } from '../../../stores';
+	import type { UserProfile, Note } from '../../../common';
+	import { compare, DisplayNote, extractUuid } from '../../../common';
+
+	$: wasm = $enigmatickWasm;
+
+	async function loadProfile() {
+		if (wasm) {
+			let x = await fetch('/notes/' + $page.params.uuid, {
+				headers: {
+					Accept: 'application/activity+json'
+				}
+			});
+
+			let y = await x.json();
+
+			let actorStr = await wasm.get_profile(y.attributedTo);
+
+			if (actorStr) {
+				const actor: UserProfile = JSON.parse(actorStr);
+				note = new DisplayNote(actor, y);
+				console.log(note);
+
+				if (y.conversation) {
+					const uuid = extractUuid(y.conversation);
+
+					if (uuid) {
+						let conversationStr = await wasm.get_local_conversation(uuid);
+						if (conversationStr) {
+							const conversation_notes: Note[] = JSON.parse(conversationStr);
+							let replies = new Map<string, DisplayNote>();
+
+							for (const conversation_note of conversation_notes) {
+								if (conversation_note.id && conversation_note.id != y.id) {
+									let actorStr = await wasm.get_profile(conversation_note.attributedTo);
+									if (actorStr) {
+										const reply_actor: UserProfile = JSON.parse(actorStr);
+										replies.set(
+											String(conversation_note.id),
+											new DisplayNote(reply_actor, conversation_note)
+										);
+										note = new DisplayNote(actor, y, replies);
+									}
+								}
+							}
+
+							console.info(replies);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	let note: DisplayNote | null = null;
+
+	$: if (wasm && $page.params.uuid) {
+		loadProfile();
+	}
+</script>
+
+<main>
+	{#if wasm && note}
+		<Article {note} username={null} replyToHeader={null} announceHeader={null} />
+		{#if note.replies?.size}
+			<div class="replies">
+				{#each Array.from(note.replies.values()).sort(compare) as reply}
+					<Reply note={reply} username={null} />
+				{/each}
+			</div>
+		{/if}
+	{/if}
+</main>

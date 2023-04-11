@@ -3,7 +3,7 @@
 
 	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
-	import { wasmState, olmState, appData } from '../../stores';
+	import { wasmState, appData } from '../../stores';
 	import init_wasm, {
 		load_instance_information,
 		upload_avatar,
