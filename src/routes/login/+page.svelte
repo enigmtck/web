@@ -100,6 +100,7 @@
 		width: 100%;
 		height: 100%;
 		max-width: unset;
+		grid-area: content;
 
 		@media screen and (max-width: 600px) {
 			height: unset;

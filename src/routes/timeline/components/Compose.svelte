@@ -180,7 +180,7 @@
 		left: 0;
 		width: 100%;
 		height: 100vh;
-		z-index: 25;
+		z-index: 26;
 		pointer-events: all;
 	}
 
@@ -205,9 +205,11 @@
 
 		div {
 			position: relative;
-			display: block;
+			display: flex;
+			flex-direction: column;
 			height: 100%;
 			width: 100%;
+            max-width: 700px;
 			margin: 0;
 			padding: 25px 10px 0 10px;
 			border-radius: 10px;
@@ -242,6 +244,7 @@
 				font-family: 'Open Sans';
 				border-radius: 10px;
 				word-wrap: break-word;
+                white-space: pre-wrap;
 				overflow: scroll;
 			}
 
@@ -437,7 +440,7 @@
 		width: 60px;
 		height: 60px;
 		border-radius: 10px;
-		opacity: 0.9;
+		opacity: 0.2;
 		border: 1px solid #ccc;
 		color: #444;
 		transition-duration: 1s;

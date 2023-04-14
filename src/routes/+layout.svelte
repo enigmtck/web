@@ -1,14 +1,15 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { appData, wasmState, enigmatickWasm } from '../stores';
+	import { appData, wasmState, enigmatickWasm, enigmatickOlm } from '../stores';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount, setContext } from 'svelte';
 
-	$: username = get(appData).username;
-	$: display_name = get(appData).display_name;
-	$: avatar = get(appData).avatar;
+	$: username = $appData.username;
+	$: display_name = $appData.display_name;
+	$: avatar = $appData.avatar;
 	$: wasm = $enigmatickWasm;
+	$: olm = $enigmatickOlm;
 
 	onMount(async () => {
 		const theme = localStorage.getItem('theme');
@@ -35,6 +36,12 @@
 			}
 
 			enigmatickWasm.set(wasm);
+		}
+
+		if (!olm) {
+			olm = await import('enigmatick_olm');
+			await olm.default();
+			enigmatickOlm.set(olm);
 		}
 	});
 
@@ -136,83 +143,80 @@
 			margin: 0;
 			padding: 0;
 			height: 100%;
-			display: grid;
-			grid-template:
-				[row1-start] 'header header header header header' [row1-end]
-				[row2-start] 'left-gutter left-aside content right-aside right-gutter' [row2-end]
-				/ 1fr auto auto auto 1fr;
 		}
 	</style>
 </svelte:head>
 
-{#if $page.url.pathname !== '/' && $page.url.pathname !== '/login' && $page.url.pathname !== '/signup'}
-	<header>
-		<div>
-			<span class="title"><a href="/">ENIGMATICK</a></span>
-		</div>
-		<nav>
-			{#if avatar}
-				<a href="/@{username}"><img src="/{avatar}" alt="You" /></a>
-			{/if}
-			<div class="toggle">
-				<label>
-					<input type="checkbox" id="theme" on:change|preventDefault={darkMode} />
-					<span class="slider" />
-				</label>
-			</div>
-		</nav>
-	</header>
-
-	<slot />
-
-	{#if update() && username}
-		<footer>
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<i
-				class="fa-solid fa-house {$page.url.pathname == '/@' + username ? 'selected' : ''}"
-				on:click={async () => {
-					await goto(`/@${username}`);
-				}}
-			/>
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<i
-				class="fa-solid fa-earth-americas {$page.url.pathname == '/timeline' ? 'selected' : ''}"
-				on:click={async () => {
-					await goto('/timeline');
-				}}
-			/>
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<i
-				class="fa-solid fa-magnifying-glass {$page.url.pathname == '/search' ? 'selected' : ''}"
-				on:click={async () => {
-					await goto('/search');
-				}}
-			/>
-		</footer>
-
-		<nav>
+<div class="app">
+	{#if $page.url.pathname !== '/' && $page.url.pathname !== '/login' && $page.url.pathname !== '/signup'}
+		<header>
 			<div>
-				<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
-					><i class="fa-solid fa-earth-americas" />Timeline</a
-				>
-				<a class={$page.url.pathname == '/message' ? 'selected' : ''} href="/message"
-					><i class="fa-solid fa-inbox" />Messages</a
-				>
-				<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
-					><i class="fa-solid fa-magnifying-glass" />Search</a
-				>
-				<a class={$page.url.pathname == '/settings' ? 'selected' : ''} href="/settings"
-					><i class="fa-solid fa-gear" />Settings</a
-				>
-				<a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
-					><i class="fa-solid fa-gear" />TEST</a
-				>
+				<span class="title"><a href="/">ENIGMATICK</a></span>
 			</div>
-		</nav>
+			<nav>
+				{#if avatar}
+					<a href="/@{username}"><img src="/{avatar}" alt="You" /></a>
+				{/if}
+				<div class="toggle">
+					<label>
+						<input type="checkbox" id="theme" on:change|preventDefault={darkMode} />
+						<span class="slider" />
+					</label>
+				</div>
+			</nav>
+		</header>
+
+		<slot />
+
+		{#if username}
+			<footer>
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-house {$page.url.pathname == '/@' + username ? 'selected' : ''}"
+					on:click={async () => {
+						await goto(`/@${username}`);
+					}}
+				/>
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-earth-americas {$page.url.pathname == '/timeline' ? 'selected' : ''}"
+					on:click={async () => {
+						await goto('/timeline');
+					}}
+				/>
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<i
+					class="fa-solid fa-magnifying-glass {$page.url.pathname == '/search' ? 'selected' : ''}"
+					on:click={async () => {
+						await goto('/search');
+					}}
+				/>
+			</footer>
+
+			<nav>
+				<div>
+					<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
+						><i class="fa-solid fa-earth-americas" />Timeline</a
+					>
+					<a class={$page.url.pathname == '/message' ? 'selected' : ''} href="/message"
+						><i class="fa-solid fa-inbox" />Messages</a
+					>
+					<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
+						><i class="fa-solid fa-magnifying-glass" />Search</a
+					>
+					<a class={$page.url.pathname == '/settings' ? 'selected' : ''} href="/settings"
+						><i class="fa-solid fa-gear" />Settings</a
+					>
+					<a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
+						><i class="fa-solid fa-gear" />TEST</a
+					>
+				</div>
+			</nav>
+		{/if}
+	{:else}
+		<slot />
 	{/if}
-{:else}
-	<slot />
-{/if}
+</div>
 
 <style lang="scss">
 	:global(a),
@@ -245,173 +249,160 @@
 		background: #222;
 	}
 
-	header {
-		z-index: 25;
-		position: fixed;
+	.app {
 		width: 100%;
-		padding: 0;
-		background: #eee;
-		color: darkred;
-		text-align: center;
-		font-family: 'Open Sans';
-		font-size: 22px;
-		font-weight: 600;
-		grid-area: header;
+		height: 100%;
 		display: grid;
-		grid-template-columns: 1fr auto 1fr;
-		grid-template-areas: 'left center right';
-		align-items: center;
+		grid-template:
+			[row1-start] 'header header header header header' 41px [row1-end]
+			[row2-start] 'left-gutter left-aside content right-aside right-gutter' [row2-end]
+			/ 1fr auto auto auto 1fr;
 
-		> div {
-			grid-area: center;
-			display: inline-block;
-
-			a {
-				color: darkred;
-				text-decoration: none;
-			}
-
-			a:visited {
-				color: darkred;
-			}
-
-			a:hover {
-				color: red;
-				text-decoration: none;
-			}
-		}
-
-		nav {
-			grid-area: right;
-			display: flex;
-			flex-direction: row-reverse;
-			align-items: center;
-			margin: 0;
+		header {
+			z-index: 25;
+			position: fixed;
 			width: 100%;
+			padding: 0;
+			background: #eee;
+			color: darkred;
+			text-align: center;
+			font-family: 'Open Sans';
+			font-size: 22px;
+			font-weight: 600;
+			grid-area: header;
+			display: grid;
+			grid-template-columns: 1fr auto 1fr;
+			grid-template-areas: 'left center right';
+			align-items: center;
 
-			a {
-				position: relative;
+			> div {
+				grid-area: center;
 				display: inline-block;
-				width: auto;
-				height: 41px;
 
-				img {
-					display: inline-block;
-					width: 35px;
-					height: auto;
-					margin: 3px 10px;
-					clip-path: inset(0 0 0 0 round 50%);
+				a {
+					color: darkred;
+					text-decoration: none;
+				}
+
+				a:visited {
+					color: darkred;
+				}
+
+				a:hover {
+					color: red;
+					text-decoration: none;
 				}
 			}
 
-			img:hover {
-				opacity: 0.8;
-			}
-
-			.toggle {
-				position: relative;
-				margin: 8px;
-				padding: 0;
-				width: 50px;
-				height: 24px;
-			}
-
-			label {
-				position: relative;
-				display: inline-block;
+			nav {
+				grid-area: right;
+				display: flex;
+				flex-direction: row-reverse;
+				align-items: center;
+				margin: 0;
 				width: 100%;
-				height: 25px;
-				background-color: var(--dark);
-				outline: 1px solid #ccc;
-				border-radius: 50px;
-				cursor: pointer;
-			}
 
-			input {
-				position: absolute;
-				display: none;
-			}
+				a {
+					position: relative;
+					display: inline-block;
+					width: auto;
+					height: 41px;
 
-			.slider {
-				position: absolute;
-				left: 0px;
-				width: 100%;
-				height: 100%;
-				border-radius: 50px;
-				transition: 0.3s;
-			}
+					img {
+						display: inline-block;
+						width: 35px;
+						height: auto;
+						margin: 3px 10px;
+						clip-path: inset(0 0 0 0 round 50%);
+					}
+				}
 
-			input:checked ~ .slider {
-				background-color: var(--light);
-			}
+				img:hover {
+					opacity: 0.8;
+				}
 
-			.slider::before {
-				content: '';
-				position: absolute;
-				top: 3px;
-				left: 4px;
-				width: 18px;
-				height: 18px;
-				border-radius: 50%;
-				box-shadow: inset 7px -4px 0px 0px var(--light);
-				background-color: var(--dark);
-				transition: 0.3s;
-			}
+				.toggle {
+					position: relative;
+					margin: 8px;
+					padding: 0;
+					width: 50px;
+					height: 24px;
+				}
 
-			input:checked ~ .slider::before {
-				transform: translateX(25px);
-				background-color: var(--dark);
-				box-shadow: none;
+				label {
+					position: relative;
+					display: inline-block;
+					width: 100%;
+					height: 25px;
+					background-color: var(--dark);
+					outline: 1px solid #ccc;
+					border-radius: 50px;
+					cursor: pointer;
+				}
+
+				input {
+					position: absolute;
+					display: none;
+				}
+
+				.slider {
+					position: absolute;
+					left: 0px;
+					width: 100%;
+					height: 100%;
+					border-radius: 50px;
+					transition: 0.3s;
+				}
+
+				input:checked ~ .slider {
+					background-color: var(--light);
+				}
+
+				.slider::before {
+					content: '';
+					position: absolute;
+					top: 3px;
+					left: 4px;
+					width: 18px;
+					height: 18px;
+					border-radius: 50%;
+					box-shadow: inset 7px -4px 0px 0px var(--light);
+					background-color: var(--dark);
+					transition: 0.3s;
+				}
+
+				input:checked ~ .slider::before {
+					transform: translateX(25px);
+					background-color: var(--dark);
+					box-shadow: none;
+				}
 			}
 		}
-	}
 
-	:global(body.dark) {
-		header {
-			background: #222;
+		footer {
+			display: none;
 
-			a {
-				color: whitesmoke;
-			}
-		}
-	}
+			@media screen and (max-width: 600px) {
+				background: #eee;
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				justify-content: space-evenly;
+				position: fixed;
+				bottom: 0;
+				left: 0;
+				width: 100vw;
+				height: 50px;
 
-	:global(main) {
-		margin-top: 41px;
-		grid-area: content;
-		min-width: 400px;
-		max-width: 700px;
+				i {
+					color: #222;
+					font-size: 26px;
+					margin: 0 20px;
+				}
 
-		@media screen and (max-width: 600px) {
-			min-width: unset;
-			max-width: unset;
-			width: 100vw;
-		}
-	}
-
-	footer {
-		display: none;
-
-		@media screen and (max-width: 600px) {
-			background: #eee;
-			display: flex;
-			flex-direction: row;
-			align-items: center;
-			justify-content: space-evenly;
-			position: fixed;
-			bottom: 0;
-			left: 0;
-			width: 100vw;
-			height: 50px;
-
-			i {
-				color: #222;
-				font-size: 26px;
-				margin: 0 20px;
-			}
-
-			i.selected {
-				color: red;
+				i.selected {
+					color: red;
+				}
 			}
 		}
 	}
@@ -425,13 +416,12 @@
 			}
 
 			i.selected {
-				color: red;
+				color: darkred;
 			}
 		}
 	}
 
 	:global(body div > nav) {
-		margin-top: 41px;
 		height: calc(100vh - 41px);
 		max-width: 170px;
 		grid-area: right-aside;
@@ -471,18 +461,32 @@
 	}
 
 	:global(body.dark) {
-		nav {
-			background: #222;
-			a {
-				color: #aaa;
-			}
+		.app {
+			nav {
+				background: #222;
+				a {
+					color: #aaa;
+				}
 
-			a:hover {
-				color: red;
-			}
+				a:hover {
+					color: red;
+				}
 
-			.selected {
-				color: white;
+				.selected {
+					color: white;
+				}
+			}
+		}
+	}
+
+	:global(body.dark) {
+		.app {
+			header {
+				background: #222;
+
+				a {
+					color: whitesmoke;
+				}
 			}
 		}
 	}

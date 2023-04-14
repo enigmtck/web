@@ -1,4 +1,21 @@
-export type {UserProfile, EnigmatickEvent, EnigmatickEventObject, Announce, Tag, Attachment, Metadata, Note, StreamConnect, AnnounceParams };
+export type {
+    UserProfile,
+    EnigmatickEvent,
+    EnigmatickEventObject,
+    Announce,
+    Tag,
+    Attachment,
+    Metadata,
+    Note,
+    StreamConnect,
+    AnnounceParams,
+    Image,
+    Instrument,
+    OlmSessionResponse,
+    Collection,
+    QueueItem,
+    VaultedMessage
+};
 export { insertEmojis, timeSince, compare, getWebFingerFromId, sleep, DisplayNote, extractUuid };
 
 interface DisplayNote {
@@ -40,6 +57,11 @@ interface AnnounceParams {
     others: string;
 }
 
+interface Capabilities {
+    acceptsChatMessages?: boolean;
+    enigmatickEncrption?: boolean;
+}
+
 interface UserProfile {
     '@context': string;
     type: string;
@@ -63,6 +85,7 @@ interface UserProfile {
     endpoints?: object;
     icon?: Image;
     image?: Image;
+    capabilities?: Capabilities;
     ephemeralFollowing?: boolean;
     ephemeralLeaderApId?: string;
 };
@@ -99,10 +122,11 @@ interface Announce {
 interface Tag {
     type: 'Mention' | 'Emoji' | 'Hashtag';
     name: string;
-    href?: string;
+    href?: string | null;
     id?: string;
     updated?: string;
     icon?: Image;
+    value?: string | null;
 };
 
 interface Attachment {
@@ -159,6 +183,46 @@ interface Note {
 
 interface StreamConnect {
     uuid: string;
+};
+
+interface OlmSessionResponse {
+    session_pickle: string;
+    uuid: string;
+};
+
+interface Instrument {
+    type: 'IdentityKey' | 'SessionKey' | 'OlmSession';
+    content: string;
+    hash?: string;
+    uuid?: string;
+};
+
+interface QueueItem {
+    '@context'?: string | null;
+    attributedTo: string;
+    id: string;
+    tag?: object[];
+    type: 'EncryptedNote' | 'EncryptedSession' | 'VaultNote';
+    to: string[] | string;
+    published: string;
+    content: string;
+    conversations?: string;
+    instrument?: Instrument[] | Instrument;
+};
+
+interface Collection {
+    '@context': string;
+    type: 'Collection' | 'OrderedCollection';
+    id: string;
+    totalItems: number;
+    items?: QueueItem[];
+    orderedItems?: QueueItem[];
+};
+
+interface VaultedMessage {
+    message: string;
+    published: string;
+    attributedTo?: string;
 };
 
 function sleep(ms: number) {

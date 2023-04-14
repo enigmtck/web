@@ -1,87 +1,60 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 
-	import { onMount, setContext } from 'svelte';
+	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
-	import { wasmState, appData } from '../../stores';
-	import init_wasm, {
-		SendParams,
-		send_encrypted_note,
-		get_state,
-		import_state,
-		load_instance_information,
-		get_processing_queue,
-		get_hash,
-		resolve_processed_item,
-		store_to_vault,
-		decrypt,
-		get_sessions,
-		get_vault,
-		get_actor,
-		get_webfinger_from_id
-	} from 'enigmatick_wasm';
-	import init_olm, {
-		decrypt_olm_message,
-		create_olm_message,
-		get_identity_public_key
-	} from 'enigmatick_olm';
+	import { appData, enigmatickWasm, enigmatickOlm } from '../../stores';
+	import type { UserProfile, VaultedMessage, Instrument, Collection, Tag } from '../../common';
+	import { getWebFingerFromId } from '../../common';
 
-	type Image = {
-		mediaType?: string;
-		type: string;
-		url: string;
-	};
-
-	type UserProfile = {
-		'@context': string;
-		type: string;
-		name?: string;
-		summary?: string;
-		id?: string;
-		preferredUsername: string;
-		inbox: string;
-		outbox: string;
-		followers: string;
-		following: string;
-		liked?: string;
-		publicKey: object;
-		featured?: string;
-		featuredTags?: string;
-		url?: string;
-		manuallyApprovesFollowers?: boolean;
-		published?: string;
-		tag?: Tag[];
-		attachment?: object;
-		endpoints?: object;
-		icon?: Image;
-		image?: Image;
-		ephemeralFollowing?: boolean;
-		ephemeralLeaderApId?: string;
-	};
+	$: wasm = $enigmatickWasm;
+	$: olm = $enigmatickOlm;
+	$: username = get(appData).username;
+	let account: any;
 
 	onMount(async () => {
-		await init_olm();
-		let state = await get_state();
-		account = state.get_olm_pickled_account();
+		console.debug(wasm);
+		console.debug(olm);
+		console.debug(username);
+		if (wasm && olm && username) {
+			if (wasm) {
+				let state = await wasm.get_state();
+				account = await state.get_olm_pickled_account();
+				wasm.get_followers().then((x) => {
+					if (x) {
+						const followers: UserProfile[] = JSON.parse(x);
+						followers.forEach((actor) => {
+							if (actor.id) {
+								actors.set(actor.id, actor);
+							}
+						});
+						console.debug(actors);
+						actors = actors;
+					}
+				});
 
-		if (username && account) {
-			const instance = await load_instance_information();
-			console.log(instance?.domain);
-			console.log(instance?.url);
-
-			if (get(wasmState)) {
-				import_state(get(wasmState));
-				console.log('loaded state from store');
+				wasm.get_following().then((x) => {
+					if (x) {
+						const following: UserProfile[] = JSON.parse(x);
+						following.forEach((actor) => {
+							if (actor.id) {
+								actors.set(actor.id, actor);
+							}
+						});
+						console.debug(actors);
+						actors = actors;
+					}
+				});
 			}
 
-			get_sessions().then(async (resp) => {
+			wasm.get_sessions().then(async (resp) => {
 				const sessions: Collection = JSON.parse(String(resp));
 				console.info('SESSIONS');
 				console.debug(sessions);
 
 				sessions.items?.forEach(async (session) => {
 					if ('string' === typeof session.to) {
-						let resp = await get_actor(session.to);
+						let resp = await wasm?.get_actor(session.to);
 						const actor: UserProfile = JSON.parse(String(resp));
 
 						let icon = undefined;
@@ -96,13 +69,13 @@
 						if (instrument.content) {
 							if (instrument.type === 'OlmSession') {
 								session_uuid = instrument.uuid;
-								session_pickle = decrypt(instrument.content);
+								session_pickle = wasm?.decrypt(instrument.content);
 							}
 						} else if (Array.isArray(session.instrument)) {
 							session.instrument.forEach((instrument) => {
 								if (instrument.type === 'OlmSession') {
 									session_uuid = instrument.uuid;
-									session_pickle = decrypt(instrument.content);
+									session_pickle = wasm?.decrypt(instrument.content);
 								}
 							});
 						}
@@ -110,7 +83,7 @@
 						const id = String(session.to);
 						established.set(id, [
 							id,
-							await get_webfinger_from_id(id),
+							await wasm?.get_webfinger_from_id(id),
 							actor.name,
 							icon,
 							session_uuid,
@@ -128,7 +101,7 @@
 	});
 
 	function processQueue() {
-		get_processing_queue().then(async (s) => {
+		wasm?.get_processing_queue().then(async (s) => {
 			console.info('QUEUE');
 			console.debug(s);
 			const queue: Collection = JSON.parse(String(s));
@@ -151,7 +124,7 @@
 						});
 
 						const id = queue_item.attributedTo;
-						const actor: UserProfile = JSON.parse(String(await get_actor(id)));
+						const actor: UserProfile = JSON.parse(String(await wasm?.get_actor(id)));
 
 						let icon: string | undefined = undefined;
 						if (actor.icon && actor.icon.type === 'Image') {
@@ -159,7 +132,7 @@
 						}
 
 						if (idk && otk) {
-							let message = create_olm_message(id, 'SESSION_INIT', String(account), idk, otk);
+							let message = olm?.create_olm_message(id, 'SESSION_INIT', String(account), idk, otk);
 							if (message) {
 								console.info('SESSION INIT');
 								console.info(message.message);
@@ -167,29 +140,31 @@
 
 								const session = message.session;
 
-								let params = (await (await SendParams.new()).add_recipient_id(id, false))
-									.set_encrypted()
-									.set_identity_key(get_identity_public_key(String(account)))
-									.set_session_data(session)
-									.set_content(message.message);
+								if (wasm && olm) {
+									let params = (await (await wasm.SendParams.new()).add_recipient_id(id, false))
+										.set_encrypted()
+										.set_identity_key(olm.get_identity_public_key(String(account)))
+										.set_session_data(session)
+										.set_content(message.message);
 
-								send_encrypted_note(params).then(async () => {
-									const item = `${queue_item.id}#processing`;
+									wasm.send_encrypted_note(params).then(async () => {
+										const item = `${queue_item.id}#processing`;
 
-									resolve_processed_item(item).then(() => {
-										console.info(`QUEUE ITEM RESOLVED: ${item}`);
+										wasm?.resolve_processed_item(item).then(() => {
+											console.info(`QUEUE ITEM RESOLVED: ${item}`);
+										});
+
+										established.set(id, [
+											id,
+											await wasm?.get_webfinger_from_id(id),
+											actor.name,
+											icon,
+											undefined,
+											session
+										]);
+										console.info('SESSION INIT SENT');
 									});
-
-									established.set(id, [
-										id,
-										await get_webfinger_from_id(id),
-										actor.name,
-										icon,
-										undefined,
-										session
-									]);
-									console.info('SESSION INIT SENT');
-								});
+								}
 							}
 						}
 					}
@@ -202,18 +177,18 @@
 							const tag = <Tag>t;
 
 							if (tag.type === 'Mention') {
-								if (tag.name === queue_item.attributedTo) {
+								if (tag.name === queue_item.attributedTo && tag.value) {
 									idk = tag.value;
 								}
 							}
 						});
 
-						if (idk) {
+						if (wasm && olm && idk) {
 							let session: string | undefined = undefined;
 							let session_uuid: string | undefined = undefined;
 
 							const id = queue_item.attributedTo;
-							const actor: UserProfile = JSON.parse(String(await get_actor(id)));
+							const actor: UserProfile = JSON.parse(String(await wasm.get_actor(id)));
 
 							let icon: string | undefined = undefined;
 							if (actor.icon && actor.icon.type === 'Image') {
@@ -226,11 +201,11 @@
 							) {
 								const instrument: Instrument = <Instrument>queue_item.instrument;
 								console.warn(instrument);
-								session = decrypt(instrument.content);
+								session = wasm.decrypt(instrument.content);
 								session_uuid = instrument.uuid;
 							}
 
-							const message = decrypt_olm_message(
+							const message = olm.decrypt_olm_message(
 								queue_item.attributedTo,
 								queue_item.content,
 								String(account),
@@ -242,7 +217,7 @@
 								console.info(`MESSAGE: ${message.message}`);
 
 								if (message.message === 'SESSION_INIT') {
-									const ack = create_olm_message(
+									const ack = olm.create_olm_message(
 										queue_item.attributedTo,
 										'SESSION_ACK',
 										String(account),
@@ -254,17 +229,17 @@
 									if (ack) {
 										const params = (
 											await (
-												await SendParams.new()
+												await wasm.SendParams.new()
 											).add_recipient_id(queue_item.attributedTo, false)
 										)
 											.set_encrypted()
-											.set_identity_key(get_identity_public_key(String(account)))
+											.set_identity_key(olm.get_identity_public_key(String(account)))
 											.set_session_data(ack.session)
 											.set_session_uuid(session_uuid)
 											.set_content(ack.message)
 											.resolves(`${queue_item.id}#processing`);
 
-										send_encrypted_note(params).then(() => {
+										wasm.send_encrypted_note(params).then(() => {
 											console.info('SESSION ACK SENT');
 										});
 									}
@@ -275,24 +250,26 @@
 										published: queue_item.published
 									});
 
-									store_to_vault(
-										vault_data,
-										queue_item.attributedTo,
-										`${queue_item.id}#processing`,
-										String(session_uuid),
-										message.session,
-										String(get_hash(String(session)))
-									).then(async () => {
-										established.set(id, [
-											id,
-											await get_webfinger_from_id(id),
-											actor.name,
-											icon,
-											session_uuid,
-											message.session
-										]);
-										console.info('STORED TO VAULT');
-									});
+									wasm
+										.store_to_vault(
+											vault_data,
+											queue_item.attributedTo,
+											`${queue_item.id}#processing`,
+											String(session_uuid),
+											message.session,
+											String(wasm.get_hash(String(session)))
+										)
+										.then(async () => {
+											established.set(id, [
+												id,
+												await wasm?.get_webfinger_from_id(id),
+												actor.name,
+												icon,
+												session_uuid,
+												message.session
+											]);
+											console.info('STORED TO VAULT');
+										});
 								}
 							}
 						}
@@ -301,47 +278,6 @@
 			});
 		});
 	}
-
-	type OlmSessionResponse = {
-		session_pickle: string;
-		uuid: string;
-	};
-
-	type Tag = {
-		type: 'Mention' | 'Emoji' | 'Hashtag';
-		href: string | null;
-		name: string | null;
-		value: string | null;
-	};
-
-	type Instrument = {
-		type: 'IdentityKey' | 'SessionKey' | 'OlmSession';
-		content: string;
-		hash?: string;
-		uuid?: string;
-	};
-
-	type QueueItem = {
-		'@context'?: string | null;
-		attributedTo: string;
-		id: string;
-		tag?: object[];
-		type: 'EncryptedNote' | 'EncryptedSession' | 'VaultNote';
-		to: string[] | string;
-		published: string;
-		content: string;
-		conversations?: string;
-		instrument?: Instrument[] | Instrument | undefined;
-	};
-
-	type Collection = {
-		'@context': string;
-		type: 'Collection' | 'OrderedCollection';
-		id: string;
-		totalItems: number;
-		items?: QueueItem[];
-		orderedItems?: QueueItem[];
-	};
 
 	async function handleMessage(event: any) {
 		let data = new FormData(event.target);
@@ -352,11 +288,11 @@
 		if (selected) {
 			const cached = established.get(selected);
 
-			if (cached) {
+			if (wasm && olm && cached) {
 				const [id, webfinger, name, image, session_uuid, session_pickle] = cached;
 				// write code to check for existing session
 				if (session_pickle) {
-					const encrypted = create_olm_message(
+					const encrypted = olm.create_olm_message(
 						selected,
 						String(message),
 						String(account),
@@ -370,14 +306,14 @@
 						console.info('ENCRYPTED');
 						console.debug(encrypted.message);
 
-						const params = (await (await SendParams.new()).add_recipient_id(selected, false))
+						const params = (await (await wasm.SendParams.new()).add_recipient_id(selected, false))
 							.set_encrypted()
-							.set_identity_key(get_identity_public_key(String(account)))
+							.set_identity_key(olm.get_identity_public_key(String(account)))
 							.set_session_data(encrypted.session)
 							.set_session_uuid(session_uuid)
 							.set_content(encrypted.message);
 
-						send_encrypted_note(params).then(() => {
+						wasm.send_encrypted_note(params).then(() => {
 							console.log('NOTE SENT');
 						});
 					}
@@ -386,16 +322,10 @@
 		}
 	}
 
-	type VaultedMessage = {
-		message: string;
-		published: string;
-		attributedTo?: string;
-	};
-
 	async function selectSession(event: any) {
 		selected = event.target.dataset.recipient;
 
-		let vaultStr = await get_vault(0, 40, String(selected));
+		let vaultStr = await wasm?.get_vault(0, 40, String(selected));
 		console.log(`SELECTED: ${selected}`);
 		console.log(`VAULT: ${vaultStr}`);
 		messages = [];
@@ -405,8 +335,8 @@
 			console.info(vaultItems);
 
 			vaultItems.orderedItems?.forEach((item) => {
-				let message: VaultedMessage = JSON.parse(String(decrypt(item.content)));
-				get_webfinger_from_id(item.attributedTo).then((x) => {
+				let message: VaultedMessage = JSON.parse(String(wasm?.decrypt(item.content)));
+				wasm?.get_webfinger_from_id(item.attributedTo).then((x) => {
 					message.attributedTo = x;
 					messages.push(message);
 
@@ -415,15 +345,42 @@
 			});
 		}
 	}
+
+	function compare(a: UserProfile, b: UserProfile) {
+		if (a.preferredUsername.toLowerCase() < b.preferredUsername.toLowerCase()) {
+			return -1;
+		} else if (a.preferredUsername.toLowerCase() > b.preferredUsername.toLowerCase()) {
+			return 1;
+		} else {
+			return 0;
+		}
+	}
+
 	// id -> [id, webfinger, display_name, image_url, session_uuid, session_pickle]
 	let established = new Map<string, any[]>();
 
 	let selected: string | null = null;
-	let username = get(appData).username;
-	let account: string | undefined = undefined;
 
 	let messages: VaultedMessage[] = [];
+
+	let actors = new Map<string, UserProfile>();
 </script>
+
+<div class="contacts">
+	<ul>
+		{#each Array.from(actors.values()).sort(compare) as actor}
+			<li>
+				<div>
+					<img src={actor.icon?.url} alt="Profile" />
+				</div>
+				<div>
+					<span>{actor.name}</span>
+					<span>{getWebFingerFromId(actor)}</span>
+				</div>
+			</li>
+		{/each}
+	</ul>
+</div>
 
 <main>
 	<button on:click|preventDefault={processQueue}>Process Queue</button>
@@ -464,7 +421,58 @@
 </main>
 
 <style lang="scss">
+	.contacts {
+		display: block;
+		grid-area: left-aside;
+		background: #fafafa;
+		height: calc(100vh - 41px);
+		overflow: scroll;
+
+		ul {
+			display: block;
+			height: 100%;
+			padding: 10px;
+			margin: 0;
+
+			li {
+				list-style: none;
+				padding: 0;
+				margin: 0 0 10px 0;
+				width: 100%;
+				display: flex;
+				flex-direction: row;
+				max-width: 350px;
+				overflow: hidden;
+
+				div {
+					height: 55px;
+
+					img {
+						height: 100%;
+						width: auto;
+						clip-path: inset(0 0 0 0 round 50%);
+					}
+
+					span {
+						display: inline-block;
+						padding: 0 0 2px 5px;
+						width: 100%;
+						font-family: 'Open Sans';
+						font-size: 13px;
+					}
+
+					span:first-child {
+						font-size: 15px;
+						font-weight: 600;
+					}
+				}
+			}
+		}
+	}
+
 	main {
+		grid-area: content;
+		min-width: 400px;
 		ul {
 			margin: 0;
 			padding: 0;

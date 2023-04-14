@@ -215,10 +215,16 @@
 	let olm_session = false;
 	let olm_pending = false;
 	let one_time_key = false;
-	let address: string | null = $page.url.searchParams.get('actor');
+	$: address = $page.url.searchParams.get('actor');
 	let profile: UserProfile | null = null;
 	let username = get(appData).username;
 	let display_name = get(appData).display_name;
+
+	$: if (address) {
+		load_profile().then(() => {
+			console.debug("LOADED");
+		});
+	}
 </script>
 
 <main>
@@ -284,9 +290,11 @@
 	main {
 		display: block;
 		max-width: 600px;
+		min-width: 400px;
 		width: 100%;
-		margin: 41px auto 0 auto;
-		padding: 5px;
+		margin: 0 auto;
+		grid-area: content;
+		padding: 5px 5px 50px 5px;
 
 		label {
 			width: 100%;

@@ -18,6 +18,7 @@
 	const dispatch = createEventDispatcher();
 
 	import LinkPreview from './LinkPreview.svelte';
+	import Menu from './Menu.svelte';
 
 	$: wasm = $enigmatickWasm;
 
@@ -59,7 +60,7 @@
 				// this will only work for top-level notes
 				//let note = notes.get(object);
 				//if (note) {
-					//note.note.ephemeralAnnounced = true;
+				//note.note.ephemeralAnnounced = true;
 				//}
 			});
 
@@ -198,11 +199,17 @@
 					data-reply={note.note.id}
 					data-display={note.actor.name || note.actor.preferredUsername}
 					data-url={note.actor.url}
-					data-username={note.actor.name}
+					data-username={note.actor.preferredUsername}
 					data-recipient={note.actor.id}
 					data-conversation={note.note.conversation}
 					on:click={handleReplyTo}
 				/>
+			{/if}
+
+			{#if note.note.id}
+				{#await wasm?.get_ap_id() then ap_id}
+					<Menu object={note.note.id} owner={ap_id == note.note.attributedTo} />
+				{/await}
 			{/if}
 		</nav>
 	{/if}
@@ -415,24 +422,21 @@
 
 		nav {
 			width: 100%;
-			position: absolute;
+			position: relative;
 			z-index: unset;
-			top: unset;
-			right: unset;
-			bottom: 0;
-			left: 0;
 			background: #eee;
-			padding: 5px 0;
+			padding: 10px 0;
 			margin: 0;
 			opacity: 0.3;
-			transform: translateY(100%);
+			display: flex;
+			flex-direction: row;
 			transition-duration: 300ms;
 
 			i {
 				text-align: center;
 				font-size: 14px;
 				color: #444;
-				width: calc(95% / 4);
+				width: calc(100% / 5);
 			}
 
 			i:hover {
@@ -447,12 +451,6 @@
 
 		nav:hover {
 			opacity: 1;
-		}
-	}
-
-	article:hover {
-		nav {
-			transform: translateY(0);
 		}
 	}
 
@@ -497,7 +495,7 @@
 			}
 
 			nav {
-				background: #555;
+				background: unset;
 
 				i {
 					color: #fff;

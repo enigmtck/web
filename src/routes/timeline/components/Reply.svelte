@@ -162,7 +162,7 @@
 					data-reply={note.note.id}
 					data-display={note.actor.name || note.actor.preferredUsername}
 					data-url={note.actor.url}
-					data-username={note.actor.name}
+					data-username={note.actor.preferredUsername}
 					data-recipient={note.actor.id}
 					data-conversation={note.note.conversation}
 					on:click={handleReplyTo}

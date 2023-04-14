@@ -502,7 +502,7 @@
 				main.scrollTo(0, 0);
 			}}
 		>
-			<i class="fa-solid fa-square-caret-up" />
+			<i class="fa-solid fa-chevron-up" />
 		</div>
 
 		{#if focusNote || focusConversation}
@@ -521,10 +521,20 @@
 	}
 
 	main {
-		position: relative;
 		width: 100%;
-		height: calc(100vh - 42px);
+		height: 100%;
+		padding-bottom: 50px;
 		overflow-y: auto;
+		grid-area: content;
+		min-width: 400px;
+		max-width: 700px;
+		scroll-behavior: smooth;
+
+		@media screen and (max-width: 600px) {
+			min-width: unset;
+			max-width: unset;
+			width: 100vw;
+		}
 
 		.back {
 			position: fixed;
@@ -549,22 +559,26 @@
 		.scroll {
 			display: none;
 			position: fixed;
-			left: calc(50% - 50px);
-			width: 100px;
-			top: 50px;
-			background: #ddd;
+			left: calc(50% - 80px);
+			width: 160px;
+			top: 4px;
+			opacity: 0.9;
+			background: darkred;
 			text-align: center;
-			border-radius: 10px;
+			border-radius: 15px;
 			font-size: 28px;
-			color: #777;
-			opacity: 0.3;
-			border: 1px solid #bbb;
+			color: white;
+			border: 0;
 			transition-duration: 1s;
+			z-index: 25;
+
+			i {
+				pointer-events: none;
+			}
 		}
 
 		.scroll:hover {
-			opacity: 0.8;
-			color: red;
+			opacity: 1;
 			cursor: pointer;
 			transition-duration: 1s;
 		}
@@ -582,11 +596,11 @@
 	}
 
 	:global(body.dark) {
-		:global(a) {
+		a {
 			color: darkgoldenrod;
 		}
 
-		:global(a:hover) {
+		a:hover {
 			color: red;
 		}
 	}

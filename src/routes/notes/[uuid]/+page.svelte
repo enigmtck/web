@@ -76,3 +76,14 @@
 		{/if}
 	{/if}
 </main>
+
+<style lang="scss">
+	main {
+		grid-area: content;
+		max-width: 800px;
+		width: 100%;
+		height: calc(100% - 41px);
+		margin: 0 auto;
+		font-family: 'Open Sans';
+    }
+</style>

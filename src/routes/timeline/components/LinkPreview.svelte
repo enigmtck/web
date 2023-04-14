@@ -60,7 +60,7 @@
 				mask: linear-gradient(
 							to bottom,
 							rgba(0, 0, 0, 1) 0,
-							rgba(0, 0, 0, 1) 40%,
+							rgba(0, 0, 0, 1) 70%,
 							rgba(0, 0, 0, 0) 95%,
 							rgba(0, 0, 0, 0) 0
 						)

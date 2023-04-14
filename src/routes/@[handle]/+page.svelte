@@ -4,66 +4,12 @@
 	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
 	import { wasmState, appData, enigmatickWasm } from '../../stores';
+	import type { UserProfile } from '../../common';
 	import { goto } from '$app/navigation';
 
 	$: wasm = $enigmatickWasm;
-	
-	/* let updateSummary: any;
-	let uploadAvatar: any;
-	let uploadBanner: any;
-
-	onMount(async () => {
-		import('enigmatick_wasm').then((enigmatick_wasm) => {
-			enigmatick_wasm.default().then(() => {
-				updateSummary = enigmatick_wasm.update_summary;
-				uploadAvatar = enigmatick_wasm.upload_avatar;
-				uploadBanner = enigmatick_wasm.upload_banner;
-
-				if (username) {
-					enigmatick_wasm.load_instance_information().then((instance) => {
-						console.log(instance?.domain);
-						console.log(instance?.url);
-
-						if (get(wasmState)) {
-							enigmatick_wasm.get_state().then(() => {
-								enigmatick_wasm.import_state(get(wasmState));
-								console.log('loaded state from store');
-							});
-						}
-						console.log('init WASM');
-
-						username = username;
-					});
-				}
-			});
-		});
-
-		loadProfile();
-	}); */
-
-	type Image = {
-		type: string;
-		mediaType?: string;
-		url: string;
-	};
-
-	type UserProfile = {
-		'@context': string;
-		type: string;
-		name: string;
-		summary: string;
-		id: string;
-		preferredUsername: string;
-		inbox: string;
-		outbox: string;
-		followers: string;
-		following: string;
-		liked: string;
-		publicKey: object;
-		icon: Image;
-		image?: Image;
-		url: string;
-	};
+	$: username = $appData.username;
+	$: display_name = $appData.display_name;
 
 	let profile: UserProfile | null = null;
 
@@ -126,7 +72,7 @@
 	}
 
 	function handleSaveSummary() {
-		if (profile) {
+		if (profile && profile.summary) {
 			wasm?.update_summary(profile.summary).then((x: any) => {
 				console.log(x);
 				summary_changed = false;
@@ -182,18 +128,11 @@
 
 	let summary_changed = false;
 	let edit_summary = false;
-	let username = get(appData).username;
-	let display_name = get(appData).display_name;
 
 	$: if ($enigmatickWasm) {
 		loadProfile();
-		wasm = $enigmatickWasm;
 	}
 </script>
-
-<svelte:head>
-	<script src="https://kit.fontawesome.com/66f38a391f.js" crossorigin="anonymous"></script>
-</svelte:head>
 
 <main>
 	{#if profile}
@@ -227,7 +166,7 @@
 						<!-- svelte-ignore a11y-positive-tabindex -->
 						<img
 							class="selectable"
-							src={profile.icon.url}
+							src={profile.icon?.url}
 							alt="Avatar"
 							tabindex="2"
 							on:keypress={() => {
@@ -247,7 +186,7 @@
 					{/if}
 
 					{#if !username}
-						<img src={profile.icon.url} alt="Avatar" />
+						<img src={profile.icon?.url} alt="Avatar" />
 					{/if}
 				</div>
 				<div class="details">
@@ -277,7 +216,7 @@
 				</div>
 			{/if}
 			<div class="summary">
-				{#if edit_summary}
+				{#if edit_summary && profile.summary}
 					<pre id="summary_edit" contenteditable="true">{convertToMarkdown(profile.summary)}</pre>
 				{/if}
 
@@ -318,50 +257,13 @@
 </main>
 
 <style lang="scss">
-	:global(*) {
-	}
-
-	:global(li) {
-		padding: 5px 0;
-	}
-
-	:global(pre) {
-		padding: 10px;
-		line-height: 1.75em;
-		word-wrap: normal;
-		white-space: pre-wrap;
-	}
-
-	:global(code) {
-		display: inline;
-		font-size: 14px;
-		padding: 3px;
-		border-radius: 4px;
-		background: #f5f5f5;
-	}
-
-	:global(a),
-	:global(a:visited) {
-		color: black;
-	}
-
-	:global(a:hover) {
-		color: red;
-	}
-
 	main {
-		display: block;
+		grid-area: content;
 		max-width: 800px;
 		width: 100%;
-		margin: 41px auto 0 auto;
+		height: calc(100% - 41px);
+		margin: 0 auto;
 		font-family: 'Open Sans';
-
-		:global(.selectable:hover),
-		:global(.selectable:focus) {
-			cursor: pointer;
-			color: darkred;
-			opacity: 0.8;
-		}
 
 		.profile {
 			width: 100%;
