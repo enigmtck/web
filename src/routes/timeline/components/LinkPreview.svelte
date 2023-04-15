@@ -60,8 +60,8 @@
 				mask: linear-gradient(
 							to bottom,
 							rgba(0, 0, 0, 1) 0,
-							rgba(0, 0, 0, 1) 70%,
-							rgba(0, 0, 0, 0) 95%,
+							rgba(0, 0, 0, 1) 50%,
+							rgba(0, 0, 0, 0) 83%,
 							rgba(0, 0, 0, 0) 0
 						)
 						100% 50% / 100% 100% repeat-x;

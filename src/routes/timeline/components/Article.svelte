@@ -11,7 +11,7 @@
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
 	import { insertEmojis, timeSince, getWebFingerFromId } from '../../../common';
-	import { attachmentsDisplay, replyCount } from './common';
+	import { replyCount } from './common';
 	import { enigmatickWasm } from '../../../stores';
 
 	import { createEventDispatcher } from 'svelte';
@@ -19,6 +19,7 @@
 
 	import LinkPreview from './LinkPreview.svelte';
 	import Menu from './Menu.svelte';
+	import Attachments from './Attachments.svelte';
 
 	$: wasm = $enigmatickWasm;
 
@@ -26,7 +27,6 @@
 	export let username: string | null;
 	export let replyToHeader: string | null;
 	export let announceHeader: AnnounceParams | null;
-	export { attachmentsDisplay };
 
 	function handleUnlike(event: any) {
 		const object: string = String(event.target.dataset.object);
@@ -123,7 +123,7 @@
 	</header>
 	<section>{@html insertEmojis(note.note.content || '', note.note)}</section>
 	{#if note.note.attachment && note.note.attachment.length > 0}
-		<section class="attachments">{@html attachmentsDisplay(note.note)}</section>
+		<Attachments note={note.note} />
 	{/if}
 
 	{#if note.note.ephemeralMetadata && note.note.ephemeralMetadata.length}
@@ -392,32 +392,6 @@
 			width: auto;
 			height: auto;
 			vertical-align: middle;
-		}
-
-		.attachments {
-			overflow: hidden;
-			padding-bottom: 10px;
-			display: flex;
-			flex-direction: row;
-			flex-wrap: wrap;
-			align-items: center;
-			justify-content: center;
-
-			:global(div) {
-				min-width: unset;
-				min-height: unset;
-				width: unset;
-				height: unset;
-				text-align: center;
-				padding: 0;
-				width: 100%;
-
-				:global(img),
-				:global(video) {
-					height: unset;
-					width: 100%;
-				}
-			}
 		}
 
 		nav {

@@ -4,8 +4,9 @@
 	import { get } from 'svelte/store';
 	import type { UserProfile, Note, Tag, Attachment, DisplayNote } from '../../../common';
 	import { insertEmojis, timeSince, compare, getWebFingerFromId } from '../../../common';
-	import { attachmentsDisplay, replyCount } from './common';
+	import { replyCount } from './common';
 	import { enigmatickWasm } from '../../../stores';
+	import Attachments from './Attachments.svelte';
 
 	import { createEventDispatcher, onMount } from 'svelte';
 	const dispatch = createEventDispatcher();
@@ -106,8 +107,9 @@
 		{/if}
 	</address>
 	<section>{@html insertEmojis(note.note.content || '', note.note)}</section>
+
 	{#if note.note.attachment && note.note.attachment.length > 0}
-		<section class="attachments">{@html attachmentsDisplay(note.note)}</section>
+		<Attachments note={note.note} />
 	{/if}
 
 	{#if note.replies?.size}
@@ -276,28 +278,6 @@
 				margin: 5px 0;
 				padding: 0 5px 0 0;
 				font-size: 14px;
-			}
-		}
-
-		.attachments {
-			grid-area: attachments;
-			display: block;
-			padding: 0 20px 0 0;
-
-			:global(div) {
-				min-width: unset;
-				min-height: unset;
-				width: unset;
-				height: unset;
-				text-align: center;
-				padding: 0;
-				width: 100%;
-
-				:global(img),
-				:global(video) {
-					height: unset;
-					width: 100%;
-				}
 			}
 		}
 
