@@ -8,6 +8,6 @@ node_modules
 !.env.example
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
-static/*
+static/media/*
 !static/default.png
 *.log
