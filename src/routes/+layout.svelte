@@ -155,7 +155,7 @@
 			</div>
 			<nav>
 				{#if avatar}
-					<a href="/@{username}"><img src="/{avatar}" alt="You" /></a>
+					<a href="/@{username}"><img src="/media/avatars/{avatar}" alt="You" /></a>
 				{/if}
 				<div class="toggle">
 					<label>
@@ -239,7 +239,6 @@
 
 	:global(body) {
 		background: var(--container-background);
-		transition-duration: 0.5s;
 		position: relative;
 		background: #eee;
 	}
@@ -473,7 +472,7 @@
 				}
 
 				.selected {
-					color: white;
+					color: red;
 				}
 			}
 		}

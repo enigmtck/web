@@ -49,18 +49,27 @@
 		:global(div) {
 			min-width: unset;
 			min-height: unset;
-			width: unset;
+			max-height: 300px;
 			height: unset;
+			width: 100%;
 			text-align: center;
 			padding: 0;
-			width: 100%;
 			overflow: hidden;
-			max-height: 200px;
 			cursor: pointer;
 
-			:global(img),
-			:global(video) {
+			:global(img) {
 				height: unset;
+				width: 100%;
+			}
+		}
+
+		/* This works in Chrome, but not in Firefox yet. When it is more universal, we can
+		shrink the "max-height" value of :global(div) a bit without worrying about cutting
+		off video controls. */
+		:global(div:has(> video)) {
+			max-height: unset;
+
+			:global(video) {
 				width: 100%;
 			}
 		}
@@ -71,7 +80,6 @@
 
 		:global(div:focus) {
 			max-height: unset;
-			width: unset;
 			z-index: 40;
 		}
 	}

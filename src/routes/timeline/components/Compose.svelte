@@ -1,17 +1,22 @@
 <script lang="ts">
 	export { handleReplyToMessage, openAside };
-	import { Converter } from 'showdown';
+	import showdown from 'showdown';
+	const { Converter } = showdown;
 	import showdownHighlight from 'showdown-highlight';
-	import { appData } from '../../../stores';
+	import { appData, enigmatickWasm } from '../../../stores';
+	import type { Attachment } from '../../../common';
 
-    // Exporting the definition of this function is to allow Compose to be used in
-    // different contexts, like for both Notes and EncryptedNotes. The implementation
-    // of the sending function is left up to the container component.
+	$: wasm = $enigmatickWasm;
+
+	// Exporting the definition of this function is to allow Compose to be used in
+	// different contexts, like for both Notes and EncryptedNotes. The implementation
+	// of the sending function is left up to the container component.
 	export let sender: (
 		recipientAddress: string | null,
 		replyToMessageId: string | null,
 		conversationId: string | null,
-		content: string
+		content: string,
+		attachments: Attachment[]
 	) => Promise<boolean>;
 
 	async function handleReplyToMessage(message: any) {
@@ -106,7 +111,7 @@
 	async function handlePublish() {
 		captureChanges();
 
-		sender(replyToRecipient, replyToNote, replyToConversation, htmlNote).then((x: any) => {
+		sender(replyToRecipient, replyToNote, replyToConversation, htmlNote, Array.from(attachments.values())).then((x: any) => {
 			if (x) {
 				resetCompose();
 				closeAside();
@@ -117,6 +122,44 @@
 		});
 	}
 
+	const onImageSelected = (e: Event) => {
+		let target = e.target as HTMLInputElement;
+		if (target.files !== null) {
+			let image = target.files[0];
+			let extension = String(image.name.match(/\.[0-9a-z]+$/i)).slice(1);
+			let reader = new FileReader();
+			reader.readAsArrayBuffer(image);
+			reader.onload = (e: ProgressEvent<FileReader>) => {
+				if (e.target !== null) {
+					imageBuffer = e.target.result !== null ? e.target.result : null;
+					let bytes = new Uint8Array(imageBuffer as ArrayBuffer);
+
+					wasm?.upload_image(bytes, (imageBuffer as ArrayBuffer).byteLength).then((x) => {
+						console.log('IMAGE UPLOADED');
+						if (x) {
+							let attachment: Attachment = JSON.parse(x);
+							if (attachment.url) {
+								attachments.set(attachment.url, attachment);
+								attachments = attachments;
+								console.debug(attachments);
+							}
+						}
+					});
+				}
+			};
+		}
+	};
+
+	const removeAttachment = (event: Event) => {
+		if (event.target && event.target instanceof HTMLElement) {
+			if (event.target.dataset.url) {
+				const url: string = event.target.dataset.url;
+				attachments.delete(url);
+				attachments = attachments;
+			}
+		}
+	};
+
 	let markdownNote = '';
 	let htmlNote = '';
 	let preview = false;
@@ -126,6 +169,10 @@
 	let replyToDisplay: string | null = null;
 	let replyToConversation: string | null = null;
 
+	let imageBuffer: string | ArrayBuffer | null;
+	let imageFileInput: HTMLInputElement;
+
+	let attachments: Map<String, Attachment> = new Map();
 	$: username = $appData.username;
 </script>
 
@@ -147,9 +194,37 @@
 			{:else}
 				<div>{@html htmlNote}</div>
 			{/if}
+			<section>
+				{#each Array.from(attachments.values()) as attachment}
+					<!-- svelte-ignore a11y-missing-attribute -->
+					<div>
+						<img src={attachment.url} width={attachment.width} height={attachment.height} />
+						<i
+							class="fa-solid fa-xmark"
+							data-url={attachment.url}
+							on:click|preventDefault={removeAttachment}
+						/>
+					</div>
+				{/each}
+			</section>
 
 			<form method="POST" on:submit|preventDefault={handleComposeSubmit}>
-				<i class="fa-solid fa-paperclip" />
+				<i
+					class="fa-solid fa-paperclip"
+					on:keypress={() => {
+						imageFileInput.click();
+					}}
+					on:click={() => {
+						imageFileInput.click();
+					}}
+				/>
+				<input
+					style="display:none"
+					type="file"
+					accept=".jpg, .jpeg, .png"
+					on:change={(e) => onImageSelected(e)}
+					bind:this={imageFileInput}
+				/>
 				{#if preview}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<i class="fa-solid fa-pen-nib" on:click|preventDefault={handlePreview} />
@@ -209,7 +284,7 @@
 			flex-direction: column;
 			height: 100%;
 			width: 100%;
-            max-width: 700px;
+			max-width: 700px;
 			margin: 0;
 			padding: 25px 10px 0 10px;
 			border-radius: 10px;
@@ -244,12 +319,40 @@
 				font-family: 'Open Sans';
 				border-radius: 10px;
 				word-wrap: break-word;
-                white-space: pre-wrap;
+				white-space: pre-wrap;
 				overflow: scroll;
 			}
 
 			div {
 				padding: 0 10px;
+			}
+
+			section {
+				display: block;
+				width: 100%;
+				display: flex;
+				flex-direction: row;
+				flex-wrap: wrap;
+
+				div {
+					display: block;
+					border-radius: 5px;
+					padding: 0;
+					margin: 5px;
+					border: 0;
+					min-height: unset;
+					width: 80px;
+					height: 80px;
+					min-width: 80px;
+					overflow: hidden;
+
+					img {
+						width: auto;
+						height: auto;
+						object-fit: fill;
+						opacity: 0.8;
+					}
+				}
 			}
 
 			form {
@@ -348,6 +451,13 @@
 					border: 1px solid #aaa;
 					max-height: unset;
 					min-height: unset;
+				}
+
+				section {
+					position: absolute;
+					bottom: 70px;
+					left: 10px;
+					width: calc(100% - 20px);
 				}
 
 				form {

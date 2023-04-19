@@ -133,6 +133,8 @@ interface Attachment {
     type: 'PropertyValue' | 'Document' | 'IdentityProof';
     name?: string | null;
     value?: string | null;
+    hash?: string | null;
+    mutationOf?: string | null;
     mediaType?: string | null;
     url?: string | null;
     blurhash?: string | null;

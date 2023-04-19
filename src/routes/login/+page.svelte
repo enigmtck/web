@@ -2,7 +2,6 @@
 	import { get } from 'svelte/store';
 	import { wasmState, appData, enigmatickWasm } from '../../stores';
 	import { goto } from '$app/navigation';
-	import { object_without_properties } from 'svelte/internal';
 
 	$: wasm = $enigmatickWasm;
 
@@ -67,7 +66,7 @@
 		</label>
 
 		<div>
-			<button><i class="fa-solid fa-door-open" /></button>
+			<button>Sign In</button>
 		</div>
 	</form>
 </main>
@@ -115,7 +114,7 @@
 			padding: 0;
 			margin: 0;
 			width: 100%;
-			background: white;
+			background: #eee;
 
 			@media screen and (max-width: 600px) {
 				font-size: 13vw;

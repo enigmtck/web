@@ -130,17 +130,26 @@
 		<LinkPreview links={note.note.ephemeralMetadata} />
 	{/if}
 
-	{#if note.replies?.size}
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<span
-			class="comments"
-			data-conversation={note.note.conversation}
-			data-note={note.note.id}
-			on:click|preventDefault={handleNoteSelect}
-			><i class="fa-solid fa-comments" />
-			{replyCount(note)}</span
-		>
-	{/if}
+	<div class="activity">
+		{#if note.note.ephemeralLikes?.length}
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<span class="likes"
+				><i class="fa-solid fa-star" />
+				{note.note.ephemeralLikes.length}</span
+			>
+		{/if}
+		{#if note.replies?.size}
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<span
+				class="comments"
+				data-conversation={note.note.conversation}
+				data-note={note.note.id}
+				on:click|preventDefault={handleNoteSelect}
+				><i class="fa-solid fa-comments" />
+				{replyCount(note)}</span
+			>
+		{/if}
+	</div>
 	<time datetime={note.published}
 		><a href={note.note.id} target="_blank" rel="noreferrer"
 			>{timeSince(new Date(String(note.published)).getTime())}</a
@@ -286,20 +295,23 @@
 			}
 		}
 
-		.comments {
-			display: inline-block;
+		.activity {
+			display: flex;
 			position: absolute;
 			top: 10px;
-			right: 50px;
-			font-size: 14px;
-			font-weight: 600;
-			color: inherit;
-			user-select: none;
-			cursor: pointer;
+			right: 40px;
+			
+			span {
+				color: #444;
+				font-size: 14px;
+				font-weight: 600;
+				margin-right: 10px;
+				user-select: none;
+				cursor: pointer;
 
-			i {
-				color: #555;
-				pointer-events: none;
+				i {
+					pointer-events: none;
+				}
 			}
 		}
 
@@ -379,7 +391,7 @@
 					text-overflow: ellipsis;
 					overflow: hidden;
 					white-space: nowrap;
-					max-width: 80%;
+					max-width: 13em;
 				}
 			}
 		}
@@ -398,7 +410,7 @@
 			width: 100%;
 			position: relative;
 			z-index: unset;
-			background: #eee;
+			background: unset;
 			padding: 10px 0;
 			margin: 0;
 			opacity: 0.3;
@@ -451,6 +463,12 @@
 			:global(> code),
 			:global(p > code) {
 				background: #222;
+			}
+
+			.activity {
+				span {
+					color: #999;	
+				}
 			}
 
 			.reply,

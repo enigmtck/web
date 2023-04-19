@@ -296,7 +296,7 @@
 		nav {
 			width: 100%;
 			position: absolute;
-			z-index: unset;
+			z-index: 36;
 			top: unset;
 			right: unset;
 			bottom: 0;

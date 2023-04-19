@@ -6,7 +6,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { appData, enigmatickWasm } from '../../stores';
-	import type { UserProfile, Note, StreamConnect, Announce, AnnounceParams } from '../../common';
+	import type { UserProfile, Note, StreamConnect, Announce, AnnounceParams, Attachment } from '../../common';
 	import { insertEmojis, compare, sleep, DisplayNote } from '../../common';
 
 	import { goto } from '$app/navigation';
@@ -225,6 +225,11 @@
 			});
 		}
 
+		if (note.ephemeralLikes) {
+			console.debug("EPHEMERAL LIKES");
+			console.debug(note.ephemeralLikes);
+		}
+
 		if (note.attributedTo) {
 			const actor = await cachedActor(note.attributedTo);
 
@@ -405,14 +410,16 @@
 		return apCache.get(id);
 	}
 
-	async function sender(recipientAddress: string | null, replyToMessageId: string | null, conversationId: string | null, content: string): Promise<boolean> {
+	async function sender(recipientAddress: string | null, replyToMessageId: string | null, conversationId: string | null, content: string, attachments: Attachment[]): Promise<boolean> {
 		if (wasm) {
 			let params = (await wasm.SendParams.new()).set_content(content).set_public();
+
+			params = params.set_attachments(JSON.stringify(attachments));
 
 			if (replyToMessageId) {
 				params = await params.add_recipient_id(String(recipientAddress), true);
 				params = params.set_in_reply_to(String(replyToMessageId));
-				params = params.set_conversation(String(conversationId));
+				params = params.set_conversation(String(conversationId));	
 			}
 
 			return(await wasm.send_note(params))
