@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { Converter } from 'showdown';
+	import showdown from 'showdown';
+	const { Converter } = showdown;
+	import showdownHighlight from 'showdown-highlight';
 	import { onMount, setContext } from 'svelte';
 	import { get } from 'svelte/store';
 	import { wasmState, appData, enigmatickWasm } from '../../stores';
@@ -9,7 +11,7 @@
 
 	$: wasm = $enigmatickWasm;
 	$: username = $appData.username;
-	$: display_name = $appData.display_name;
+	$: displayName = $appData.display_name;
 
 	let profile: UserProfile | null = null;
 
@@ -23,13 +25,21 @@
 				x.json().then((y: UserProfile) => {
 					console.log(y);
 					profile = y;
+					summaryMarkdown = y.ephemeralSummaryMarkdown || '';
 				});
 			});
 		}
 	}
 
 	function convertToMarkdown(data: string) {
-		let converter = new Converter();
+		let converter = new Converter({
+			extensions: [
+				showdownHighlight({
+					pre: true,
+					auto_detection: true
+				})
+			]
+		});
 		converter.setFlavor('github');
 		converter.setOption('tables', true);
 		converter.setOption('requireSpaceBeforeHeadingText', true);
@@ -37,7 +47,14 @@
 	}
 
 	function convertToHtml(data: string) {
-		let converter = new Converter();
+		let converter = new Converter({
+			extensions: [
+				showdownHighlight({
+					pre: true,
+					auto_detection: true
+				})
+			]
+		});
 		converter.setFlavor('github');
 		converter.setOption('tables', true);
 		converter.setOption('requireSpaceBeforeHeadingText', true);
@@ -49,7 +66,7 @@
 			(event instanceof KeyboardEvent && (event.key === 'Enter' || event.key === ' ')) ||
 			(event instanceof MouseEvent && event.type === 'click')
 		) {
-			edit_summary = true;
+			editSummary = true;
 		}
 	}
 
@@ -60,27 +77,28 @@
 			let data = el.innerText;
 
 			if (profile) {
-				edit_summary = false;
+				summaryMarkdown = data;
+				editSummary = false;
 				profile.summary = convertToHtml(data);
-				summary_changed = true;
+				summaryChanged = true;
 			}
 		}
 	}
 
 	function handleCancel(event: any) {
-		edit_summary = false;
+		editSummary = false;
 	}
 
 	function handleSaveSummary() {
 		if (profile && profile.summary) {
-			wasm?.update_summary(profile.summary).then((x: any) => {
+			wasm?.update_summary(profile.summary, summaryMarkdown).then((x: any) => {
 				console.log(x);
-				summary_changed = false;
+				summaryChanged = false;
 			});
 		}
 	}
 
-	let avatar: string | ArrayBuffer | null, avatar_file_input: HTMLInputElement;
+	let avatar: string | ArrayBuffer | null, avatarFileInput: HTMLInputElement;
 
 	const onAvatarSelected = (e: Event) => {
 		let target = e.target as HTMLInputElement;
@@ -103,7 +121,7 @@
 		}
 	};
 
-	let banner: string | ArrayBuffer | null, banner_file_input: HTMLInputElement;
+	let banner: string | ArrayBuffer | null, bannerFileInput: HTMLInputElement;
 
 	const onBannerSelected = (e: Event) => {
 		let target = e.target as HTMLInputElement;
@@ -126,8 +144,9 @@
 		}
 	};
 
-	let summary_changed = false;
-	let edit_summary = false;
+	let summaryChanged = false;
+	let editSummary = false;
+	let summaryMarkdown = '';
 
 	$: if ($enigmatickWasm) {
 		loadProfile();
@@ -148,10 +167,10 @@
 							tabindex="3"
 							alt="Banner"
 							on:keypress={() => {
-								banner_file_input.click();
+								bannerFileInput.click();
 							}}
 							on:click={() => {
-								banner_file_input.click();
+								bannerFileInput.click();
 							}}
 						/>
 					{:else if !username}
@@ -170,10 +189,10 @@
 							alt="Avatar"
 							tabindex="2"
 							on:keypress={() => {
-								avatar_file_input.click();
+								avatarFileInput.click();
 							}}
 							on:click={() => {
-								avatar_file_input.click();
+								avatarFileInput.click();
 							}}
 						/>
 						<input
@@ -181,7 +200,7 @@
 							type="file"
 							accept=".jpg, .jpeg, .png"
 							on:change={(e) => onAvatarSelected(e)}
-							bind:this={avatar_file_input}
+							bind:this={avatarFileInput}
 						/>
 					{/if}
 
@@ -196,31 +215,72 @@
 			</div>
 			{#if username}
 				<div class="controls">
-					{#if !profile.image}
+					<div>
 						<button
+							title="Change Avatar"
 							on:keypress={() => {
-								banner_file_input.click();
+								avatarFileInput.click();
 							}}
 							on:click={() => {
-								banner_file_input.click();
-							}}>Set Banner</button
+								avatarFileInput.click();
+							}}
 						>
-					{/if}
-					<input
-						style="display:none"
-						type="file"
-						accept=".jpg, .jpeg, .png"
-						on:change={(e) => onBannerSelected(e)}
-						bind:this={banner_file_input}
-					/>
+							<i class="fa-solid fa-image-portrait" />
+						</button>
+						<button
+							title="Change Banner"
+							on:keypress={() => {
+								bannerFileInput.click();
+							}}
+							on:click={() => {
+								bannerFileInput.click();
+							}}
+						>
+							<i class="fa-solid fa-panorama" />
+						</button>
+						{#if !editSummary}
+							<button
+								title="Update Biography"
+								on:click|preventDefault={handleEdit}
+								on:keypress|preventDefault={handleEdit}
+							>
+								<i class="fa-solid fa-pencil" />
+							</button>
+						{/if}
+						<input
+							style="display:none"
+							type="file"
+							accept=".jpg, .jpeg, .png"
+							on:change={(e) => onBannerSelected(e)}
+							bind:this={bannerFileInput}
+						/>
+
+						{#if editSummary}
+							<button title="Cancel" on:click|preventDefault={handleCancel}
+								><i class="fa-solid fa-ban" /></button
+							>
+							<button title="Preview" on:click|preventDefault={handlePreview}
+								><i class="fa-solid fa-magnifying-glass" /></button
+							>
+							{#if summaryChanged}
+								<button on:click|preventDefault={handleSaveSummary} title="Save"
+									><i class="fa-solid fa-floppy-disk" /></button
+								>
+							{/if}
+						{:else if summaryChanged}
+							<button on:click|preventDefault={handleSaveSummary} title="Save"
+								><i class="fa-solid fa-floppy-disk" /></button
+							>
+						{/if}
+					</div>
 				</div>
 			{/if}
 			<div class="summary">
-				{#if edit_summary && profile.summary}
-					<pre id="summary_edit" contenteditable="true">{convertToMarkdown(profile.summary)}</pre>
+				{#if editSummary}
+					<pre id="summary_edit" contenteditable="true">{summaryMarkdown}</pre>
 				{/if}
 
-				{#if username && !edit_summary}
+				{#if username && !editSummary}
 					<button
 						class="transparent"
 						on:click|preventDefault={handleEdit}
@@ -229,29 +289,14 @@
 					<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 					<!-- svelte-ignore a11y-positive-tabindex -->
 					<div>
-						{@html profile.summary}
+						{@html profile.summary || ''}
 					</div>
 				{/if}
 
 				{#if !username}
-					<span>{@html profile.summary}</span>
+					<span>{@html profile.summary || ''}</span>
 				{/if}
 			</div>
-
-			{#if edit_summary}
-				<form method="POST" on:submit|preventDefault={handlePreview}>
-					<div class="controls">
-						<button on:click|preventDefault={handleCancel}>Cancel</button>
-						<button>Preview</button>
-					</div>
-				</form>
-			{/if}
-
-			{#if summary_changed}
-				<div class="controls">
-					<button on:click|preventDefault={handleSaveSummary}>Save Changes</button>
-				</div>
-			{/if}
 		</div>
 	{/if}
 </main>
@@ -272,18 +317,14 @@
 
 			button {
 				display: inline-block;
-				color: whitesmoke;
-				background: darkred;
+				background: unset;
 				border: 0;
 				font-size: 18px;
-				font-weight: 600;
-				padding: 5px 15px;
-				margin: 5px;
+				padding: 5px;
 			}
 
 			button:hover {
 				color: darkred;
-				background: whitesmoke;
 				cursor: pointer;
 			}
 
@@ -385,22 +426,46 @@
 				width: 100%;
 				padding: 10px;
 				text-align: center;
+
+				> div {
+					display: inline-block;
+					width: unset;
+					background: #ddd;
+					border-radius: 10px;
+					padding: 5px;
+
+					i {
+						font-size: 18px;
+						color: #444;
+						padding: 0 5px;
+						transition-duration: 500ms;
+					}
+
+					i:hover {
+						color: red;
+						cursor: pointer;
+					}
+				}
 			}
 
 			.summary {
 				position: relative;
 				width: 100%;
-				padding: 0 15px;
+				padding: 5px;
+				height: auto;
+				min-height: 50px;
 
 				> pre {
-					padding: 0;
+					position: relative;
 					margin: 0;
+					padding: 5px;
+					height: auto;
+					width: 100%;
+					min-height: 50px;
 				}
 
-				:global(div > pre),
-				:global(span > pre) {
-					color: #444;
-					background: #f5f5f5;
+				> pre:focus {
+					outline: 1px solid #aaa;
 				}
 
 				form {

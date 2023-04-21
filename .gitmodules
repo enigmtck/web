@@ -1,0 +1,6 @@
+[submodule "wasm/enigmatick_wasm"]
+	path = wasm/enigmatick_wasm
+	url = git@gitlab.com:enigmatick/enigmatick_wasm.git
+[submodule "wasm/enigmatick_olm"]
+	path = wasm/enigmatick_olm
+	url = git@gitlab.com:enigmatick/enigmatick_olm.git

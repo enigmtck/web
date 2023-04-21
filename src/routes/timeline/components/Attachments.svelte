@@ -80,7 +80,6 @@
 
 		:global(div:focus) {
 			max-height: unset;
-			z-index: 40;
 		}
 	}
 </style>

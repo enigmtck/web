@@ -3,8 +3,8 @@
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
-		"wasm": "wasm-pack build ../wasm/enigmatick_wasm --target web",
-		"olm": "wasm-pack build ../wasm/enigmatick_olm --target web",
+		"wasm": "wasm-pack build wasm/enigmatick_wasm --target web",
+		"olm": "wasm-pack build wasm/enigmatick_olm --target web",
 		"dev": "yarn wasm && yarn olm && vite",
 		"build": "yarn wasm && yarn olm && vite build",
 		"preview": "vite preview",

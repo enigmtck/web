@@ -88,6 +88,7 @@ interface UserProfile {
     capabilities?: Capabilities;
     ephemeralFollowing?: boolean;
     ephemeralLeaderApId?: string;
+    ephemeralSummaryMarkdown?: string;
 };
 
 interface EnigmatickEventObject {
