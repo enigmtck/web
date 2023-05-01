@@ -59,7 +59,7 @@ interface AnnounceParams {
 
 interface Capabilities {
     acceptsChatMessages?: boolean;
-    enigmatickEncrption?: boolean;
+    enigmatickEncryption?: boolean;
 }
 
 interface UserProfile {
@@ -89,6 +89,8 @@ interface UserProfile {
     ephemeralFollowing?: boolean;
     ephemeralLeaderApId?: string;
     ephemeralSummaryMarkdown?: string;
+    ephemeralLeaders?: string[] | UserProfile[];
+    ephemeralFollowers?: string[] | UserProfile[];
 };
 
 interface EnigmatickEventObject {
@@ -202,24 +204,30 @@ interface Instrument {
 
 interface QueueItem {
     '@context'?: string | null;
-    attributedTo: string;
+    actor?: string;
+    attributedTo?: string;
     id: string;
     tag?: object[];
-    type: 'EncryptedNote' | 'EncryptedSession' | 'VaultNote';
+    type: 'EncryptedNote' | 'EncryptedSession' | 'VaultNote' | 'Note' | 'Announce' | 'Create';
     to: string[] | string;
     published: string;
-    content: string;
+    content?: string;
     conversations?: string;
     instrument?: Instrument[] | Instrument;
+    object?: Note | string;
 };
 
 interface Collection {
     '@context': string;
-    type: 'Collection' | 'OrderedCollection';
+    type: 'Collection' | 'CollectionPage' | 'OrderedCollection' | 'OrderedCollectionPage';
     id: string;
     totalItems: number;
     items?: QueueItem[];
     orderedItems?: QueueItem[];
+    prev?: string;
+    next?: string;
+    first?: string;
+    last?: string;
 };
 
 interface VaultedMessage {

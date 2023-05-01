@@ -24,23 +24,27 @@
 				String(data.get('passphrase'))
 			)
 			.then((profile: any) => {
-				appData.set({
-					username: String(profile?.username),
-					display_name: String(profile?.display_name),
-					avatar: String(profile?.avatar_filename)
-				});
-				username = get(appData).username;
-				wasm?.get_state().then((x: any) => {
-					console.log(x);
-					wasmState.set(x.export());
-					let data = JSON.stringify({
-						pickled_account: x.get_olm_pickled_account(),
-						olm_sessions: JSON.parse(x.get_olm_sessions())
+				const instanceData = wasm?.load_instance_information().then((instance) => {
+					appData.set({
+						username: String(profile?.username),
+						display_name: String(profile?.display_name),
+						avatar: String(profile?.avatar_filename),
+						domain: instance?.domain || null,
+						url: instance?.url || null
 					});
-					console.log(get(wasmState));
+					username = get(appData).username;
+					wasm?.get_state().then((x: any) => {
+						//console.log(x);
+						wasmState.set(x.export());
+/* 						let data = JSON.stringify({
+							pickled_account: x.get_olm_pickled_account(),
+							olm_sessions: JSON.parse(x.get_olm_sessions())
+						});
+						console.log(get(wasmState)); */
 
-					goto('/@' + username).then(() => {
-						console.log('logged in');
+						goto('/@' + username).then(() => {
+							console.log('logged in');
+						});
 					});
 				});
 			});
@@ -114,7 +118,7 @@
 			padding: 0;
 			margin: 0;
 			width: 100%;
-			background: #eee;
+			background: inherit;
 
 			@media screen and (max-width: 600px) {
 				font-size: 13vw;

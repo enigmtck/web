@@ -80,6 +80,7 @@
 
 		:global(div:focus) {
 			max-height: unset;
+			width: 100%;
 		}
 	}
 </style>

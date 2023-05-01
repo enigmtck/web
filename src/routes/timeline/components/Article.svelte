@@ -27,6 +27,8 @@
 	export let username: string | null;
 	export let replyToHeader: string | null;
 	export let announceHeader: AnnounceParams | null;
+	export let refresh: () => void;
+	export let remove: (note: string) => void;
 
 	function handleUnlike(event: any) {
 		const object: string = String(event.target.dataset.object);
@@ -94,7 +96,7 @@
 <article>
 	{#if replyToHeader}
 		<span class="reply">
-			<i class="fa-solid fa-reply" /> In reply to {replyToHeader}
+			<i class="fa-solid fa-reply" /> In reply to {@html replyToHeader}
 		</span>
 	{/if}
 	{#if announceHeader}
@@ -115,7 +117,7 @@
 				<span
 					>{@html insertEmojis(note.actor.name || note.actor.preferredUsername, note.actor)}</span
 				>
-				<a href="/search?actor={note.actor.id}">
+				<a href="/{getWebFingerFromId(note.actor)}">
 					{getWebFingerFromId(note.actor)}
 				</a>
 			{/if}
@@ -217,7 +219,7 @@
 
 			{#if note.note.id}
 				{#await wasm?.get_ap_id() then ap_id}
-					<Menu object={note.note.id} owner={ap_id == note.note.attributedTo} />
+					<Menu {remove} {refresh} object={note.note.id} owner={ap_id == note.note.attributedTo} />
 				{/await}
 			{/if}
 		</nav>
@@ -234,7 +236,6 @@
 		border-bottom: 1px solid #ddd;
 		font-family: 'Open Sans';
 		background: #fafafa;
-		overflow: hidden;
 
 		a {
 			color: darkgoldenrod;

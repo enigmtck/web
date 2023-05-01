@@ -428,6 +428,14 @@
 		}
 	}
 
+	function refresh() {
+		console.debug("REFRESH");
+	}
+
+	function remove() {
+		console.debug("REMOVE");
+	}
+
 	// controls whether messages from EventSource are immediately displayed or queued
 	let liveLoading = true;
 	let infiniteScrollDisabled = false;
@@ -476,6 +484,8 @@
 				{#await replyToHeader(note.note) then replyTo}
 					{#await announceHeader(note.note) then announce}
 						<Article
+							{remove}
+							{refresh}
 							{note}
 							{username}
 							replyToHeader={replyTo}

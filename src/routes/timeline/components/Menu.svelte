@@ -4,6 +4,8 @@
 
 	export let object: string;
     export let owner: boolean;
+	export let refresh: () => void;
+	export let remove: (note: string) => void;
 
     $: wasm = $enigmatickWasm;
     
@@ -29,6 +31,7 @@
         wasm?.send_delete(id).then((x) => {
             if (x) {
                 console.info('DELETE SENT');
+				remove(id);
             }
         })
     }

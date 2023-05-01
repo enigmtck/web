@@ -5,6 +5,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
 	import { appData, enigmatickWasm, enigmatickOlm } from '../../stores';
+	import { getWebFingerFromId, type UserProfile } from '../../common';
 
 	$: wasm = $enigmatickWasm;
 	$: olm = $enigmatickOlm;
@@ -53,39 +54,6 @@
 			}
 		};
 	});
-
-	type Image = {
-		mediaType?: string;
-		type: string;
-		url: string;
-	};
-
-	type UserProfile = {
-		'@context': string;
-		type: string;
-		name?: string;
-		summary?: string;
-		id?: string;
-		preferredUsername: string;
-		inbox: string;
-		outbox: string;
-		followers: string;
-		following: string;
-		liked?: string;
-		publicKey: object;
-		featured?: string;
-		featuredTags?: string;
-		url?: string;
-		manuallyApprovesFollowers?: boolean;
-		published?: string;
-		tag?: object;
-		attachment?: object;
-		endpoints?: object;
-		icon?: Image;
-		image?: Image;
-		ephemeralFollowing?: boolean;
-		ephemeralLeaderApId?: string;
-	};
 
 	type EnigmatickEventObject = {
 		id: string;
@@ -222,7 +190,7 @@
 
 	$: if (address) {
 		load_profile().then(() => {
-			console.debug("LOADED");
+			console.debug('LOADED');
 		});
 	}
 </script>
@@ -250,7 +218,7 @@
 				</div>
 				<div class="contact">
 					<span>{profile.name}</span>
-					<a href={profile.url}>{profile.url}</a>
+					<a href={getWebFingerFromId(profile)}>{profile.url}</a>
 				</div>
 			</div>
 

@@ -3,47 +3,66 @@
 	import showdown from 'showdown';
 	const { Converter } = showdown;
 	import showdownHighlight from 'showdown-highlight';
-	import { onMount, setContext } from 'svelte';
-	import { get } from 'svelte/store';
-	import { wasmState, appData, enigmatickWasm } from '../../stores';
-	import type { UserProfile } from '../../common';
-	import { goto } from '$app/navigation';
+	import { appData, enigmatickWasm } from '../../stores';
+	import {
+		type UserProfile,
+		type Collection,
+		insertEmojis,
+		getWebFingerFromId
+	} from '../../common';
+	import Posts from './components/Posts.svelte';
 
 	$: wasm = $enigmatickWasm;
 	$: username = $appData.username;
-	$: displayName = $appData.display_name;
 
-	let profile: UserProfile | null = null;
+	function loadProfile(handle: string) {
+		console.debug(`INSTANCE DOMAIN: ${$appData.domain}`);
 
-	function loadProfile() {
-		if ($page.params.handle) {
-			fetch('/user/' + $page.params.handle, {
-				headers: {
-					Accept: 'application/json'
+		if (handle.includes('@')) {
+			console.debug('REQUEST FOR REMOTE PROFILE');
+			local = false;
+
+			wasm?.get_actor_from_webfinger(`@${handle}`).then((x) => {
+				if (x) {
+					profile = JSON.parse(x);
+					console.debug(profile);
+					if (postsComponent && profile) {
+						postsComponent.local = local;
+						postsComponent.handle = handle;
+						postsComponent.profile = profile;
+					}
+
+					wasm?.get_remote_followers(`@${handle}`).then((x) => {
+						if (x) {
+							let followers: Collection = JSON.parse(x);
+							followerCount = followers.totalItems;
+						}
+					});
+
+					wasm?.get_remote_following(`@${handle}`).then((x) => {
+						if (x) {
+							let following: Collection = JSON.parse(x);
+							followingCount = following.totalItems;
+						}
+					});
 				}
-			}).then((x) => {
-				x.json().then((y: UserProfile) => {
-					console.log(y);
-					profile = y;
-					summaryMarkdown = y.ephemeralSummaryMarkdown || '';
-				});
+			});
+		} else {
+			local = true;
+
+			wasm?.get_profile_by_username(handle).then((x) => {
+				if (x) {
+					profile = JSON.parse(x);
+					console.debug(profile);
+					if (postsComponent && profile) {
+						postsComponent.local = local;
+						postsComponent.handle = handle;
+						postsComponent.profile = profile;
+					}
+					summaryMarkdown = profile?.ephemeralSummaryMarkdown || '';
+				}
 			});
 		}
-	}
-
-	function convertToMarkdown(data: string) {
-		let converter = new Converter({
-			extensions: [
-				showdownHighlight({
-					pre: true,
-					auto_detection: true
-				})
-			]
-		});
-		converter.setFlavor('github');
-		converter.setOption('tables', true);
-		converter.setOption('requireSpaceBeforeHeadingText', true);
-		return converter.makeMarkdown(data);
 	}
 
 	function convertToHtml(data: string) {
@@ -98,8 +117,6 @@
 		}
 	}
 
-	let avatar: string | ArrayBuffer | null, avatarFileInput: HTMLInputElement;
-
 	const onAvatarSelected = (e: Event) => {
 		let target = e.target as HTMLInputElement;
 		if (target.files !== null) {
@@ -114,14 +131,12 @@
 					let bytes = new Uint8Array(avatar as ArrayBuffer);
 
 					wasm?.upload_avatar(bytes, (avatar as ArrayBuffer).byteLength, extension).then(() => {
-						loadProfile();
+						loadProfile($page.params.handle);
 					});
 				}
 			};
 		}
 	};
-
-	let banner: string | ArrayBuffer | null, bannerFileInput: HTMLInputElement;
 
 	const onBannerSelected = (e: Event) => {
 		let target = e.target as HTMLInputElement;
@@ -137,19 +152,65 @@
 					let bytes = new Uint8Array(banner as ArrayBuffer);
 
 					wasm?.upload_banner(bytes, (banner as ArrayBuffer).byteLength, extension).then(() => {
-						loadProfile();
+						loadProfile($page.params.handle);
 					});
 				}
 			};
 		}
 	};
 
+	function handleFollow(event: Event) {
+		if (profile && profile.id) {
+			console.log('following: ' + profile.id);
+
+			wasm?.send_follow(profile.id).then((x) => {
+				if (x && profile) {
+					profile.ephemeralFollowing = true;
+				}
+			});
+		} else {
+			console.log('no profile loaded');
+		}
+	}
+
+	function handleUnfollow(event: Event) {
+		if (profile && profile.id) {
+			console.log('unfollowing: ' + profile.id);
+
+			wasm?.send_unfollow(profile.id).then((x) => {
+				if (x && profile) {
+					profile.ephemeralFollowing = false;
+				}
+			});
+		} else {
+			console.log('no profile loaded');
+		}
+	}
+
+	const Views = {
+		Articles: Symbol('articles'),
+		Posts: Symbol('posts'),
+		Gallery: Symbol('gallery'),
+		Followers: Symbol('followers'),
+		Following: Symbol('following')
+	};
+
+	let avatar: string | ArrayBuffer | null, avatarFileInput: HTMLInputElement;
+	let banner: string | ArrayBuffer | null, bannerFileInput: HTMLInputElement;
+	let currentView = Views.Posts;
 	let summaryChanged = false;
 	let editSummary = false;
 	let summaryMarkdown = '';
 
+	let followerCount = 0;
+	let followingCount = 0;
+
+	let postsComponent: Posts | null;
+	let profile: UserProfile | null = null;
+	let local = true;
+
 	$: if ($enigmatickWasm) {
-		loadProfile();
+		loadProfile($page.params.handle);
 	}
 </script>
 
@@ -159,42 +220,20 @@
 			<div class="banner">
 				{#if profile.image}
 					{#if username}
-						<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
-						<!-- svelte-ignore a11y-positive-tabindex -->
-						<img
-							class="selectable"
-							src={profile.image.url}
-							tabindex="3"
-							alt="Banner"
-							on:keypress={() => {
-								bannerFileInput.click();
-							}}
-							on:click={() => {
-								bannerFileInput.click();
-							}}
+						<input
+							style="display:none"
+							type="file"
+							accept=".jpg, .jpeg, .png"
+							on:change={(e) => onBannerSelected(e)}
+							bind:this={bannerFileInput}
 						/>
-					{:else if !username}
-						<img src={profile.image.url} alt="Banner" />
 					{/if}
+					<img src={profile.image.url} alt="Banner" />
 				{/if}
 			</div>
 			<div class="identity">
 				<div class="avatar">
 					{#if username}
-						<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
-						<!-- svelte-ignore a11y-positive-tabindex -->
-						<img
-							class="selectable"
-							src={profile.icon?.url}
-							alt="Avatar"
-							tabindex="2"
-							on:keypress={() => {
-								avatarFileInput.click();
-							}}
-							on:click={() => {
-								avatarFileInput.click();
-							}}
-						/>
 						<input
 							style="display:none"
 							type="file"
@@ -204,58 +243,76 @@
 						/>
 					{/if}
 
-					{#if !username}
-						<img src={profile.icon?.url} alt="Avatar" />
-					{/if}
+					<img src={profile.icon?.url} alt="Avatar" />
 				</div>
 				<div class="details">
-					<h1>{profile.name}</h1>
-					<a href={profile.url}>{profile.url}</a>
+					{#if profile.name}
+						<h1>{@html insertEmojis(profile.name, profile)}</h1>
+					{/if}
+
+					<a href={profile.url}>{getWebFingerFromId(profile)}</a>
 				</div>
 			</div>
 			{#if username}
 				<div class="controls">
-					<div>
-						<button
-							title="Change Avatar"
-							on:keypress={() => {
-								avatarFileInput.click();
-							}}
-							on:click={() => {
-								avatarFileInput.click();
-							}}
-						>
-							<i class="fa-solid fa-image-portrait" />
-						</button>
-						<button
-							title="Change Banner"
-							on:keypress={() => {
-								bannerFileInput.click();
-							}}
-							on:click={() => {
-								bannerFileInput.click();
-							}}
-						>
-							<i class="fa-solid fa-panorama" />
-						</button>
-						{#if !editSummary}
+					<!-- This is super convoluted. The goal is to hide this if it's the user's own profile. -->
+					{#if $appData.domain && (!profile.id?.includes($appData.domain) || profile.preferredUsername !== username)}
+						<div>
+							{#if !profile.ephemeralFollowing}
+								<button title="Follow" on:click|preventDefault={handleFollow}>
+									<i class="fa-solid fa-user-plus" />
+								</button>
+							{/if}
+							{#if profile.ephemeralFollowing !== undefined && profile.ephemeralFollowing}
+								<button title="Unfollow" on:click|preventDefault={handleUnfollow}>
+									<i class="fa-solid fa-user-minus" />
+								</button>
+							{/if}
+							{#if profile.capabilities && profile.capabilities.enigmatickEncryption}
+								<button title="Exchange Keys">
+									<i class="fa-solid fa-key" />
+								</button>
+							{/if}
+						</div>
+					{/if}
+					{#if local && profile.preferredUsername === username}
+						<div>
 							<button
-								title="Update Biography"
-								on:click|preventDefault={handleEdit}
-								on:keypress|preventDefault={handleEdit}
+								title="Change Avatar"
+								on:keypress={() => {
+									avatarFileInput.click();
+								}}
+								on:click={() => {
+									avatarFileInput.click();
+								}}
 							>
-								<i class="fa-solid fa-pencil" />
+								<i class="fa-solid fa-image-portrait" />
 							</button>
-						{/if}
-						<input
-							style="display:none"
-							type="file"
-							accept=".jpg, .jpeg, .png"
-							on:change={(e) => onBannerSelected(e)}
-							bind:this={bannerFileInput}
-						/>
+							<button
+								title="Change Banner"
+								on:keypress={() => {
+									bannerFileInput.click();
+								}}
+								on:click={() => {
+									bannerFileInput.click();
+								}}
+							>
+								<i class="fa-solid fa-panorama" />
+							</button>
+							{#if !editSummary}
+								<button
+									title="Update Biography"
+									on:click|preventDefault={handleEdit}
+									on:keypress|preventDefault={handleEdit}
+								>
+									<i class="fa-solid fa-pencil" />
+								</button>
+							{/if}
+						</div>
+					{/if}
 
-						{#if editSummary}
+					{#if editSummary}
+						<div>
 							<button title="Cancel" on:click|preventDefault={handleCancel}
 								><i class="fa-solid fa-ban" /></button
 							>
@@ -267,12 +324,14 @@
 									><i class="fa-solid fa-floppy-disk" /></button
 								>
 							{/if}
-						{:else if summaryChanged}
+						</div>
+					{:else if summaryChanged}
+						<div>
 							<button on:click|preventDefault={handleSaveSummary} title="Save"
 								><i class="fa-solid fa-floppy-disk" /></button
 							>
-						{/if}
-					</div>
+						</div>
+					{/if}
 				</div>
 			{/if}
 			<div class="summary">
@@ -281,15 +340,10 @@
 				{/if}
 
 				{#if username && !editSummary}
-					<button
-						class="transparent"
-						on:click|preventDefault={handleEdit}
-						on:keypress|preventDefault={handleEdit}
-					/>
 					<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 					<!-- svelte-ignore a11y-positive-tabindex -->
 					<div>
-						{@html profile.summary || ''}
+						{@html insertEmojis(profile.summary || '', profile)}
 					</div>
 				{/if}
 
@@ -297,18 +351,45 @@
 					<span>{@html profile.summary || ''}</span>
 				{/if}
 			</div>
+			<div class="tabs">
+				<button class={currentView === Views.Articles ? 'selected' : ''}>Articles</button>
+				<button class={currentView === Views.Posts ? 'selected' : ''}>Posts</button>
+				<button class={currentView === Views.Gallery ? 'selected' : ''}>Gallery</button>
+				<button class={currentView === Views.Following ? 'selected' : ''}
+					>Following &bull; {profile.ephemeralLeaders?.length || followingCount}</button
+				>
+				<button class={currentView === Views.Followers ? 'selected' : ''}
+					>Followers &bull; {profile.ephemeralFollowers?.length || followerCount}</button
+				>
+			</div>
 		</div>
+		<section>
+			{#if currentView === Views.Posts}
+				<Posts bind:this={postsComponent} handle={$page.params.handle} {local} />
+			{/if}
+		</section>
 	{/if}
 </main>
 
 <style lang="scss">
+	:global(.emoji) {
+		display: inline;
+		max-height: calc(1em - 2px);
+		padding: 0;
+		margin-bottom: 4px;
+		width: auto;
+		height: auto;
+		vertical-align: middle;
+	}
+
 	main {
 		grid-area: content;
 		max-width: 800px;
 		width: 100%;
-		height: calc(100% - 41px);
+		height: 100%;
 		margin: 0 auto;
 		font-family: 'Open Sans';
+		overflow: scroll;
 
 		.profile {
 			width: 100%;
@@ -328,37 +409,48 @@
 				cursor: pointer;
 			}
 
-			button.transparent {
-				display: block;
-				position: absolute;
-				left: 0;
-				top: 0;
-				width: 100%;
-				height: 100%;
-				color: unset;
-				background: unset;
-				border: 0;
-				font-size: unset;
-				font-weight: unset;
-				padding: unset;
-				margin: unset;
-				opacity: 0.1;
-				text-align: left;
-			}
+			.tabs {
+				display: flex;
+				justify-content: center;
+				background: #ddd;
+				container-name: tabs;
+				container-type: inline-size;
 
-			button.transparent:hover {
-				background: #aaa;
+				button {
+					color: unset;
+					font-size: 2.2cqi;
+					padding: 10px 20px;
+					white-space: nowrap;
+				}
+
+				button:hover {
+					background: #ccc;
+				}
+
+				button.selected {
+					background: #eee;
+				}
+
+				@media screen and (max-width: 600px) {
+					button {
+						padding: 10px;
+						font-size: 3.2cqi;
+					}
+				}
 			}
 
 			.banner {
 				z-index: 20;
 				width: 100%;
-				max-height: 300px;
-				min-height: 100px;
+				height: auto;
+				max-height: 267px;
+				flex-shrink: 0;
+				min-height: 80px;
 				overflow: hidden;
 
 				img {
 					width: 100%;
+					height: auto;
 				}
 			}
 
@@ -366,6 +458,7 @@
 				display: flex;
 				flex-direction: row;
 				width: 100%;
+				background: #ddd;
 
 				/* percentage margins here are weird because they are relative 
 				   to width only, but make sense for this use-case; the square 
@@ -424,13 +517,13 @@
 
 			.controls {
 				width: 100%;
-				padding: 10px;
 				text-align: center;
+				background: #ddd;
 
 				> div {
 					display: inline-block;
 					width: unset;
-					background: #ddd;
+					background: #eee;
 					border-radius: 10px;
 					padding: 5px;
 
@@ -451,26 +544,39 @@
 			.summary {
 				position: relative;
 				width: 100%;
-				padding: 5px;
-				height: auto;
-				min-height: 50px;
+				background: #ddd;
+				padding: 5px 20px;
 
 				> pre {
 					position: relative;
 					margin: 0;
-					padding: 5px;
-					height: auto;
+					padding: 5px 20px;
+					height: calc(100% - 10px);
+					max-height: 40vh;
 					width: 100%;
 					min-height: 50px;
+					background: white;
+					word-wrap: break-word;
+					white-space: pre-wrap;
+					overflow: scroll;
 				}
 
 				> pre:focus {
-					outline: 1px solid #aaa;
+					outline: 1px solid #777;
 				}
 
+				> div {
+					padding: 0 10px;
+				}
 				form {
 					width: 100%;
 				}
+			}
+
+			section {
+				width: 100%;
+				height: 20vh;
+				display: block;
 			}
 		}
 	}
@@ -504,12 +610,39 @@
 				}
 
 				.controls {
-					background: inherit;
+					background: #333;
+
+					div {
+						background: #444;
+						i {
+							color: #ddd;
+						}
+
+						i:hover {
+							color: red;
+						}
+					}
+				}
+
+				.tabs {
+					background: #333;
+
+					button {
+						color: #aaa;
+					}
+
+					button:hover {
+						background: #444;
+					}
+
+					button.selected {
+						background: #222;
+					}
 				}
 
 				.summary {
 					color: #fff;
-					background: #222;
+					background: #333;
 
 					:global(p) {
 						color: inherit;
@@ -521,6 +654,10 @@
 
 					:global(a:hover) {
 						color: red;
+					}
+
+					> pre {
+						background: #444;
 					}
 				}
 			}
