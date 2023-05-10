@@ -33,6 +33,17 @@
 	function handleUnlike(event: any) {
 		const object: string = String(event.target.dataset.object);
 		const actor: string = String(event.target.dataset.actor);
+		const activity: string = String(event.target.dataset.activity);
+		
+		console.debug(`UNDOING ${activity}`);
+
+		if (wasm) {
+			wasm.send_unlike(actor, object, activity).then((uuid) => {
+				console.debug("UNLIKE SENT");
+				note.note.ephemeralLiked = null;
+				note = note;
+			});
+		}
 	}
 
 	function handleLike(event: any) {
@@ -40,36 +51,40 @@
 		const actor: string = String(event.target.dataset.actor);
 
 		if (wasm) {
-			wasm.send_like(actor, object).then(() => {
-				// this will only work for top-level notes
-				/* let note = notes.get(object);
-			if (note) {
-				note.note.ephemeralLiked = true;
-			} */
+			wasm.send_like(actor, object).then((uuid) => {
+				console.debug(`LIKE SENT ${uuid}`);
+				note.note.ephemeralLiked = uuid;
+			note = note;
 			});
 		}
+	}
 
-		event.target.classList.add('selected');
+	function handleUnannounce(event: any) {
+		const object: string = String(event.target.dataset.object);
+		const activity: string = String(event.target.dataset.activity);
+
+		if (wasm && object) {
+			wasm.send_unannounce(object, activity).then((uuid) => {
+				console.debug("UNANNOUNCE SENT");
+				note.note.ephemeralAnnounced = null;
+				note = note;
+			});
+		} else {
+			console.error('OBJECT INVALID');
+		}
 	}
 
 	function handleAnnounce(event: any) {
-		console.debug('HANDLING DISPATCHED ANNOUNCE');
 		const object: string = String(event.target.dataset.object);
-		const actor: string = String(event.target.dataset.actor);
 
-		if (wasm && object && actor) {
-			wasm.send_announce(actor, object).then(() => {
-				// this will only work for top-level notes
-				//let note = notes.get(object);
-				//if (note) {
-				//note.note.ephemeralAnnounced = true;
-				//}
+		if (wasm && object) {
+			wasm.send_announce(object).then((uuid) => {
+				console.debug(`ANNOUNCE SENT ${uuid}`);
+				note.note.ephemeralAnnounced = uuid;
+				note = note;
 			});
-
-			event.target.classList.add('selected');
 		} else {
-			console.error('OBJECT OR ACTOR INVALID');
-			console.debug(`OBJECT: ${object}, ACTOR: ${actor}`);
+			console.error('OBJECT INVALID');
 		}
 	}
 
@@ -172,15 +187,14 @@
 				<i
 					class="fa-solid fa-repeat selected"
 					data-object={note.note.id}
-					data-actor={note.note.attributedTo}
-					on:click|preventDefault={handleAnnounce}
+					data-activity={note.note.ephemeralAnnounced}
+					on:click|preventDefault={handleUnannounce}
 				/>
 			{:else}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				<i
 					class="fa-solid fa-repeat"
 					data-object={note.note.id}
-					data-actor={note.note.attributedTo}
 					on:click|preventDefault={handleAnnounce}
 				/>
 			{/if}
@@ -191,6 +205,7 @@
 					class="fa-solid fa-star selected"
 					data-actor={note.note.attributedTo}
 					data-object={note.note.id}
+					data-activity={note.note.ephemeralLiked}
 					on:click|preventDefault={handleUnlike}
 				/>
 			{:else}

@@ -88,6 +88,7 @@ interface UserProfile {
     capabilities?: Capabilities;
     ephemeralFollowing?: boolean;
     ephemeralLeaderApId?: string;
+    ephemeralFollowActivityApId?: string;
     ephemeralSummaryMarkdown?: string;
     ephemeralLeaders?: string[] | UserProfile[];
     ephemeralFollowers?: string[] | UserProfile[];
@@ -177,9 +178,9 @@ interface Note {
     attachment?: Attachment[];
     conversation: string | null;
     ephemeralAnnounces?: string[] | null;
-    ephemeralAnnounced?: boolean | null;
+    ephemeralAnnounced?: string | null;
     ephemeralActors?: UserProfile[];
-    ephemeralLiked?: boolean | null;
+    ephemeralLiked?: string | null;
     ephemeralLikes?: string[] | null;
     ephemeralTargeted?: boolean | null;
     ephemeralTimestamp?: string | null;

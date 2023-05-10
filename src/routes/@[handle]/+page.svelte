@@ -3,7 +3,7 @@
 	import showdown from 'showdown';
 	const { Converter } = showdown;
 	import showdownHighlight from 'showdown-highlight';
-	import { appData, enigmatickWasm } from '../../stores';
+	import { appData, enigmatickWasm, enigmatickOlm } from '../../stores';
 	import {
 		type UserProfile,
 		type Collection,
@@ -13,6 +13,7 @@
 	import Posts from './components/Posts.svelte';
 
 	$: wasm = $enigmatickWasm;
+	$: olm = $enigmatickOlm;
 	$: username = $appData.username;
 
 	function loadProfile(handle: string) {
@@ -164,6 +165,7 @@
 			console.log('following: ' + profile.id);
 
 			wasm?.send_follow(profile.id).then((x) => {
+				console.debug(`FOLLOW ${x}`);
 				if (x && profile) {
 					profile.ephemeralFollowing = true;
 				}
@@ -173,17 +175,43 @@
 		}
 	}
 
-	function handleUnfollow(event: Event) {
+	function handleUnfollow(event: any) {
+		const activity: string = String(event.target.dataset.activity);
+
+		console.debug(`ACTIVITY ${activity}`);
+		console.debug(profile);
+
 		if (profile && profile.id) {
 			console.log('unfollowing: ' + profile.id);
 
-			wasm?.send_unfollow(profile.id).then((x) => {
+			wasm?.send_unfollow(profile.id, activity).then((x) => {
 				if (x && profile) {
 					profile.ephemeralFollowing = false;
 				}
 			});
 		} else {
 			console.log('no profile loaded');
+		}
+	}
+
+	async function handleKexInit(event: any) {
+		console.log(event);
+
+		let kexinit = wasm?.KexInitParams.new();
+
+		if (wasm && profile && profile.id && kexinit) {
+			let a = (await wasm.get_state()).get_olm_pickled_account();
+			console.debug('PICKLED ACCOUNT');
+			console.debug(a);
+			let x = olm?.get_identity_public_key(String(a));
+			console.debug('IDENTITY KEY');
+			console.debug(x);
+			kexinit.set_recipient_id(profile.id);
+			kexinit.set_identity_key(String(x));
+
+			//wasm?.send_kex_init(kexinit).then(() => {
+			//	console.debug('KEXINIT SENT');
+			//});
 		}
 	}
 
@@ -264,12 +292,16 @@
 								</button>
 							{/if}
 							{#if profile.ephemeralFollowing !== undefined && profile.ephemeralFollowing}
-								<button title="Unfollow" on:click|preventDefault={handleUnfollow}>
+								<button
+									title="Unfollow"
+									data-activity={profile.ephemeralFollowActivityApId}
+									on:click|preventDefault={handleUnfollow}
+								>
 									<i class="fa-solid fa-user-minus" />
 								</button>
 							{/if}
 							{#if profile.capabilities && profile.capabilities.enigmatickEncryption}
-								<button title="Exchange Keys">
+								<button title="Exchange Keys" on:click|preventDefault={handleKexInit}>
 									<i class="fa-solid fa-key" />
 								</button>
 							{/if}
@@ -475,7 +507,7 @@
 
 					img {
 						width: 100%;
-						margin-top: -50%;
+						margin-top: -45%;
 						clip-path: inset(0 0 0 0 round 10%);
 					}
 
@@ -527,16 +559,21 @@
 					border-radius: 10px;
 					padding: 5px;
 
-					i {
-						font-size: 18px;
+					button {
 						color: #444;
-						padding: 0 5px;
-						transition-duration: 500ms;
+
+						i {
+							color: inherit;
+							font-size: 18px;
+							padding: 0 5px;
+							transition-duration: 500ms;
+							pointer-events: none;
+						}
 					}
 
-					i:hover {
-						color: red;
+					button:hover {
 						cursor: pointer;
+						color: red;
 					}
 				}
 			}
@@ -614,11 +651,12 @@
 
 					div {
 						background: #444;
-						i {
+
+						button {
 							color: #ddd;
 						}
 
-						i:hover {
+						button:hover {
 							color: red;
 						}
 					}

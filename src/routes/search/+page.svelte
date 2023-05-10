@@ -146,7 +146,7 @@
 		if (profile && profile.id) {
 			console.log('unfollowing: ' + profile.id);
 
-			wasm?.send_unfollow(profile.id);
+			wasm?.send_unfollow(profile.id, String(profile.ephemeralFollowActivityApId));
 		} else {
 			console.log('no profile loaded');
 		}

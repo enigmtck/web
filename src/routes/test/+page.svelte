@@ -73,7 +73,9 @@
 			let actor = appData.set({
 				username: String(profile?.username),
 				display_name: String(profile?.display_name),
-				avatar: String(profile?.avatar_filename)
+				avatar: String(profile?.avatar_filename),
+				domain: null,
+				url: null,
 			});
 			username = get(appData).username;
 			get_wasm_state().then((x) => {

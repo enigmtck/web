@@ -22,6 +22,8 @@
 	export let local: boolean;
 	export let handle: string;
 
+	console.debug(`HANDLE ${handle}`);
+
 	$: wasm = $enigmatickWasm;
 
 	$: loadPosts(handle, local).then(() => {
@@ -51,49 +53,75 @@
 		}
 
 		next = collection.next || null;
+		prev = collection.prev || null;
 	}
 
 	async function loadPosts(handle: string, local: boolean) {
 		notes = new Map<string, DisplayNote>();
 
-		if (local) {
-			const outbox = await wasm?.get_outbox(handle, 0, 40);
+		let state = await wasm?.get_state();
+		if (state) {
+			let server = state.get_server_url();
 
-			if (outbox) {
-				const items: Note[] = JSON.parse(outbox);
-				items?.forEach((item) => {
-					addNote(<Note>item);
-				});
-			}
-		} else {
-			wasm?.get_remote_outbox(`@${handle}`).then((x) => {
-				if (x) {
-					const outbox: Collection = JSON.parse(x);
+			if (local && handle) {
+				const outbox = await wasm?.get_outbox(`${server}/user/${handle}/outbox?page=true`);
 
-					wasm?.get_remote_outbox(`@${handle}`, outbox.first).then((x) => {
-						if (x) {
-							const collection: Collection = JSON.parse(x);
-							processCollection(collection).then(() => {
-								nextDisabled = false;
-							});
-						}
+				if (outbox) {
+					const collection: Collection = JSON.parse(outbox);
+					console.debug(collection);
+					processCollection(collection).then(() => {
+						moreDisabled = false;
 					});
 				}
-			});
+			} else {
+				wasm?.get_remote_outbox(`@${handle}`).then((x) => {
+					if (x) {
+						const outbox: Collection = JSON.parse(x);
+
+						wasm?.get_remote_outbox(`@${handle}`, outbox.first).then((x) => {
+							if (x) {
+								const collection: Collection = JSON.parse(x);
+								processCollection(collection).then(() => {
+									moreDisabled = false;
+								});
+							}
+						});
+					}
+				});
+			}
 		}
 	}
 
-	async function loadNext() {
-		if (!local && next) {
-			nextDisabled = true;
-			wasm?.get_remote_outbox(`@${handle}`, next).then((x) => {
-				if (x) {
-					const collection: Collection = JSON.parse(x);
-					processCollection(collection).then(() => {
-						nextDisabled = false;
-					});
-				}
-			});
+	async function loadMore(previous: boolean) {
+		let url: string | null = null;
+		if (!previous && next) {
+			url = next;
+		} else if (prev) {
+			url = prev;
+		}
+
+		if (url) {
+			moreDisabled = true;
+
+			if (local) {
+				wasm?.get_outbox(url).then((x) => {
+					if (x) {
+						const collection: Collection = JSON.parse(x);
+						processCollection(collection).then(() => {
+							moreDisabled = false;
+						});
+					}
+				});
+			} else {
+				wasm?.get_remote_outbox(`@${handle}`, url).then((x) => {
+					if (x) {
+						const collection: Collection = JSON.parse(x);
+						processCollection(collection).then(() => {
+							moreDisabled = false;
+						});
+					}
+				});
+			}
 		}
 	}
 
@@ -272,7 +300,8 @@
 	let focusConversation: string | null = null;
 
 	let next: string | null = null;
-	let nextDisabled = true;
+	let prev: string | null = null;
+	let moreDisabled = true;
 </script>
 
 {#if wasm}
@@ -313,7 +342,7 @@
 			{/if}
 		{/each}
 		{#if next}
-			<button on:click|preventDefault={loadNext} disabled={nextDisabled}
+			<button on:click|preventDefault={() => loadMore(false)} disabled={moreDisabled}
 				><i class="fa-solid fa-ellipsis" /></button
 			>
 		{/if}

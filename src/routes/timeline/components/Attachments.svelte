@@ -49,7 +49,7 @@
 		:global(div) {
 			min-width: unset;
 			min-height: unset;
-			max-height: 300px;
+			max-height: 400px;
 			height: unset;
 			width: 100%;
 			text-align: center;
@@ -57,6 +57,7 @@
 			overflow: hidden;
 			cursor: pointer;
 
+			:global(video),
 			:global(img) {
 				height: unset;
 				width: 100%;
