@@ -6,35 +6,52 @@
 	<title>Enigmatick</title>
 	<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 	<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
-	<link rel="stylesheet" href="/fontawesome/css/fontawesome.css"/>
-	<link rel="stylesheet" href="/fontawesome/css/solid.css"/>
-	<link rel="stylesheet" href="/fontawesome/css/regular.css"/>
+	<link rel="stylesheet" href="/fontawesome/css/fontawesome.css" />
+	<link rel="stylesheet" href="/fontawesome/css/solid.css" />
+	<link rel="stylesheet" href="/fontawesome/css/regular.css" />
 	<link rel="stylesheet" href="/highlight/solarized-dark.min.css">
 	<script src="/highlight/highlight.min.js"></script>
 	%sveltekit.head%
 
 	<style>
-		::-webkit-scrollbar {
-                        background-color: #222;
-                }
+		body.dark {
+			::-webkit-scrollbar {
+				background-color: #222;
+			}
 
-                ::-webkit-scrollbar-track {
-                        background-color: #222;
-                        outline: 0;
-                }
+			::-webkit-scrollbar-track {
+				background-color: #222;
+				outline: 0;
+			}
 
-                ::-webkit-scrollbar-thumb {
-                        background-color: #444;
-                        border: 3px solid #222;
-                        border-radius: 8px;
-                }
+			::-webkit-scrollbar-thumb {
+				background-color: #444;
+				border: 3px solid #222;
+				border-radius: 8px;
+			}
 
-                ::-webkit-scrollbar-thumb:hover {
-                        background-color: #555;
-                }
+			::-webkit-scrollbar-thumb:hover {
+				background-color: #555;
+			}
 
-		::-webkit-scrollbar-corner {
-			background-color: #222;
+			::-webkit-scrollbar-corner {
+				background-color: #222;
+			}
+		}
+
+		a {
+			display: inline-flex;
+		}
+
+		a .invisible {
+			display: none;
+		}
+
+		a .ellipsis {
+			text-overflow: ellipsis;
+			overflow: hidden;
+			white-space: nowrap;
+			max-width: 13em;
 		}
 	</style>
 </head>

@@ -26,13 +26,13 @@
 		const actor: string = String(event.target.dataset.actor);
 
 		if (wasm && object && actor) {
-			wasm.send_announce(actor, object).then(() => {
-				// this will only work for top-level notes
-				//let note = notes.get(object);
-				//if (note) {
-					//note.note.ephemeralAnnounced = true;
-				//}
-			});
+			// wasm.send_announce(actor, object).then(() => {
+			// 	// this will only work for top-level notes
+			// 	//let note = notes.get(object);
+			// 	//if (note) {
+			// 		//note.note.ephemeralAnnounced = true;
+			// 	//}
+			// });
 
 			event.target.classList.add('selected');
 		} else {

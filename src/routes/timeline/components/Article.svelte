@@ -395,21 +395,6 @@
 		:global(section > p) {
 			user-select: none;
 			margin: 0 0 10px 0;
-
-			:global(a) {
-				display: inline-flex;
-
-				:global(span.invisible) {
-					display: none;
-				}
-
-				:global(span.ellipsis) {
-					text-overflow: ellipsis;
-					overflow: hidden;
-					white-space: nowrap;
-					max-width: 13em;
-				}
-			}
 		}
 
 		:global(.emoji) {
