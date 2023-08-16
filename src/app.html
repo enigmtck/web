@@ -1,63 +1,64 @@
 <!DOCTYPE html>
 <html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Enigmatick</title>
+		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1, interactive-widget=resizes-content"
+		/>
+		<link rel="stylesheet" href="/fontawesome/css/fontawesome.css" />
+		<link rel="stylesheet" href="/fontawesome/css/solid.css" />
+		<link rel="stylesheet" href="/fontawesome/css/regular.css" />
+		<link rel="stylesheet" href="/highlight/solarized-dark.min.css" />
+		<script src="/highlight/highlight.min.js"></script>
+		%sveltekit.head%
 
-<head>
-	<meta charset="utf-8" />
-	<title>Enigmatick</title>
-	<link rel="icon" href="%sveltekit.assets%/favicon.png" />
-	<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content" />
-	<link rel="stylesheet" href="/fontawesome/css/fontawesome.css" />
-	<link rel="stylesheet" href="/fontawesome/css/solid.css" />
-	<link rel="stylesheet" href="/fontawesome/css/regular.css" />
-	<link rel="stylesheet" href="/highlight/solarized-dark.min.css">
-	<script src="/highlight/highlight.min.js"></script>
-	%sveltekit.head%
+		<style lang="scss">
+			body.dark {
+				::-webkit-scrollbar {
+					background-color: #222;
+				}
 
-	<style>
-		body.dark {
-			::-webkit-scrollbar {
-				background-color: #222;
+				::-webkit-scrollbar-track {
+					background-color: #222;
+					outline: 0;
+				}
+
+				::-webkit-scrollbar-thumb {
+					background-color: #444;
+					border: 3px solid #222;
+					border-radius: 8px;
+				}
+
+				::-webkit-scrollbar-thumb:hover {
+					background-color: #555;
+				}
+
+				::-webkit-scrollbar-corner {
+					background-color: #222;
+				}
 			}
 
-			::-webkit-scrollbar-track {
-				background-color: #222;
-				outline: 0;
+			a {
+				display: inline-flex;
 			}
 
-			::-webkit-scrollbar-thumb {
-				background-color: #444;
-				border: 3px solid #222;
-				border-radius: 8px;
+			a .invisible {
+				display: none;
 			}
 
-			::-webkit-scrollbar-thumb:hover {
-				background-color: #555;
+			a .ellipsis {
+				text-overflow: ellipsis;
+				overflow: hidden;
+				white-space: nowrap;
+				max-width: 13em;
 			}
+		</style>
+	</head>
 
-			::-webkit-scrollbar-corner {
-				background-color: #222;
-			}
-		}
-
-		a {
-			display: inline-flex;
-		}
-
-		a .invisible {
-			display: none;
-		}
-
-		a .ellipsis {
-			text-overflow: ellipsis;
-			overflow: hidden;
-			white-space: nowrap;
-			max-width: 13em;
-		}
-	</style>
-</head>
-
-<body data-sveltekit-preload-data="hover">
-	<div style="display: contents">%sveltekit.body%</div>
-</body>
-
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
 </html>

@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { goto } from "$app/navigation";
-	import { onMount } from "svelte";
+	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 
-	onMount(()=> {
+	onMount(() => {
 		goto('/@justin');
-	})
+	});
 </script>
+
 <main>
 	<div>
 		<h1>ENIGMATICK</h1>
@@ -19,9 +20,9 @@
 
 <style lang="scss">
 	main {
-        display: flex;
-        align-items: center;
-        justify-content: center;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		width: 100vw;
 		height: 100vh;
 	}
@@ -32,7 +33,7 @@
 		text-align: center;
 		font-weight: 300;
 		color: darkred;
-        margin: 0;
+		margin: 0;
 	}
 
 	ul {
