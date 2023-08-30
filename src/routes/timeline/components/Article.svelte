@@ -34,12 +34,12 @@
 		const object: string = String(event.target.dataset.object);
 		const actor: string = String(event.target.dataset.actor);
 		const activity: string = String(event.target.dataset.activity);
-		
+
 		console.debug(`UNDOING ${activity}`);
 
 		if (wasm) {
 			wasm.send_unlike(actor, object, activity).then((uuid) => {
-				console.debug("UNLIKE SENT");
+				console.debug('UNLIKE SENT');
 				note.note.ephemeralLiked = null;
 				note = note;
 			});
@@ -54,7 +54,7 @@
 			wasm.send_like(actor, object).then((uuid) => {
 				console.debug(`LIKE SENT ${uuid}`);
 				note.note.ephemeralLiked = uuid;
-			note = note;
+				note = note;
 			});
 		}
 	}
@@ -65,7 +65,7 @@
 
 		if (wasm && object) {
 			wasm.send_unannounce(object, activity).then((uuid) => {
-				console.debug("UNANNOUNCE SENT");
+				console.debug('UNANNOUNCE SENT');
 				note.note.ephemeralAnnounced = null;
 				note = note;
 			});
@@ -272,6 +272,13 @@
 			font-size: 14px;
 			background: #fafafa;
 			color: darkred;
+
+			a {
+				display: inline-block;
+				:global(.emoji) {
+					margin-bottom: 2px;
+				}
+			}
 		}
 
 		header {
@@ -316,7 +323,7 @@
 			position: absolute;
 			top: 10px;
 			right: 40px;
-			
+
 			span {
 				color: #444;
 				font-size: 14px;
@@ -468,7 +475,7 @@
 
 			.activity {
 				span {
-					color: #999;	
+					color: #999;
 				}
 			}
 

@@ -260,7 +260,7 @@ function insertEmojis(text: string, profile: UserProfile | Note) {
         profile.tag.forEach((tag) => {
             if (tag.type === 'Emoji') {
                 if (tag.icon) {
-                    text = text.replaceAll(tag.name, `<img class="emoji" src="${tag.icon.url}"/>`);
+                    text = text.replaceAll(tag.name, `<img class="emoji" src="${cachedImage(tag.icon.url)}"/>`);
                 }
             }
         });
