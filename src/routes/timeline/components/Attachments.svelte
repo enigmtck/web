@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Note } from '../../../common';
+	import { cachedImage } from '../../../common';
 	export let note: Note;
 
 	function getPlacement(): string {
@@ -21,14 +22,14 @@
 			{#if x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))}
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 				<div class={getPlacement()} tabindex="0">
-					<img src={x.url} width={x.width} height={x.height} alt={x.name} />
+					<img src={cachedImage(String(x.url))} width={x.width} height={x.height} alt={x.name} />
 				</div>
 			{:else if x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))}
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 				<div class={getPlacement()} tabindex="0">
 					<!-- svelte-ignore a11y-media-has-caption -->
 					<video width={x.width} height={x.height} controls
-						><source src={x.url} type={x.mediaType} /></video
+						><source src={cachedImage(String(x.url))} type={x.mediaType} /></video
 					>
 				</div>
 			{/if}

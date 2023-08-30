@@ -16,7 +16,7 @@ export type {
     QueueItem,
     VaultedMessage
 };
-export { insertEmojis, timeSince, compare, getWebFingerFromId, sleep, DisplayNote, extractUuid };
+export { insertEmojis, timeSince, compare, getWebFingerFromId, sleep, DisplayNote, extractUuid, cachedImage };
 
 interface DisplayNote {
     note: Note;
@@ -317,4 +317,8 @@ function extractUuid(id: string): string | null {
     } else {
         return null;
     }
+}
+
+function cachedImage(url: string): string {
+    return '/api/cache?url=' + encodeURI(url)
 }

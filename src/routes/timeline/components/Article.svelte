@@ -10,7 +10,7 @@
 	import { onDestroy, onMount, getContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
-	import { insertEmojis, timeSince, getWebFingerFromId } from '../../../common';
+	import { insertEmojis, timeSince, getWebFingerFromId, cachedImage } from '../../../common';
 	import { replyCount } from './common';
 	import { enigmatickWasm } from '../../../stores';
 
@@ -124,7 +124,7 @@
 	<header>
 		<div>
 			{#if note.actor && note.actor.icon}
-				<img src={note.actor.icon.url} alt="Sender" />
+				<img src={cachedImage(note.actor.icon.url)} alt="Sender" />
 			{/if}
 		</div>
 		<address>
