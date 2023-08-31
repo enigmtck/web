@@ -1,14 +1,25 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import wasmPack from 'vite-plugin-wasm-pack';
+import inject from '@rollup/plugin-inject';
 
 export default defineConfig({
 	plugins: [sveltekit(), wasmPack('wasm/enigmatick_wasm'), wasmPack('wasm/enigmatick_olm')],
+	resolve: {
+		alias: {
+			path: 'path-browserify'
+		}
+	},
+	build: {
+		rollupOptions: {
+			plugins: [inject({ Buffer: ['buffer', 'Buffer'] })]
+		}
+	},
 	server: {
 		hmr: {
-			host: "127.0.0.1",
+			host: '127.0.0.1',
 			port: 5174,
-			protocol: "ws"
+			protocol: 'ws'
 		},
 		cors: false,
 		host: true,
@@ -17,7 +28,7 @@ export default defineConfig({
 				target: 'http://127.0.0.1:8010/',
 				changeOrigin: true,
 				secure: false,
-				ws: false,
+				ws: false
 			},
 			'/api': {
 				target: 'http://127.0.0.1:8010/',
@@ -50,5 +61,5 @@ export default defineConfig({
 				ws: false
 			}
 		}
-	},
+	}
 });

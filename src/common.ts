@@ -18,6 +18,8 @@ export type {
 };
 export { insertEmojis, timeSince, compare, getWebFingerFromId, sleep, DisplayNote, extractUuid, cachedImage };
 
+import { Buffer } from 'buffer';
+
 interface DisplayNote {
     note: Note;
     actor: UserProfile;
@@ -319,6 +321,12 @@ function extractUuid(id: string): string | null {
     }
 }
 
+// After several iterations, I'm using base64 here even though it's really invonvenient (i.e., I have
+// to add a bunch of dependencies and fiddle with Vite to make it work). I tried just URI encoding the
+// URL, but that causes problems when the URL already includes URI encoding (i.e., I'm not the only one
+// who's had that idea). The resultant decoded URL ends up broken because the original URI decoding also
+// gets decoded at the core server.
 function cachedImage(url: string): string {
-    return '/api/cache?url=' + encodeURIComponent(url)
+    let encoded = Buffer.from(url).toString('base64').replaceAll('=','')
+    return '/api/cache?url=' + encodeURIComponent(encoded);
 }

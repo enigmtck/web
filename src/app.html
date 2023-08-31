@@ -15,6 +15,11 @@
 		<script src="/highlight/highlight.min.js"></script>
 		%sveltekit.head%
 
+		<script type="module">
+			import { Buffer } from 'buffer';
+			window.Buffer = Buffer;
+		</script>
+
 		<style lang="scss">
 			body.dark {
 				::-webkit-scrollbar {

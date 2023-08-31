@@ -304,7 +304,11 @@
 				console.debug(x);
 				// this will stop execution on a parsing error, but the alternative is an infinite loop in the wasm
 				// module if the server becomes unavailable
-				throw e;
+				//throw e;
+
+				// I'm overriding this for now because my proxy seems to be throwing random 502s (probably related 
+				// to network and NAT configuration) that I haven't taken time to diagnose
+				await sleep(1000);
 			}
 		}
 	}
