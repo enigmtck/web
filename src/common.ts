@@ -320,5 +320,5 @@ function extractUuid(id: string): string | null {
 }
 
 function cachedImage(url: string): string {
-    return '/api/cache?url=' + encodeURI(url)
+    return '/api/cache?url=' + encodeURIComponent(url)
 }

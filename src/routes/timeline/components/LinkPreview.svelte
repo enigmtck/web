@@ -1,5 +1,6 @@
 <script lang="ts">
 	export let links: Metadata[];
+	import { cachedImage } from '../../../common';
 
 	type Metadata = {
 		twitterTitle?: string | null;
@@ -24,7 +25,7 @@
 		<div>
 			{#if links[selectedIndex].ogImage?.length}
 				<div class="image">
-					<img src={links[selectedIndex].ogImage} alt="Link Preview" />
+					<img src={cachedImage(String(links[selectedIndex].ogImage))} alt="Link Preview" />
 				</div>
 			{/if}
 			<div>
