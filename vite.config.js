@@ -4,7 +4,7 @@ import wasmPack from 'vite-plugin-wasm-pack';
 import inject from '@rollup/plugin-inject';
 
 export default defineConfig({
-	plugins: [sveltekit(), wasmPack('wasm/enigmatick_wasm'), wasmPack('wasm/enigmatick_olm')],
+	plugins: [wasmPack('./wasm/enigmatick_wasm'), wasmPack('./wasm/enigmatick_olm'), sveltekit()],
 	resolve: {
 		alias: {
 			path: 'path-browserify'

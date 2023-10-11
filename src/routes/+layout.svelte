@@ -149,70 +149,102 @@
 
 <div class="app">
 	{#if $page.url.pathname !== '/' && $page.url.pathname !== '/login' && $page.url.pathname !== '/signup'}
-		<header>
+		<slot />
+
+		<div class="context">
+			<ul>
+				{#if avatar}
+					<li>
+						<a href="/@{username}"><img src="/media/avatars/{avatar}" alt="You" /></a>
+					</li>
+				{/if}
+
+				<li>
+					<div class="toggle">
+						<label>
+							<input type="checkbox" id="theme" on:change|preventDefault={darkMode} />
+							<span class="slider" />
+						</label>
+					</div>
+				</li>
+			</ul>
+
+			<div class="notifications">
+				<h1><i class="fa-solid fa-bell" />Notifications</h1>
+				<ul>
+					<li>No notifications</li>
+				</ul>
+			</div>
+
+			<div class="trending">
+				<h1><i class="fa-solid fa-hashtag" />Trending</h1>
+				<ul>
+					<li>Nothing trending</li>
+				</ul>
+			</div>
+		</div>
+
+		<footer>
+			{#if username}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<a class={$page.url.pathname == `/@${username}` ? 'selected' : ''} href={`/@${username}`}
+					><i
+						class="fa-solid fa-house {$page.url.pathname == '/@' + username ? 'selected' : ''}"
+					/></a
+				>
+			{:else}
+				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<a class={$page.url.pathname == '/login' ? 'selected' : ''} href="/login"
+					><i
+						class="fa-solid fa-right-to-bracket {$page.url.pathname == '/login' ? 'selected' : ''}"
+					/></a
+				>
+			{/if}
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
+				><i
+					class="fa-solid fa-newspaper {$page.url.pathname == '/timeline' ? 'selected' : ''}"
+				/></a
+			>
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
+				><i
+					class="fa-solid fa-magnifying-glass {$page.url.pathname == '/search' ? 'selected' : ''}"
+				/></a
+			>
+		</footer>
+
+		<nav class="top">
 			<div>
 				<span class="title"><a href="/">ENIGMATICK</a></span>
 			</div>
-			<nav>
-				{#if avatar}
-					<a href="/@{username}"><img src="/media/avatars/{avatar}" alt="You" /></a>
-				{/if}
-				<div class="toggle">
-					<label>
-						<input type="checkbox" id="theme" on:change|preventDefault={darkMode} />
-						<span class="slider" />
-					</label>
-				</div>
-			</nav>
-		</header>
 
-		<slot />
-
-		{#if username}
-			<footer>
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<i
-					class="fa-solid fa-house {$page.url.pathname == '/@' + username ? 'selected' : ''}"
-					on:click={async () => {
-						await goto(`/@${username}`);
-					}}
-				/>
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<i
-					class="fa-solid fa-earth-americas {$page.url.pathname == '/timeline' ? 'selected' : ''}"
-					on:click={async () => {
-						await goto('/timeline');
-					}}
-				/>
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<i
-					class="fa-solid fa-magnifying-glass {$page.url.pathname == '/search' ? 'selected' : ''}"
-					on:click={async () => {
-						await goto('/search');
-					}}
-				/>
-			</footer>
-
-			<nav>
-				<div>
-					<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
-						><i class="fa-solid fa-earth-americas" />Timeline</a
-					>
+			<div>
+				<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
+					><i class="fa-solid fa-newspaper" />Timeline</a
+				>
+				{#if username}
 					<a class={$page.url.pathname == '/message' ? 'selected' : ''} href="/message"
 						><i class="fa-solid fa-inbox" />Messages</a
 					>
-					<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
-						><i class="fa-solid fa-magnifying-glass" />Search</a
-					>
+				{/if}
+				<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
+					><i class="fa-solid fa-magnifying-glass" />Search</a
+				>
+				{#if username}
 					<a class={$page.url.pathname == '/settings' ? 'selected' : ''} href="/settings"
 						><i class="fa-solid fa-gear" />Settings</a
 					>
-					<a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
-						><i class="fa-solid fa-gear" />TEST</a
+				{:else}
+					<a class={$page.url.pathname == '/login' ? 'selected' : ''} href="/login"
+						><i class="fa-solid fa-right-to-bracket" />Login</a
 					>
-				</div>
-			</nav>
-		{/if}
+				{/if}
+				<!-- <a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
+					><i class="fa-solid fa-gear" />TEST</a
+				> -->
+			</div>
+		</nav>
 	{:else}
 		<slot />
 	{/if}
@@ -245,135 +277,200 @@
 
 	:global(body.dark) {
 		background: var(--container-dark-background);
-		background: #222;
+	}
+
+	.title {
+		text-align: center;
 	}
 
 	.app {
 		width: 100%;
 		height: 100%;
+		position: relative;
 		display: grid;
 		grid-template:
-			[row1-start] 'header header header header header' 41px [row1-end]
-			[row2-start] 'left-gutter left-aside content right-aside right-gutter' [row2-end]
-			/ 1fr auto auto auto 1fr;
+			[row1-start] 'left-aside content right-aside' auto [row2-end]
+			/ 250px auto 350px;
 
-		header {
-			z-index: 25;
-			position: fixed;
-			width: 100%;
-			padding: 0;
+		@media screen and (max-width: 600px) {
+			grid-template:
+				[row1-start] 'left-aside content right-aside' auto [row2-end]
+				/ 0 auto 0;
+		}
+
+		nav.top {
+			grid-area: left-aside;
 			background: #eee;
-			color: darkred;
-			text-align: center;
-			font-family: 'Open Sans';
-			font-size: 22px;
-			font-weight: 600;
-			grid-area: header;
-			display: grid;
-			grid-template-columns: 1fr auto 1fr;
-			grid-template-areas: 'left center right';
-			align-items: center;
 
-			> div {
-				grid-area: center;
-				display: inline-block;
+			@media screen and (max-width: 600px) {
+				display: none;
+			}
+
+			div {
+				width: calc(100% - 20px);
+				padding: 0;
+				margin: 10px;
 
 				a {
-					color: darkred;
+					display: inline-block;
+					width: 100%;
 					text-decoration: none;
-				}
-
-				a:visited {
-					color: darkred;
+					font-family: 'Open Sans';
+					font-size: 14px;
+					padding: 10px 5px;
+					color: #222;
 				}
 
 				a:hover {
 					color: red;
-					text-decoration: none;
+				}
+
+				a > i {
+					padding: 0 15px;
+				}
+
+				.selected {
+					background: #333;
+				}
+				span.title {
+					a {
+						font-size: 18px;
+						color: #fafafafa;
+					}
+
+					a:hover {
+						color: red;
+					}
+				}
+			}
+		}
+
+		slot {
+			grid-area: content;
+			position: relative;
+		}
+
+		.context {
+			grid-area: right-aside;
+
+			@media screen and (max-width: 600px) {
+				display: none;
+			}
+
+			ul {
+				list-style: none;
+				margin: 0;
+				padding: 0;
+				display: flex;
+				flex-direction: row;
+				justify-content: space-evenly;
+				width: 100%;
+			}
+
+			a {
+				position: relative;
+				display: inline-block;
+				width: auto;
+				height: 41px;
+
+				img {
+					display: inline-block;
+					width: 35px;
+					height: auto;
+					margin: 3px 10px;
+					clip-path: inset(0 0 0 0 round 50%);
 				}
 			}
 
-			nav {
-				grid-area: right;
-				display: flex;
-				flex-direction: row-reverse;
-				align-items: center;
-				margin: 0;
+			img:hover {
+				opacity: 0.8;
+			}
+
+			.toggle {
+				position: relative;
+				margin: 8px;
+				padding: 0;
+				width: 50px;
+				height: 24px;
+			}
+
+			label {
+				position: relative;
+				display: inline-block;
 				width: 100%;
+				height: 25px;
+				background-color: var(--dark);
+				outline: 1px solid #ccc;
+				border-radius: 50px;
+				cursor: pointer;
+			}
 
-				a {
-					position: relative;
-					display: inline-block;
-					width: auto;
-					height: 41px;
+			input {
+				position: absolute;
+				display: none;
+			}
 
-					img {
-						display: inline-block;
-						width: 35px;
-						height: auto;
-						margin: 3px 10px;
-						clip-path: inset(0 0 0 0 round 50%);
+			.slider {
+				position: absolute;
+				left: 0px;
+				width: 100%;
+				height: 100%;
+				border-radius: 50px;
+				transition: 0.3s;
+			}
+
+			input:checked ~ .slider {
+				background-color: var(--light);
+			}
+
+			.slider::before {
+				content: '';
+				position: absolute;
+				top: 3px;
+				left: 4px;
+				width: 18px;
+				height: 18px;
+				border-radius: 50%;
+				box-shadow: inset 7px -4px 0px 0px var(--light);
+				background-color: var(--dark);
+				transition: 0.3s;
+			}
+
+			input:checked ~ .slider::before {
+				transform: translateX(25px);
+				background-color: var(--dark);
+				box-shadow: none;
+			}
+
+			div {
+				background: #1a1a1a;
+				margin: 0 10px;
+				border-radius: 10px;
+
+				h1 {
+					font-family: 'Open Sans';
+					color: #999;
+					font-size: 14px;
+					padding: 5px;
+					border-radius: 10px 10px 0 0;
+					font-weight: 500;
+
+					i {
+						padding: 0 10px;
+						font-size: 14px;
+						color: darkgoldenrod;
 					}
 				}
 
-				img:hover {
-					opacity: 0.8;
-				}
-
-				.toggle {
-					position: relative;
-					margin: 8px;
-					padding: 0;
-					width: 50px;
-					height: 24px;
-				}
-
-				label {
-					position: relative;
-					display: inline-block;
+				ul {
 					width: 100%;
-					height: 25px;
-					background-color: var(--dark);
-					outline: 1px solid #ccc;
-					border-radius: 50px;
-					cursor: pointer;
-				}
+					padding: 0 10px 10px 10px;
 
-				input {
-					position: absolute;
-					display: none;
-				}
-
-				.slider {
-					position: absolute;
-					left: 0px;
-					width: 100%;
-					height: 100%;
-					border-radius: 50px;
-					transition: 0.3s;
-				}
-
-				input:checked ~ .slider {
-					background-color: var(--light);
-				}
-
-				.slider::before {
-					content: '';
-					position: absolute;
-					top: 3px;
-					left: 4px;
-					width: 18px;
-					height: 18px;
-					border-radius: 50%;
-					box-shadow: inset 7px -4px 0px 0px var(--light);
-					background-color: var(--dark);
-					transition: 0.3s;
-				}
-
-				input:checked ~ .slider::before {
-					transform: translateX(25px);
-					background-color: var(--dark);
-					box-shadow: none;
+					li {
+						font-family: 'Open Sans';
+						font-size: 13px;
+						width: 100%;
+					}
 				}
 			}
 		}
@@ -393,77 +490,38 @@
 				width: 100vw;
 				height: 50px;
 
-				i {
+				a {
+					display: inline-block;
+					text-decoration: none;
+					font-family: 'Open Sans';
+					font-size: 14px;
+					padding: 10px 20px;
 					color: #222;
-					font-size: 26px;
-					margin: 0 20px;
+					border-radius: 20px;
 				}
 
-				i.selected {
+				a > i {
+					padding: 0 15px;
+				}
+
+				a:hover i {
 					color: red;
 				}
-			}
-		}
-	}
 
-	:global(body.dark) {
-		footer {
-			background: #222;
-
-			i {
-				color: #fafafa;
-			}
-
-			i.selected {
-				color: darkred;
-			}
-		}
-	}
-
-	:global(body div > nav) {
-		height: calc(100vh - 41px);
-		max-width: 170px;
-		grid-area: right-aside;
-		background: #eee;
-
-		@media screen and (max-width: 600px) {
-			display: none;
-		}
-
-		div {
-			width: 100%;
-			padding: 0;
-			margin: 10px;
-
-			a {
-				display: inline-block;
-				width: 100%;
-				text-decoration: none;
-				font-family: 'Open Sans';
-				font-size: 18px;
-				padding: 5px;
-				color: #222;
-			}
-
-			a:hover {
-				color: red;
-			}
-
-			a > i {
-				padding: 0 15px;
-			}
-
-			.selected {
-				color: darkred;
+				.selected {
+					background: #222;
+				}
 			}
 		}
 	}
 
 	:global(body.dark) {
 		.app {
-			nav {
-				background: #222;
+			> nav {
+				background: #1a1a1a;
+
 				a {
+					border-radius: 20px;
 					color: #aaa;
 				}
 
@@ -472,19 +530,33 @@
 				}
 
 				.selected {
-					color: red;
+					background: #222;
 				}
 			}
-		}
-	}
 
-	:global(body.dark) {
-		.app {
-			header {
-				background: #222;
+			.context {
+				color: white;
+				background: #000;
+				border-left: 1px solid #222;
+			}
+
+			footer {
+				background: #000;
 
 				a {
-					color: whitesmoke;
+					color: #222;
+				}
+
+				a > i {
+					color: #eee;
+				}
+
+				a:hover i {
+					color: red;
+				}
+
+				.selected {
+					background: #222;
 				}
 			}
 		}

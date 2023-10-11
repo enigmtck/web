@@ -57,6 +57,14 @@
 		}
 	}
 
+	function refresh() {
+		console.debug("REFRESH");
+	}
+
+	function remove() {
+		console.debug("REMOVE");
+	}
+
 	let note: DisplayNote | null = null;
 
 	$: if (wasm && $page.params.uuid) {
@@ -66,7 +74,7 @@
 
 <main>
 	{#if wasm && note}
-		<Article {note} username={null} replyToHeader={null} announceHeader={null} />
+		<Article {remove} {refresh} {note} username={null} replyToHeader={null} announceHeader={null} />
 		{#if note.replies?.size}
 			<div class="replies">
 				{#each Array.from(note.replies.values()).sort(compare) as reply}

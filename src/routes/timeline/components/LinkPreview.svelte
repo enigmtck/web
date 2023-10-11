@@ -1,6 +1,12 @@
 <script lang="ts">
 	export let links: Metadata[];
 	import { cachedImage } from '../../../common';
+	import { onDestroy, onMount } from 'svelte';
+
+	onMount(async () => {
+		const { Buffer } = await import('buffer')
+    	window.Buffer = Buffer
+	})
 
 	type Metadata = {
 		twitterTitle?: string | null;
@@ -25,13 +31,15 @@
 		<div>
 			{#if links[selectedIndex].ogImage?.length}
 				<div class="image">
-					<img src={cachedImage(String(links[selectedIndex].ogImage))} alt="Link Preview" />
+					<img src={cachedImage(window.Buffer, String(links[selectedIndex].ogImage))} alt="Link Preview" />
 				</div>
 			{/if}
 			<div>
 				<span>{links[selectedIndex].ogTitle}</span>
 
 				{#if links[selectedIndex].ogDescription}
+					<!-- @html can be used below to render embedded HTML, but I need to sanitize that first -->
+					<!-- <span>{@html links[selectedIndex].ogDescription}</span> -->
 					<span>{links[selectedIndex].ogDescription}</span>
 				{/if}
 			</div>
@@ -45,10 +53,9 @@
 		display: block;
 
 		div {
-			width: calc(100% - 20px);
+			width: 100%;
 			display: flex;
 			flex-direction: row;
-			margin: 10px;
 			border: 1px solid #eee;
 			background: #fafafa;
 

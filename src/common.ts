@@ -18,8 +18,6 @@ export type {
 };
 export { insertEmojis, timeSince, compare, getWebFingerFromId, sleep, DisplayNote, extractUuid, cachedImage };
 
-import { Buffer } from 'buffer';
-
 interface DisplayNote {
     note: Note;
     actor: UserProfile;
@@ -262,7 +260,7 @@ function insertEmojis(text: string, profile: UserProfile | Note) {
         profile.tag.forEach((tag) => {
             if (tag.type === 'Emoji') {
                 if (tag.icon) {
-                    text = text.replaceAll(tag.name, `<img class="emoji" src="${cachedImage(tag.icon.url)}"/>`);
+                    text = text.replaceAll(tag.name, `<img class="emoji" src="${cachedImage(window.Buffer, tag.icon.url)}"/>`);
                 }
             }
         });
@@ -326,7 +324,11 @@ function extractUuid(id: string): string | null {
 // URL, but that causes problems when the URL already includes URI encoding (i.e., I'm not the only one
 // who's had that idea). The resultant decoded URL ends up broken because the original URI decoding also
 // gets decoded at the core server.
-function cachedImage(url: string): string {
-    let encoded = Buffer.from(url).toString('base64').replaceAll('=','')
-    return '/api/cache?url=' + encodeURIComponent(encoded);
+function cachedImage(buffer: any, url: string): string {
+    if (buffer) {
+        let encoded = buffer.from(url).toString('base64').replaceAll('=','')
+        return '/api/cache?url=' + encodeURIComponent(encoded);
+    } else {
+        return url;
+    }
 }

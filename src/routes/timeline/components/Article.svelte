@@ -21,6 +21,11 @@
 	import Menu from './Menu.svelte';
 	import Attachments from './Attachments.svelte';
 
+	onMount(async () => {
+		const { Buffer } = await import('buffer');
+		window.Buffer = Buffer;
+	});
+
 	$: wasm = $enigmatickWasm;
 
 	export let note: DisplayNote;
@@ -124,7 +129,7 @@
 	<header>
 		<div>
 			{#if note.actor && note.actor.icon}
-				<img src={cachedImage(note.actor.icon.url)} alt="Sender" />
+				<img src={cachedImage(window.Buffer, note.actor.icon.url)} alt="Sender" />
 			{/if}
 		</div>
 		<address>
@@ -247,10 +252,18 @@
 		position: relative;
 		flex-direction: column;
 		width: 100%;
-		margin: 0;
+		max-width: 700px;
+		margin: 10px auto;
 		border-bottom: 1px solid #ddd;
+		border-radius: 10px;
+		padding: 10px 20px;
 		font-family: 'Open Sans';
 		background: #fafafa;
+
+		@media screen and (max-width: 600px) {
+			margin: 2px auto;
+			border-radius: 0;
+		}
 
 		a {
 			color: darkgoldenrod;
@@ -267,7 +280,8 @@
 			text-overflow: ellipsis;
 			overflow: hidden;
 			display: block;
-			padding: 10px 10px 5px 10px;
+			padding: 0 0 5px 0;
+			border-radius: 10px;
 			font-weight: 600;
 			font-size: 14px;
 			background: #fafafa;
@@ -282,7 +296,7 @@
 		}
 
 		header {
-			padding: 10px 20px;
+			padding: 10px 0;
 			color: #222;
 
 			display: flex;
@@ -390,7 +404,7 @@
 		}
 
 		section {
-			padding: 0 20px;
+			padding: 0;
 			overflow-wrap: break-word;
 			font-size: 14px;
 
@@ -458,7 +472,7 @@
 		}
 
 		article {
-			background: #000;
+			background: #1a1a1a;
 			color: #fff;
 			border-bottom: 1px solid #222;
 
@@ -481,7 +495,7 @@
 
 			.reply,
 			.repost {
-				background: #000;
+				background: #1a1a1a;
 				color: #aaa;
 			}
 

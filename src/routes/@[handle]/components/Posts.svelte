@@ -22,6 +22,11 @@
 	export let local: boolean;
 	export let handle: string;
 
+	onMount(async () => {
+		const { Buffer } = await import('buffer');
+		window.Buffer = Buffer;
+	});
+
 	console.debug(`HANDLE ${handle}`);
 
 	$: wasm = $enigmatickWasm;

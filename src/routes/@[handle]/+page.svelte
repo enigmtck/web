@@ -16,6 +16,13 @@
 	$: olm = $enigmatickOlm;
 	$: username = $appData.username;
 
+	import { onDestroy, onMount } from 'svelte';
+
+	onMount(async () => {
+		const { Buffer } = await import('buffer')
+    	window.Buffer = Buffer
+	})
+
 	function loadProfile(handle: string) {
 		console.debug(`INSTANCE DOMAIN: ${$appData.domain}`);
 
@@ -416,7 +423,6 @@
 
 	main {
 		grid-area: content;
-		max-width: 800px;
 		width: 100%;
 		height: 100%;
 		margin: 0 auto;
@@ -622,7 +628,9 @@
 		main {
 			.profile {
 				border: 0;
-				background: #333;
+				background: #222;
+				max-width: 800px;
+				margin: 0 auto;
 
 				.banner {
 					background: inherit;
@@ -647,10 +655,10 @@
 				}
 
 				.controls {
-					background: #333;
+					background: #222;
 
 					div {
-						background: #444;
+						background: #333;
 
 						button {
 							color: #ddd;
@@ -663,7 +671,7 @@
 				}
 
 				.tabs {
-					background: #333;
+					background: #222;
 
 					button {
 						color: #aaa;
@@ -674,13 +682,13 @@
 					}
 
 					button.selected {
-						background: #222;
+						background: #000;
 					}
 				}
 
 				.summary {
 					color: #fff;
-					background: #333;
+					background: #222;
 
 					:global(p) {
 						color: inherit;

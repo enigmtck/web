@@ -111,7 +111,13 @@
 	async function handlePublish() {
 		captureChanges();
 
-		sender(replyToRecipient, replyToNote, replyToConversation, htmlNote, Array.from(attachments.values())).then((x: any) => {
+		sender(
+			replyToRecipient,
+			replyToNote,
+			replyToConversation,
+			htmlNote,
+			Array.from(attachments.values())
+		).then((x: any) => {
 			if (x) {
 				resetCompose();
 				closeAside();
@@ -321,6 +327,22 @@
 				word-wrap: break-word;
 				white-space: pre-wrap;
 				overflow: scroll;
+			}
+
+			::-webkit-scrollbar {
+				background-color: #333;
+			}
+
+			::-webkit-scrollbar-track {
+				background-color: #333;
+			}
+
+			::-webkit-scrollbar-thumb {
+				border: 3px solid #333;
+			}
+
+			::-webkit-scrollbar-corner {
+				background-color: #333;
 			}
 
 			div {

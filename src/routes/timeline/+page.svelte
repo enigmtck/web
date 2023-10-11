@@ -6,7 +6,14 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { appData, enigmatickWasm } from '../../stores';
-	import type { UserProfile, Note, StreamConnect, Announce, AnnounceParams, Attachment } from '../../common';
+	import type {
+		UserProfile,
+		Note,
+		StreamConnect,
+		Announce,
+		AnnounceParams,
+		Attachment
+	} from '../../common';
 	import { insertEmojis, compare, sleep, DisplayNote } from '../../common';
 
 	import { goto } from '$app/navigation';
@@ -15,6 +22,7 @@
 	let composeComponent: Compose;
 
 	$: wasm = $enigmatickWasm;
+	$: avatar = $appData.avatar;
 
 	onDestroy(() => {
 		if (eventSource) {
@@ -23,8 +31,14 @@
 	});
 
 	onMount(async () => {
-		let main = document.getElementsByTagName('main')[0];
-		main.addEventListener('scroll', handleInfiniteScroll);
+		const { Buffer } = await import('buffer');
+		window.Buffer = Buffer;
+
+		let scrollable = document.getElementsByClassName('scrollable')[0];
+
+		if (scrollable) {
+			scrollable.addEventListener('scroll', handleInfiniteScroll);
+		}
 
 		if (username && !eventSource) {
 			if (!eventSource) {
@@ -226,7 +240,7 @@
 		}
 
 		if (note.ephemeralLikes) {
-			console.debug("EPHEMERAL LIKES");
+			console.debug('EPHEMERAL LIKES');
 			console.debug(note.ephemeralLikes);
 		}
 
@@ -306,7 +320,7 @@
 				// module if the server becomes unavailable
 				//throw e;
 
-				// I'm overriding this for now because my proxy seems to be throwing random 502s (probably related 
+				// I'm overriding this for now because my proxy seems to be throwing random 502s (probably related
 				// to network and NAT configuration) that I haven't taken time to diagnose
 				await sleep(1000);
 			}
@@ -337,6 +351,8 @@
 	});
 
 	function handleNoteSelect(message: any) {
+		console.debug('NOTE SELECT');
+		console.debug(message);
 		focusConversation = message.detail.conversation;
 		focusNote = message.detail.note;
 
@@ -357,15 +373,15 @@
 	}
 
 	function scrollToTop(): number {
-		const main = document.getElementsByTagName('main')[0];
-		let current: number = main.scrollTop;
-		main.scrollTop = 0;
+		const scrollable = document.getElementsByClassName('scrollable')[0];
+		let current: number = scrollable.scrollTop;
+		scrollable.scrollTop = 0;
 
 		return current;
 	}
 
 	async function handleInfiniteScroll() {
-		const main = document.getElementsByTagName('main')[0];
+		const scrollable = document.getElementsByClassName('scrollable')[0] as HTMLElement;
 
 		if (!loading && !infiniteScrollDisabled) {
 			loading = true;
@@ -373,7 +389,7 @@
 			let results = 1;
 			while (
 				!infiniteScrollDisabled &&
-				main.scrollTop + main.offsetHeight >= main.scrollHeight * 0.7 &&
+				scrollable.scrollTop + scrollable.offsetHeight >= scrollable.scrollHeight * 0.8 &&
 				results > 0
 			) {
 				results = await loadTimelineData();
@@ -383,7 +399,7 @@
 		}
 
 		const scroll = document.getElementsByClassName('scroll')[0] as HTMLElement;
-		if (main.scrollTop < 50) {
+		if (scrollable.scrollTop < 50) {
 			liveLoading = true;
 
 			let note;
@@ -414,7 +430,13 @@
 		return apCache.get(id);
 	}
 
-	async function sender(recipientAddress: string | null, replyToMessageId: string | null, conversationId: string | null, content: string, attachments: Attachment[]): Promise<boolean> {
+	async function sender(
+		recipientAddress: string | null,
+		replyToMessageId: string | null,
+		conversationId: string | null,
+		content: string,
+		attachments: Attachment[]
+	): Promise<boolean> {
 		if (wasm) {
 			let params = (await wasm.SendParams.new()).set_content(content).set_public();
 
@@ -423,21 +445,21 @@
 			if (replyToMessageId) {
 				params = await params.add_recipient_id(String(recipientAddress), true);
 				params = params.set_in_reply_to(String(replyToMessageId));
-				params = params.set_conversation(String(conversationId));	
+				params = params.set_conversation(String(conversationId));
 			}
 
-			return(await wasm.send_note(params))
+			return await wasm.send_note(params);
 		} else {
-			return false
+			return false;
 		}
 	}
 
 	function refresh() {
-		console.debug("REFRESH");
+		console.debug('REFRESH');
 	}
 
 	function remove() {
-		console.debug("REMOVE");
+		console.debug('REMOVE');
 	}
 
 	// controls whether messages from EventSource are immediately displayed or queued
@@ -475,6 +497,49 @@
 	$: if (wasm) {
 		loadMinimum();
 	}
+
+	function isDark() {
+		let body = document.getElementsByTagName('body')[0];
+		if (body && body.classList.contains('dark')) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	function setDark() {
+		let body = document.getElementsByTagName('body')[0];
+		let control = document.getElementById('theme') as HTMLInputElement | null;
+		if (body && !body.classList.contains('dark')) {
+			body.classList.add('dark');
+			localStorage.setItem('theme', 'dark');
+		}
+
+		if (control) {
+			control.checked = false;
+		}
+	}
+
+	function setLight() {
+		let body = document.getElementsByTagName('body')[0];
+		let control = document.getElementById('theme') as HTMLInputElement | null;
+		if (body && body.classList.contains('dark')) {
+			body.classList.remove('dark');
+			localStorage.setItem('theme', 'light');
+		}
+
+		if (control) {
+			control.checked = true;
+		}
+	}
+
+	function darkMode(event: any) {
+		if (isDark()) {
+			setLight();
+		} else {
+			setDark();
+		}
+	}
 </script>
 
 {#if wasm}
@@ -483,45 +548,52 @@
 
 <main>
 	{#if wasm}
-		{#each Array.from(notes.values()).sort(compare).reverse() as note}
-			{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeralAnnounces?.length)) || note.note.id == focusNote)}
-				{#await replyToHeader(note.note) then replyTo}
-					{#await announceHeader(note.note) then announce}
-						<Article
-							{remove}
-							{refresh}
-							{note}
-							{username}
-							replyToHeader={replyTo}
-							announceHeader={announce}
-							on:reply_to={composeComponent.handleReplyToMessage}
-							on:note_select={handleNoteSelect}
-						/>
-					{/await}
-				{/await}
+		<header>
+			<nav>
+				<button><i class="fa-solid fa-house" />Home</button>
+				<button><i class="fa-solid fa-city" />Local</button>
+				<button><i class="fa-solid fa-globe" />Global</button>
+			</nav>
+		</header>
 
-				{#if note.note.id == focusNote && note.replies?.size}
-					<div class="replies">
-						{#each Array.from(note.replies.values()).sort(compare) as reply}
-							<Reply
-								note={reply}
+		<div class="scrollable">
+			{#each Array.from(notes.values()).sort(compare).reverse() as note}
+				{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeralAnnounces?.length)) || note.note.id == focusNote)}
+					{#await replyToHeader(note.note) then replyTo}
+						{#await announceHeader(note.note) then announce}
+							<Article
+								{remove}
+								{refresh}
+								{note}
 								{username}
+								replyToHeader={replyTo}
+								announceHeader={announce}
 								on:reply_to={composeComponent.handleReplyToMessage}
 								on:note_select={handleNoteSelect}
 							/>
-						{/each}
-					</div>
+						{/await}
+					{/await}
+
+					{#if note.note.id == focusNote && note.replies?.size}
+						<div class="replies">
+							{#each Array.from(note.replies.values()).sort(compare) as reply}
+								<Reply
+									note={reply}
+									{username}
+									on:reply_to={composeComponent.handleReplyToMessage}
+									on:note_select={handleNoteSelect}
+								/>
+							{/each}
+						</div>
+					{/if}
 				{/if}
-			{/if}
-		{/each}
+			{/each}
+		</div>
 
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<div
 			class="scroll"
-			on:click={() => {
-				let main = document.getElementsByTagName('main')[0];
-				main.scrollTo(0, 0);
-			}}
+			on:click={scrollToTop}
 		>
 			<i class="fa-solid fa-chevron-up" />
 		</div>
@@ -543,22 +615,104 @@
 
 	main {
 		width: 100%;
-		height: 100%;
-		padding-bottom: 50px;
-		overflow-y: auto;
+		position: relative;
+		overflow-y: hidden;
 		grid-area: content;
 		min-width: 400px;
-		max-width: 700px;
-		scroll-behavior: smooth;
 
 		@media screen and (max-width: 600px) {
 			min-width: unset;
 			max-width: unset;
 			width: 100vw;
+			padding: 0;
+
+			.back {
+				top: 5px;
+			}
+		}
+
+		header {
+			z-index: 25;
+			padding: 0;
+			position: relative;
+			width: 100%;
+			height: 41px;
+			background: #eee;
+			color: darkred;
+			text-align: center;
+			font-family: 'Open Sans';
+			font-size: 22px;
+			font-weight: 600;
+			grid-area: header;
+			display: grid;
+			grid-template-columns: auto auto auto;
+			grid-template-areas: 'left center right';
+			align-items: center;
+
+			> div {
+				grid-area: center;
+				display: inline-block;
+
+				a {
+					color: darkred;
+					text-decoration: none;
+				}
+
+				a:visited {
+					color: darkred;
+				}
+
+				a:hover {
+					color: red;
+					text-decoration: none;
+				}
+			}
+
+			nav {
+				grid-area: center;
+				display: flex;
+				flex-direction: row;
+				align-items: center;
+				margin: 0;
+				width: 100%;
+
+				button {
+					display: inline-block;
+					width: 100%;
+					text-decoration: none;
+					font-family: 'Open Sans';
+					font-size: 14px;
+					padding: 5px;
+					margin: 0 5px;
+					color: #aaaaaa;
+					background: none;
+					border: 0;
+				}
+
+				button:hover {
+					color: red;
+					cursor: pointer;
+				}
+
+				button > i {
+					padding: 0 5px;
+				}
+			}
+		}
+
+		div.scrollable {
+			overflow-y: auto;
+			height: calc(100% - 41px);
+			scroll-behavior: smooth;
+			padding: 0 10px;
+
+			@media screen and (max-width: 600px) {
+				padding: 0;
+			}
 		}
 
 		.back {
-			position: fixed;
+			position: absolute;
 			left: 10px;
 			top: 50px;
 			width: 50px;
@@ -579,15 +733,16 @@
 
 		.scroll {
 			display: none;
-			position: fixed;
+			position: absolute;
 			left: calc(50% - 80px);
 			width: 160px;
-			top: 4px;
-			opacity: 0.9;
+			top: 44px;
+			padding-top: 2px;
+			opacity: 0.5;
 			background: darkred;
 			text-align: center;
 			border-radius: 15px;
-			font-size: 28px;
+			font-size: 26px;
 			color: white;
 			border: 0;
 			transition-duration: 1s;
@@ -605,24 +760,26 @@
 		}
 	}
 
-	@media screen and (max-width: 600px) {
-		main {
-			height: calc(100vh - 40px);
-			width: 100vw;
-
-			.back {
-				top: 5px;
-			}
-		}
-	}
-
 	:global(body.dark) {
+		main {
+			background: #000;
+		}
+
 		a {
 			color: darkgoldenrod;
 		}
 
 		a:hover {
 			color: red;
+		}
+
+		header {
+			background: #000;
+			border-bottom: 1px solid #222;
+
+			a {
+				color: whitesmoke;
+			}
 		}
 	}
 </style>
