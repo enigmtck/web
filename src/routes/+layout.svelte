@@ -153,12 +153,6 @@
 
 		<div class="context">
 			<ul>
-				{#if avatar}
-					<li>
-						<a href="/@{username}"><img src="/media/avatars/{avatar}" alt="You" /></a>
-					</li>
-				{/if}
-
 				<li>
 					<div class="toggle">
 						<label>
@@ -217,6 +211,11 @@
 		<nav class="top">
 			<div>
 				<span class="title"><a href="/">ENIGMATICK</a></span>
+				{#if avatar}
+					<span class="avatar"
+						><a href="/@{username}"><img src="/media/avatars/{avatar}" alt="You" /></a></span
+					>
+				{/if}
 			</div>
 
 			<div>
@@ -334,12 +333,33 @@
 				}
 				span.title {
 					a {
-						font-size: 18px;
+						font-size: 24px;
 						color: #fafafafa;
 					}
 
 					a:hover {
 						color: red;
+					}
+				}
+
+				span.avatar {
+					width: 100%;
+					display: inline-block;
+
+					a {
+						position: relative;
+						display: inline-block;
+						text-align: center;
+						width: 100%;
+						height: 41px;
+
+						img {
+							display: inline-block;
+							width: 75px;
+							height: auto;
+							margin: 3px 10px;
+							clip-path: inset(0 0 0 0 round 20%);
+						}
 					}
 				}
 			}
@@ -365,21 +385,6 @@
 				flex-direction: row;
 				justify-content: space-evenly;
 				width: 100%;
-			}
-
-			a {
-				position: relative;
-				display: inline-block;
-				width: auto;
-				height: 41px;
-
-				img {
-					display: inline-block;
-					width: 35px;
-					height: auto;
-					margin: 3px 10px;
-					clip-path: inset(0 0 0 0 round 50%);
-				}
 			}
 
 			img:hover {
@@ -456,9 +461,8 @@
 					font-weight: 500;
 
 					i {
-						padding: 0 10px;
+						padding: 0 10px 0 5px;
 						font-size: 14px;
-						color: darkgoldenrod;
 					}
 				}
 
@@ -472,6 +476,14 @@
 						width: 100%;
 					}
 				}
+			}
+
+			div.notifications h1 i {
+				color: goldenrod;
+			}
+
+			div.trending h1 i {
+				color: lightblue;
 			}
 		}
 
