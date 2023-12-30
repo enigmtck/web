@@ -15,13 +15,11 @@
 		upload_avatar,
 		load_instance_information,
 		get_state as get_wasm_state,
-		import_state as import_wasm_state
-	} from 'enigmatick_wasm';
-	import init_olm, {
+		import_state as import_wasm_state,
 		create_olm_message,
 		decrypt_olm_message,
 		get_one_time_keys
-	} from 'enigmatick_olm';
+	} from 'enigmatick_wasm';
 
 	function load_enigmatick() {
 		init_wasm().then(() => {
@@ -36,10 +34,6 @@
 					});
 				}
 				console.log('init WASM');
-			});
-
-			init_olm().then(() => {
-				console.log('init OLM');
 			});
 		});
 	}

@@ -103,11 +103,11 @@
 				eventSource.onerror = restartEventSource;
 				eventSource.onmessage = onMessage;
 
-				return () => {
+				/* return () => {
 					if (eventSource && eventSource.readyState === 1) {
 						eventSource.close();
 					}
-				};
+				}; */
 			}
 		}
 	});
