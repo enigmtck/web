@@ -4,11 +4,10 @@
 
 	import { onMount, onDestroy } from 'svelte';
 	import { get } from 'svelte/store';
-	import { appData, enigmatickWasm, enigmatickOlm } from '../../stores';
+	import { appData, enigmatickWasm } from '../../stores';
 	import { getWebFingerFromId, type UserProfile } from '../../common';
 
 	$: wasm = $enigmatickWasm;
-	$: olm = $enigmatickOlm;
 
 	let getIdentityPublicKey: any;
 

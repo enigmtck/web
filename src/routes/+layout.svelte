@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { appData, wasmState, enigmatickWasm, enigmatickOlm } from '../stores';
+	import { appData, wasmState, enigmatickWasm} from '../stores';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount, setContext } from 'svelte';
@@ -9,7 +9,6 @@
 	$: display_name = $appData.display_name;
 	$: avatar = $appData.avatar;
 	$: wasm = $enigmatickWasm;
-	$: olm = $enigmatickOlm;
 
 	onMount(async () => {
 		const theme = localStorage.getItem('theme');
@@ -36,12 +35,6 @@
 			}
 
 			enigmatickWasm.set(wasm);
-		}
-
-		if (!olm) {
-			olm = await import('enigmatick_olm');
-			await olm.default();
-			enigmatickOlm.set(olm);
 		}
 	});
 

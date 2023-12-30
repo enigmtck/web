@@ -4,9 +4,8 @@
 	"private": true,
 	"scripts": {
 		"wasm": "wasm-pack build wasm/enigmatick_wasm --target web",
-		"olm": "wasm-pack build wasm/enigmatick_olm --target web",
-		"dev": "yarn wasm && yarn olm && vite",
-		"build": "yarn wasm && yarn olm && vite build",
+		"dev": "yarn wasm && vite",
+		"build": "yarn wasm && vite build",
 		"preview": "vite preview",
 		"test": "playwright test",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

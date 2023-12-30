@@ -20,8 +20,7 @@
 		wasm
 			?.authenticate(
 				String(data.get('username')),
-				String(data.get('password')),
-				String(data.get('passphrase'))
+				String(data.get('password'))
 			)
 			.then((profile: any) => {
 				const instanceData = wasm?.load_instance_information().then((instance) => {
@@ -62,11 +61,6 @@
 		<label>
 			Password
 			<input name="password" type="password" placeholder="Provides access to the server" />
-		</label>
-
-		<label>
-			Passphrase
-			<input name="passphrase" type="password" placeholder="Decrypts the retrieved configuration" />
 		</label>
 
 		<div>

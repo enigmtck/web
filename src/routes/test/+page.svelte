@@ -67,8 +67,7 @@
 
 		authenticate(
 			String(data.get('username')),
-			String(data.get('password')),
-			String(data.get('passphrase'))
+			String(data.get('password'))
 		).then((profile) => {
 			let actor = appData.set({
 				username: String(profile?.username),
@@ -358,11 +357,6 @@
 		<label>
 			Password
 			<input name="password" type="password" />
-		</label>
-
-		<label>
-			Passphrase
-			<input name="passphrase" type="password" />
 		</label>
 
 		<button>Authenticate</button>

@@ -1,11 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
-	import { appData, enigmatickWasm, enigmatickOlm } from '../../stores';
+	import { appData, enigmatickWasm } from '../../stores';
 	import { goto } from '$app/navigation';
 
 	$: wasm = $enigmatickWasm;
-	$: olm = $enigmatickOlm;
 
 	let username = get(appData).username;
 
@@ -24,38 +23,26 @@
 		return password.value == confirm.value;
 	}
 
-	function checkPassphrase(): boolean {
-		const passphrase: HTMLInputElement = <HTMLInputElement>(
-			document.getElementsByName('passphrase')[0]
-		);
-		const confirm: HTMLInputElement = <HTMLInputElement>(
-			document.getElementsByName('confirm_passphrase')[0]
-		);
-
-		return passphrase.value == confirm.value;
-	}
-
 	async function handleSignup(event: any) {
 		const button: HTMLButtonElement = <HTMLButtonElement>document.getElementsByTagName('button')[0];
 
 		button.disabled = true;
 
-		if (event.target.checkValidity && checkPassword() && checkPassphrase()) {
+		if (event.target.checkValidity && checkPassword()) {
 			let data = new FormData(event.target);
 
 			console.log(data);
 
-			let olm_account = olm?.create_olm_account();
+			let olm_account = wasm?.create_olm_account();
 
 			if (olm_account) {
-				let olm_identity_public_key = olm?.get_identity_public_key(olm_account);
-				let olm_one_time_keys = olm?.get_one_time_keys(olm_account);
+				let olm_identity_public_key = wasm?.get_identity_public_key(olm_account);
+				let olm_one_time_keys = wasm?.get_one_time_keys(olm_account);
 
 				if (
 					data.get('username') &&
 					data.get('display_name') &&
 					data.get('password') &&
-					data.get('passphrase') &&
 					olm_identity_public_key &&
 					olm_one_time_keys
 				) {
@@ -64,7 +51,6 @@
 							String(data.get('username')),
 							String(data.get('display_name')),
 							String(data.get('password')),
-							String(data.get('passphrase')),
 							String(olm_identity_public_key),
 							String(olm_one_time_keys.pickled_account)
 						)
@@ -114,30 +100,6 @@
 				required
 				minlength="5"
 				placeholder="Confirm your password"
-			/>
-		</label>
-
-		<label>
-			Passphrase
-			<input
-				name="passphrase"
-				type="password"
-				on:change|preventDefault={checkPassphrase}
-				required
-				minlength="5"
-				placeholder="Encrypts private data stored on the server"
-			/>
-		</label>
-
-		<label>
-			Confirm Passphrase
-			<input
-				name="confirm_passphrase"
-				type="password"
-				on:change|preventDefault={checkPassphrase}
-				required
-				minlength="5"
-				placeholder="Confirm your passphrase"
 			/>
 		</label>
 

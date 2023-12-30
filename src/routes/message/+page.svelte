@@ -3,20 +3,18 @@
 
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
-	import { appData, enigmatickWasm, enigmatickOlm } from '../../stores';
+	import { appData, enigmatickWasm } from '../../stores';
 	import type { UserProfile, VaultedMessage, Instrument, Collection, Tag } from '../../common';
 	import { getWebFingerFromId } from '../../common';
 
 	$: wasm = $enigmatickWasm;
-	$: olm = $enigmatickOlm;
 	$: username = get(appData).username;
 	let account: any;
 
 	onMount(async () => {
 		console.debug(wasm);
-		console.debug(olm);
 		console.debug(username);
-		if (wasm && olm && username) {
+		if (wasm && username) {
 			if (wasm) {
 				let state = await wasm.get_state();
 				account = await state.get_olm_pickled_account();
@@ -123,7 +121,7 @@
 							}
 						});
 
-						const id = queue_item.attributedTo;
+						const id: string = <string>queue_item.attributedTo;
 						const actor: UserProfile = JSON.parse(String(await wasm?.get_actor(id)));
 
 						let icon: string | undefined = undefined;
@@ -132,7 +130,7 @@
 						}
 
 						if (idk && otk) {
-							let message = olm?.create_olm_message(id, 'SESSION_INIT', String(account), idk, otk);
+							let message = wasm?.create_olm_message(id, 'SESSION_INIT', String(account), idk, otk);
 							if (message) {
 								console.info('SESSION INIT');
 								console.info(message.message);
@@ -140,10 +138,10 @@
 
 								const session = message.session;
 
-								if (wasm && olm) {
+								if (wasm) {
 									let params = (await (await wasm.SendParams.new()).add_recipient_id(id, false))
 										.set_encrypted()
-										.set_identity_key(olm.get_identity_public_key(String(account)))
+										.set_identity_key(wasm.get_identity_public_key(String(account)))
 										.set_session_data(session)
 										.set_content(message.message);
 
@@ -183,11 +181,11 @@
 							}
 						});
 
-						if (wasm && olm && idk) {
+						if (wasm && idk) {
 							let session: string | undefined = undefined;
 							let session_uuid: string | undefined = undefined;
 
-							const id = queue_item.attributedTo;
+							const id = <string>queue_item.attributedTo;
 							const actor: UserProfile = JSON.parse(String(await wasm.get_actor(id)));
 
 							let icon: string | undefined = undefined;
@@ -205,9 +203,9 @@
 								session_uuid = instrument.uuid;
 							}
 
-							const message = olm.decrypt_olm_message(
-								queue_item.attributedTo,
-								queue_item.content,
+							const message = wasm.decrypt_olm_message(
+								<string>queue_item.attributedTo,
+								<string>queue_item.content,
 								String(account),
 								String(idk),
 								session
@@ -217,8 +215,8 @@
 								console.info(`MESSAGE: ${message.message}`);
 
 								if (message.message === 'SESSION_INIT') {
-									const ack = olm.create_olm_message(
-										queue_item.attributedTo,
+									const ack = wasm.create_olm_message(
+										<string>queue_item.attributedTo,
 										'SESSION_ACK',
 										String(account),
 										idk,
@@ -230,10 +228,10 @@
 										const params = (
 											await (
 												await wasm.SendParams.new()
-											).add_recipient_id(queue_item.attributedTo, false)
+											).add_recipient_id(<string>queue_item.attributedTo, false)
 										)
 											.set_encrypted()
-											.set_identity_key(olm.get_identity_public_key(String(account)))
+											.set_identity_key(wasm.get_identity_public_key(String(account)))
 											.set_session_data(ack.session)
 											.set_session_uuid(session_uuid)
 											.set_content(ack.message)
@@ -253,7 +251,7 @@
 									wasm
 										.store_to_vault(
 											vault_data,
-											queue_item.attributedTo,
+											<string>queue_item.attributedTo,
 											`${queue_item.id}#processing`,
 											String(session_uuid),
 											message.session,
@@ -288,11 +286,11 @@
 		if (selected) {
 			const cached = established.get(selected);
 
-			if (wasm && olm && cached) {
+			if (wasm && cached) {
 				const [id, webfinger, name, image, session_uuid, session_pickle] = cached;
 				// write code to check for existing session
 				if (session_pickle) {
-					const encrypted = olm.create_olm_message(
+					const encrypted = wasm.create_olm_message(
 						selected,
 						String(message),
 						String(account),
@@ -308,7 +306,7 @@
 
 						const params = (await (await wasm.SendParams.new()).add_recipient_id(selected, false))
 							.set_encrypted()
-							.set_identity_key(olm.get_identity_public_key(String(account)))
+							.set_identity_key(wasm.get_identity_public_key(String(account)))
 							.set_session_data(encrypted.session)
 							.set_session_uuid(session_uuid)
 							.set_content(encrypted.message);
@@ -335,8 +333,8 @@
 			console.info(vaultItems);
 
 			vaultItems.orderedItems?.forEach((item) => {
-				let message: VaultedMessage = JSON.parse(String(wasm?.decrypt(item.content)));
-				wasm?.get_webfinger_from_id(item.attributedTo).then((x) => {
+				let message: VaultedMessage = JSON.parse(String(wasm?.decrypt(<string>item.content)));
+				wasm?.get_webfinger_from_id(<string>item.attributedTo).then((x) => {
 					message.attributedTo = x;
 					messages.push(message);
 

@@ -3,7 +3,7 @@
 	import showdown from 'showdown';
 	const { Converter } = showdown;
 	import showdownHighlight from 'showdown-highlight';
-	import { appData, enigmatickWasm, enigmatickOlm } from '../../stores';
+	import { appData, enigmatickWasm } from '../../stores';
 	import {
 		type UserProfile,
 		type Collection,
@@ -13,7 +13,6 @@
 	import Posts from './components/Posts.svelte';
 
 	$: wasm = $enigmatickWasm;
-	$: olm = $enigmatickOlm;
 	$: username = $appData.username;
 
 	import { onDestroy, onMount } from 'svelte';
@@ -210,7 +209,7 @@
 			let a = (await wasm.get_state()).get_olm_pickled_account();
 			console.debug('PICKLED ACCOUNT');
 			console.debug(a);
-			let x = olm?.get_identity_public_key(String(a));
+			let x = wasm?.get_identity_public_key(String(a));
 			console.debug('IDENTITY KEY');
 			console.debug(x);
 			kexinit.set_recipient_id(profile.id);
@@ -456,7 +455,7 @@
 
 				button {
 					color: unset;
-					font-size: 2.2cqi;
+					font-size: 2.2 cqi;
 					padding: 10px 20px;
 					white-space: nowrap;
 				}
@@ -472,7 +471,7 @@
 				@media screen and (max-width: 600px) {
 					button {
 						padding: 10px;
-						font-size: 3.2cqi;
+						font-size: 3.2 cqi;
 					}
 				}
 			}
