@@ -64,7 +64,7 @@
 	async function loadPosts(handle: string, local: boolean) {
 		notes = new Map<string, DisplayNote>();
 
-		let state = await wasm?.get_state();
+		let state = wasm?.get_state();
 		if (state) {
 			let server = state.get_server_url();
 
@@ -145,6 +145,9 @@
 	}
 
 	async function addNote(note: Note) {
+		console.log("ADDING NOTE");
+		console.debug(note);
+
 		if (note.ephemeralActors) {
 			note.ephemeralActors.forEach((actor) => {
 				if (actor.id) {
@@ -160,6 +163,9 @@
 
 		const actor = await cachedActor(note.attributedTo);
 
+		console.log("NOTE ACTOR");
+		console.debug(actor);
+		
 		if (actor) {
 			let actorProfile: UserProfile = JSON.parse(actor);
 			const displayNote = new DisplayNote(actorProfile, note);

@@ -14,7 +14,7 @@
 		get_processing_queue,
 		upload_avatar,
 		load_instance_information,
-		get_state as get_wasm_state,
+		get_state,
 		import_state as import_wasm_state,
 		create_olm_message,
 		decrypt_olm_message,
@@ -28,10 +28,8 @@
 				console.log(instance?.url);
 
 				if (get(wasmState)) {
-					get_wasm_state().then(() => {
-						import_wasm_state(get(wasmState));
-						console.log('loaded state from store');
-					});
+					import_wasm_state(get(wasmState));
+					console.log('loaded state from store');
 				}
 				console.log('init WASM');
 			});
@@ -59,34 +57,30 @@
 	function handleLogin(event: any) {
 		let data = new FormData(event.target);
 
-		authenticate(
-			String(data.get('username')),
-			String(data.get('password'))
-		).then((profile) => {
+		authenticate(String(data.get('username')), String(data.get('password'))).then((profile) => {
 			let actor = appData.set({
 				username: String(profile?.username),
 				display_name: String(profile?.display_name),
 				avatar: String(profile?.avatar_filename),
 				domain: null,
-				url: null,
+				url: null
 			});
 			username = get(appData).username;
-			get_wasm_state().then((x) => {
-				console.log(x);
-				wasmState.set(x.export());
-				let data = JSON.stringify({
-					pickled_account: x.get_olm_pickled_account(),
-					olm_sessions: JSON.parse(x.get_olm_sessions())
-				});
-				console.log(get(wasmState));
-
-				if (username) {
-					const sse = new EventSource('/api/user/' + username + '/events');
-					sse.onmessage = (event) => {
-						console.log('event: ' + event.data);
-					};
-				}
+			let x = get_state();
+			console.log(x);
+			wasmState.set(x.export());
+			let data = JSON.stringify({
+				pickled_account: x.get_olm_pickled_account(),
+				olm_sessions: JSON.parse(x.get_olm_sessions())
 			});
+			console.log(get(wasmState));
+
+			if (username) {
+				const sse = new EventSource('/api/user/' + username + '/events');
+				sse.onmessage = (event) => {
+					console.log('event: ' + event.data);
+				};
+			}
 		});
 	}
 
@@ -181,9 +175,9 @@
 						let plaintext = '';
 
 						if (item.type === 'EncryptedNote') {
-							let a = (await get_wasm_state()).get_olm_pickled_account;
+							let a = get_state().get_olm_pickled_account;
 							//let key = get_external_identity_key(item.attributedTo);
-/* 							plaintext = String(
+							/* 							plaintext = String(
 								decrypt_olm_message(item.attributedTo, item.content, String(a), String(key))
 							);
 							console.log(plaintext);
@@ -222,7 +216,7 @@
 
 		let encrypted_message = '';
 
-		let a = (await get_wasm_state()).get_olm_pickled_account;
+		let a = get_state().get_olm_pickled_account;
 
 		if (identity_key && session_key) {
 			encrypted_message = String(
@@ -278,11 +272,11 @@
 	};
 
 	async function handleGetOneTimeKeys(event: any) {
-		const a = (await get_wasm_state()).get_olm_pickled_account();
+		const a = get_state().get_olm_pickled_account();
 		console.info('PRE-MUTATION');
 		console.log(a);
 
-		let hash = get_hash(String(a));
+		let hash = get_hash(new TextEncoder().encode(String(a)));
 		console.info('HASH');
 		console.log(hash);
 
@@ -293,11 +287,11 @@
 		console.log(otk.pickled_account);
 
 		console.info('POST-MUTATION');
-		console.log(get_hash(otk.pickled_account));
+		console.log(get_hash(new TextEncoder().encode(otk.pickled_account)));
 
 		let params = OtkUpdateParams.new()
 			.set_account(otk.pickled_account)
-			.set_account_hash(String(get_hash(otk.pickled_account)))
+			.set_account_hash(String(get_hash(new TextEncoder().encode(otk.pickled_account))))
 			.set_mutation(String(hash))
 			.set_keys(otk.one_time_keys);
 

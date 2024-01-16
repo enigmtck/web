@@ -18,10 +18,7 @@
 		console.log('clicked');
 
 		wasm
-			?.authenticate(
-				String(data.get('username')),
-				String(data.get('password'))
-			)
+			?.authenticate(String(data.get('username')), String(data.get('password')))
 			.then((profile: any) => {
 				const instanceData = wasm?.load_instance_information().then((instance) => {
 					appData.set({
@@ -32,18 +29,16 @@
 						url: instance?.url || null
 					});
 					username = get(appData).username;
-					wasm?.get_state().then((x: any) => {
-						//console.log(x);
-						wasmState.set(x.export());
-/* 						let data = JSON.stringify({
+
+					wasmState.set(String(wasm?.get_state().export()));
+					/* 						let data = JSON.stringify({
 							pickled_account: x.get_olm_pickled_account(),
 							olm_sessions: JSON.parse(x.get_olm_sessions())
 						});
 						console.log(get(wasmState)); */
 
-						goto('/@' + username).then(() => {
-							console.log('logged in');
-						});
+					goto('/@' + username).then(() => {
+						console.log('logged in');
 					});
 				});
 			});

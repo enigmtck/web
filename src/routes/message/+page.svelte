@@ -16,8 +16,8 @@
 		console.debug(username);
 		if (wasm && username) {
 			if (wasm) {
-				let state = await wasm.get_state();
-				account = await state.get_olm_pickled_account();
+				let state = wasm.get_state();
+				account = state.get_olm_pickled_account();
 				wasm.get_followers().then((x) => {
 					if (x) {
 						const followers: UserProfile[] = JSON.parse(x);
@@ -255,7 +255,7 @@
 											`${queue_item.id}#processing`,
 											String(session_uuid),
 											message.session,
-											String(wasm.get_hash(String(session)))
+											String(wasm.get_hash(new TextEncoder().encode(String(session))))
 										)
 										.then(async () => {
 											established.set(id, [
