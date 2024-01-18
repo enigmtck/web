@@ -20,33 +20,50 @@
 		wasm
 			?.authenticate(String(data.get('username')), String(data.get('password')))
 			.then((profile: any) => {
-				const instanceData = wasm?.load_instance_information().then((instance) => {
-					appData.set({
-						username: String(profile?.username),
-						display_name: String(profile?.display_name),
-						avatar: String(profile?.avatar_filename),
-						domain: instance?.domain || null,
-						url: instance?.url || null
-					});
-					username = get(appData).username;
+				if (profile) {
+					const instanceData = wasm?.load_instance_information().then((instance) => {
+						appData.set({
+							username: String(profile?.username),
+							display_name: String(profile?.display_name),
+							avatar: String(profile?.avatar_filename),
+							domain: instance?.domain || null,
+							url: instance?.url || null
+						});
+						username = get(appData).username;
 
-					wasmState.set(String(wasm?.get_state().export()));
-					/* 						let data = JSON.stringify({
+						wasmState.set(String(wasm?.get_state().export()));
+						/* 						let data = JSON.stringify({
 							pickled_account: x.get_olm_pickled_account(),
 							olm_sessions: JSON.parse(x.get_olm_sessions())
 						});
 						console.log(get(wasmState)); */
 
-					goto('/@' + username).then(() => {
-						console.log('logged in');
+						goto('/@' + username).then(() => {
+							console.log('logged in');
+						});
 					});
-				});
+				} else {
+					console.debug('authentication failed');
+					failure.showModal();
+				}
 			});
 	}
+
+	let failure: HTMLDialogElement;
 </script>
 
 <main>
 	<h1>ENIGMATICK</h1>
+	<dialog bind:this={failure}>
+		<form method="dialog">
+			<h3>Authentication Failed</h3>
+			<p>
+				Either the information you submitted was incorrect, or there is a problem with the service.
+				If you suspect the latter, please try again later.
+			</p>
+			<button>Okay</button>
+		</form>
+	</dialog>
 	<form id="login" method="POST" on:submit|preventDefault={handleLogin}>
 		<label>
 			Username
@@ -58,9 +75,7 @@
 			<input name="password" type="password" placeholder="Provides access to the server" />
 		</label>
 
-		<div>
-			<button>Sign In</button>
-		</div>
+		<button>Sign In</button>
 	</form>
 </main>
 
@@ -115,6 +130,43 @@
 			}
 		}
 
+		h3 {
+			margin: 0;
+			padding: 0;
+			font-family: 'Open Sans';
+			color: #222;
+			font-weight: 500;
+		}
+
+		p {
+			font-family: 'Open Sans';
+			font-size: 14px;
+		}
+
+		button {
+			background: darkred;
+			color: whitesmoke;
+			border: 0;
+			font-family: 'Open Sans';
+			font-size: 18px;
+			font-weight: 600;
+			padding: 5px 15px;
+			margin: 15px 0;
+		}
+
+		button:hover {
+			color: darkred;
+			background: whitesmoke;
+			transition: 300ms;
+			cursor: pointer;
+		}
+
+		dialog {
+			padding: 0;
+			border: 1px solid #ccc;
+			border-radius: 10px;
+		}
+
 		form {
 			display: flex;
 			background: #fafafa;
@@ -150,23 +202,6 @@
 			div {
 				text-align: center;
 				margin-top: 10px;
-
-				button {
-					background: darkred;
-					color: whitesmoke;
-					border: 0;
-					font-family: 'Open Sans';
-					font-size: 18px;
-					font-weight: 600;
-					padding: 5px 15px;
-					margin: 15px 0;
-				}
-
-				button:hover {
-					color: darkred;
-					background: whitesmoke;
-					cursor: pointer;
-				}
 			}
 		}
 	}
@@ -182,10 +217,22 @@
 				background: #000;
 			}
 
+			h3 {
+				color: whitesmoke;
+			}
+
+			dialog {
+				border-color: #555;
+			}
+
 			form {
 				background: #222;
 				outline: 0;
 				label {
+					color: #ddd;
+				}
+
+				p {
 					color: #ddd;
 				}
 

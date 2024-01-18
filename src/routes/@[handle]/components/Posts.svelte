@@ -145,8 +145,8 @@
 	}
 
 	async function addNote(note: Note) {
-		console.log("ADDING NOTE");
-		console.debug(note);
+		//console.log("ADDING NOTE");
+		//console.debug(note);
 
 		if (note.ephemeralActors) {
 			note.ephemeralActors.forEach((actor) => {
@@ -163,8 +163,8 @@
 
 		const actor = await cachedActor(note.attributedTo);
 
-		console.log("NOTE ACTOR");
-		console.debug(actor);
+		//console.log("NOTE ACTOR");
+		//console.debug(actor);
 		
 		if (actor) {
 			let actorProfile: UserProfile = JSON.parse(actor);
