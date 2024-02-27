@@ -215,6 +215,10 @@
 			h1 {
 				color: whitesmoke;
 				background: #000;
+
+				@media screen and (max-width: 600px) {
+					background: #222;
+				}
 			}
 
 			h3 {

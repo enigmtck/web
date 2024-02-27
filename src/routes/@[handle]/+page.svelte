@@ -355,7 +355,7 @@
 								><i class="fa-solid fa-ban" /></button
 							>
 							<button title="Preview" on:click|preventDefault={handlePreview}
-								><i class="fa-solid fa-magnifying-glass" /></button
+								><i class="fa-solid fa-eye" /></button
 							>
 							{#if summaryChanged}
 								<button on:click|preventDefault={handleSaveSummary} title="Save"
@@ -452,10 +452,11 @@
 				background: #ddd;
 				container-name: tabs;
 				container-type: inline-size;
+				overflow-x: auto;
 
 				button {
 					color: unset;
-					font-size: 2.2 cqi;
+					font-size: 2.2cqi;
 					padding: 10px 20px;
 					white-space: nowrap;
 				}
@@ -471,7 +472,7 @@
 				@media screen and (max-width: 600px) {
 					button {
 						padding: 10px;
-						font-size: 3.2 cqi;
+						font-size: 3.0cqi;
 					}
 				}
 			}
@@ -705,6 +706,9 @@
 						background: #444;
 					}
 				}
+			}
+			section {
+				background: #000;
 			}
 		}
 	}

@@ -187,11 +187,13 @@
 	{#if username}
 		<div>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
 			<i class="fa-solid fa-xmark" on:click={closeAside} />
 			{#if replyToDisplay}
 				<span
 					>Replying to {replyToDisplay}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i class="fa-solid fa-xmark" on:click={cancelReplyTo} /></span
 				>
 			{/if}
@@ -205,6 +207,8 @@
 					<!-- svelte-ignore a11y-missing-attribute -->
 					<div>
 						<img src={attachment.url} width={attachment.width} height={attachment.height} />
+						<!-- svelte-ignore a11y-click-events-have-key-events -->
+						<!-- svelte-ignore a11y-no-static-element-interactions -->
 						<i
 							class="fa-solid fa-xmark"
 							data-url={attachment.url}
@@ -215,6 +219,7 @@
 			</section>
 
 			<form method="POST" on:submit|preventDefault={handleComposeSubmit}>
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-paperclip"
 					on:keypress={() => {
@@ -233,12 +238,15 @@
 				/>
 				{#if preview}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i class="fa-solid fa-pen-nib" on:click|preventDefault={handlePreview} />
 				{:else}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i class="fa-solid fa-eye" on:click|preventDefault={handlePreview} />
 				{/if}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i class="fa-regular fa-paper-plane" on:click|preventDefault={handlePublish} />
 			</form>
 		</div>
@@ -247,6 +255,7 @@
 
 {#if username}
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
+	<!-- svelte-ignore a11y-no-static-element-interactions -->
 	<div class="compose" on:click={openAside}>
 		<i class="fa-solid fa-pencil" />
 	</div>

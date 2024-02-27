@@ -123,6 +123,7 @@
 		<nav>
 			{#if note.note.ephemeralAnnounced}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-repeat selected"
 					data-object={note.note.id}
@@ -131,6 +132,7 @@
 				/>
 			{:else}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-repeat"
 					data-object={note.note.id}
@@ -141,6 +143,7 @@
 
 			{#if note.note.ephemeralLiked}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-star selected"
 					data-actor={note.note.attributedTo}
@@ -149,6 +152,7 @@
 				/>
 			{:else}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-star"
 					data-actor={note.note.attributedTo}
@@ -159,6 +163,7 @@
 
 			{#if note.actor}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-reply"
 					data-reply={note.note.id}
@@ -191,6 +196,7 @@
 	article {
 		position: relative;
 		width: 100%;
+		max-width: 680px;
 		margin: 0;
 		border-bottom: 1px solid #ddd;
 		font-family: 'Open Sans';

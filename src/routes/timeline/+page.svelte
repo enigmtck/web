@@ -591,6 +591,7 @@
 		</div>
 
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
 		<div
 			class="scroll"
 			on:click={scrollToTop}
@@ -601,6 +602,7 @@
 		{#if focusNote || focusConversation}
 			<div class="back">
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i class="fa-solid fa-angles-left" on:click|preventDefault={clearNoteSelect} />
 			</div>
 		{/if}
@@ -706,6 +708,13 @@
 			scroll-behavior: smooth;
 			padding: 0 10px;
 
+			.replies {
+				padding-bottom: 60px;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+			}
+
 			@media screen and (max-width: 600px) {
 				padding: 0;
 			}
@@ -714,7 +723,7 @@
 		.back {
 			position: absolute;
 			left: 10px;
-			top: 50px;
+			top: 7px;
 			width: 50px;
 			text-align: center;
 			border-radius: 10px;
