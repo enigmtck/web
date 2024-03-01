@@ -16,7 +16,7 @@ export type {
     QueueItem,
     VaultedMessage
 };
-export { insertEmojis, timeSince, compare, getWebFingerFromId, sleep, DisplayNote, extractUuid, cachedImage };
+export { insertEmojis, timeSince, compare, getWebFingerFromId, sleep, DisplayNote, extractUuid, cachedImage, domainMatch };
 
 interface DisplayNote {
     note: Note;
@@ -317,6 +317,14 @@ function extractUuid(id: string): string | null {
     } else {
         return null;
     }
+}
+
+function domainMatch(site1: string, site2: string): boolean {
+    const re = /(https:\/\/(?:[a-zA-Z0-9.-]+)(?:\.[a-zA-Z0-9.-]+)+)\/.*/;
+    const site1_match = site1.match(re);
+    const site2_match = site2.match(re);
+
+    return site1_match !== null && site2_match !== null && site1_match[1] == site2_match[1];
 }
 
 // After several iterations, I'm using base64 here even though it's really invonvenient (i.e., I have

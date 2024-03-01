@@ -34,6 +34,7 @@
 				console.log('loaded state from store');
 			}
 
+			console.log(wasm);
 			enigmatickWasm.set(wasm);
 		}
 	});
@@ -441,7 +442,6 @@
 			}
 
 			div {
-				background: #1a1a1a;
 				margin: 0 10px;
 				border-radius: 10px;
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/stores';
 	import type {
 		UserProfile,
 		Note,
@@ -10,7 +11,13 @@
 	import { onDestroy, onMount, getContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
-	import { insertEmojis, timeSince, getWebFingerFromId, cachedImage } from '../../../common';
+	import {
+		insertEmojis,
+		timeSince,
+		getWebFingerFromId,
+		cachedImage,
+		domainMatch
+	} from '../../../common';
 	import { replyCount } from './common';
 	import { enigmatickWasm } from '../../../stores';
 
@@ -111,6 +118,14 @@
 			reply_to_username: event.target.dataset.username
 		});
 	}
+
+	let target: string | null = null;
+	let rel: string | null = null;
+	
+	if (note && note.note && note.note.url && !domainMatch($page.url.toString(), note.note.url)) {
+		target = "_blank";
+		rel = "noreferrer";
+	}
 </script>
 
 <article>
@@ -162,6 +177,7 @@
 		{/if}
 		{#if note.replies?.size}
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
 			<span
 				class="comments"
 				data-conversation={note.note.conversation}
@@ -172,14 +188,15 @@
 			>
 		{/if}
 	</div>
-	<time datetime={note.published}
-		><a href={note.note.id} target="_blank" rel="noreferrer"
+	<time datetime={note.published}>
+		<a href={note.note.url} {target} {rel}
 			>{timeSince(new Date(String(note.published)).getTime())}</a
-		></time
-	>
+		>
+	</time>
 	{#if username}
 		<nav>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
 			<i
 				class="fa-solid fa-expand"
 				data-conversation={note.note.conversation}
@@ -189,6 +206,7 @@
 
 			{#if note.note.ephemeralAnnounced}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-repeat selected"
 					data-object={note.note.id}
@@ -197,6 +215,7 @@
 				/>
 			{:else}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-repeat"
 					data-object={note.note.id}
@@ -206,6 +225,7 @@
 
 			{#if note.note.ephemeralLiked}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-star selected"
 					data-actor={note.note.attributedTo}
@@ -215,6 +235,7 @@
 				/>
 			{:else}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-star"
 					data-actor={note.note.attributedTo}
@@ -225,6 +246,7 @@
 
 			{#if note.actor}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-reply"
 					data-reply={note.note.id}

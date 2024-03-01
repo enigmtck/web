@@ -1,17 +1,19 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import Reply from '../../timeline/components/Reply.svelte';
-	import Article from '../../timeline/components/Article.svelte';
+	import Reply from '../timeline/components/Reply.svelte';
+	import Article from '../timeline/components/Article.svelte';
+	import { onMount, setContext } from 'svelte';
 
-	import { enigmatickWasm } from '../../../stores';
-	import type { UserProfile, Note } from '../../../common';
-	import { compare, DisplayNote, extractUuid } from '../../../common';
+	import { enigmatickWasm } from '../../stores';
+	import type { UserProfile, Note } from '../../common';
+	import { compare, DisplayNote, extractUuid } from '../../common';
 
 	$: wasm = $enigmatickWasm;
 
 	async function loadProfile() {
 		if (wasm) {
-			let x = await fetch('/notes/' + $page.params.uuid, {
+			console.log('LOADING PROFILE');
+			let x = await fetch('/notes/' + $page.url.searchParams.get('uuid'), {
 				headers: {
 					Accept: 'application/activity+json'
 				}
@@ -58,17 +60,19 @@
 	}
 
 	function refresh() {
-		console.debug("REFRESH");
+		console.debug('REFRESH');
 	}
 
 	function remove() {
-		console.debug("REMOVE");
+		console.debug('REMOVE');
 	}
 
 	let note: DisplayNote | null = null;
 
-	$: if (wasm && $page.params.uuid) {
-		loadProfile();
+	$: if (wasm && $page.url.searchParams.get('uuid')) {
+		loadProfile().then(() => {
+			console.log('loadProfile');
+		});
 	}
 </script>
 
@@ -93,5 +97,5 @@
 		height: calc(100% - 41px);
 		margin: 0 auto;
 		font-family: 'Open Sans';
-    }
+	}
 </style>

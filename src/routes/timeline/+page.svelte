@@ -6,6 +6,7 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { appData, enigmatickWasm } from '../../stores';
+	import { source } from 'sveltekit-sse';
 	import type {
 		UserProfile,
 		Note,
@@ -18,17 +19,10 @@
 
 	import { goto } from '$app/navigation';
 
-	let eventSource: EventSource;
 	let composeComponent: Compose;
 
 	$: wasm = $enigmatickWasm;
 	$: avatar = $appData.avatar;
-
-	onDestroy(() => {
-		if (eventSource) {
-			eventSource.close();
-		}
-	});
 
 	onMount(async () => {
 		const { Buffer } = await import('buffer');
@@ -40,75 +34,58 @@
 			scrollable.addEventListener('scroll', handleInfiniteScroll);
 		}
 
-		if (username && !eventSource) {
-			if (!eventSource) {
-				eventSource = new EventSource('/api/user/' + username + '/events');
+		if (username) {
+			source('/api/user/' + username + '/events')
+				.select('message')
+				.subscribe((message) => {
+					if (message) {
+						try {
+							let e: Note | StreamConnect | Announce = JSON.parse(message);
+							console.log(e);
 
-				function onMessage(event: any) {
-					console.log('event: ' + event.data);
-					let e: Note | StreamConnect | Announce = JSON.parse(event.data);
-					console.log(e);
-
-					if ((<Note>e).type === 'Note') {
-						if (liveLoading) {
-							// display the note immediately
-							addNote(<Note>e);
-						} else {
-							// place the note in the queue to be added when scrolled to the top
-							noteQueue.push(<Note>e);
-						}
-
-						offset += 1;
-					} else if (wasm && (<StreamConnect>e).uuid) {
-						wasm.send_authorization((<StreamConnect>e).uuid).then((x: any) => {
-							console.info('AUTHORIZATION SENT');
-						});
-					} else if (wasm && (<Announce>e).type == 'Announce') {
-						let announce = <Announce>e;
-						wasm.get_note(announce.object).then((x: any) => {
-							try {
-								let note: Note = JSON.parse(String(x));
-								note.ephemeralAnnounces = [announce.actor];
-								note.id = announce.id;
-								note.published = announce.published;
-								note.ephemeralTimestamp = announce.published;
-
+							if ((<Note>e).type === 'Note') {
 								if (liveLoading) {
-									addNote(note);
+									// display the note immediately
+									addNote(<Note>e);
 								} else {
-									noteQueue.push(note);
+									// place the note in the queue to be added when scrolled to the top
+									noteQueue.push(<Note>e);
 								}
 
 								offset += 1;
-							} catch (e) {
-								console.error('FAILED TO ADD NOTE');
-								console.error(x);
+							} else if (wasm && (<StreamConnect>e).uuid) {
+								wasm.send_authorization((<StreamConnect>e).uuid).then((x: any) => {
+									console.info('AUTHORIZATION SENT');
+								});
+							} else if (wasm && (<Announce>e).type == 'Announce') {
+								let announce = <Announce>e;
+								wasm.get_note(announce.object).then((x: any) => {
+									try {
+										let note: Note = JSON.parse(String(x));
+										note.ephemeralAnnounces = [announce.actor];
+										note.id = announce.id;
+										note.published = announce.published;
+										note.ephemeralTimestamp = announce.published;
+
+										if (liveLoading) {
+											addNote(note);
+										} else {
+											noteQueue.push(note);
+										}
+
+										offset += 1;
+									} catch (e) {
+										console.error('FAILED TO ADD NOTE');
+										console.error(x);
+									}
+								});
 							}
-						});
+						} catch (e) {
+							console.error('FAILED TO PARSE SSE MESSAGE');
+							console.error(message);
+						}
 					}
-				}
-
-				function restartEventSource(event: any) {
-					console.log(event);
-
-					if (eventSource && eventSource.readyState == 2) {
-						sleep(2000).then(() => {
-							eventSource = new EventSource('/api/user/' + username + '/events');
-							eventSource.onerror = restartEventSource;
-							eventSource.onmessage = onMessage;
-						});
-					}
-				}
-
-				eventSource.onerror = restartEventSource;
-				eventSource.onmessage = onMessage;
-
-				/* return () => {
-					if (eventSource && eventSource.readyState === 1) {
-						eventSource.close();
-					}
-				}; */
-			}
+				});
 		}
 	});
 
@@ -592,10 +569,7 @@
 
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div
-			class="scroll"
-			on:click={scrollToTop}
-		>
+		<div class="scroll" on:click={scrollToTop}>
 			<i class="fa-solid fa-chevron-up" />
 		</div>
 

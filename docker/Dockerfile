@@ -28,7 +28,13 @@ RUN source /root/.cargo/env && rustup +nightly default
 RUN source /root/.cargo/env && cargo install wasm-pack
 
 COPY src /opt/build/src/src
-COPY static /opt/build/src/static
+
+COPY static/favicon.png /opt/build/src/static/favicon.png
+COPY static/fontawesome /opt/build/src/static/fontawesome
+COPY static/fonts /opt/build/src/static/fonts
+COPY static/highlight /opt/build/src/static/highlight
+RUN mkdir -p /opt/build/src/static/media
+
 COPY svelte.config.js /opt/build/src/
 COPY package.json /opt/build/src/
 COPY tsconfig.json /opt/build/src/
