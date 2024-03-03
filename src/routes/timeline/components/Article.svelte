@@ -131,7 +131,7 @@
 <article>
 	{#if replyToHeader}
 		<span class="reply">
-			<i class="fa-solid fa-reply" /> In reply to {@html replyToHeader}
+			<i class="fa-solid fa-reply" /> In <a href={note.note.inReplyTo} target="_blank" rel="noreferrer">reply</a> to {@html replyToHeader}
 		</span>
 	{/if}
 	{#if announceHeader}

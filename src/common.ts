@@ -308,6 +308,7 @@ function compare(a: DisplayNote, b: DisplayNote) {
     }
 }
 
+// TODO: This should probably match specifically on this server since that's the only place UUIDs will be relevant
 function extractUuid(id: string): string | null {
     const re = /https:\/\/(?:[a-zA-Z0-9.-]+)(?:\.[a-zA-Z0-9.-]+)+\/(?:notes|conversation)\/([a-zA-Z0-9-]+)/;
     const match = id.match(re);

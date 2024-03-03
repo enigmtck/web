@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { appData, wasmState, enigmatickWasm} from '../stores';
+	import { appData, wasmState, enigmatickWasm } from '../stores';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount, setContext } from 'svelte';
@@ -157,13 +157,14 @@
 				</li>
 			</ul>
 
-			<div class="notifications">
-				<h1><i class="fa-solid fa-bell" />Notifications</h1>
-				<ul>
-					<li>No notifications</li>
-				</ul>
-			</div>
-
+			{#if username}
+				<div class="notifications">
+					<h1><i class="fa-solid fa-bell" />Notifications</h1>
+					<ul>
+						<li>No notifications</li>
+					</ul>
+				</div>
+			{/if}
 			<div class="trending">
 				<h1><i class="fa-solid fa-hashtag" />Trending</h1>
 				<ul>
@@ -221,9 +222,11 @@
 						><i class="fa-solid fa-inbox" />Messages</a
 					>
 				{/if}
-				<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
-					><i class="fa-solid fa-magnifying-glass" />Search</a
-				>
+				{#if username}
+					<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
+						><i class="fa-solid fa-magnifying-glass" />Search</a
+					>
+				{/if}
 				{#if username}
 					<a class={$page.url.pathname == '/settings' ? 'selected' : ''} href="/settings"
 						><i class="fa-solid fa-gear" />Settings</a

@@ -35,7 +35,12 @@
 		}
 
 		if (username) {
-			source('/api/user/' + username + '/events')
+			source('/api/user/' + username + '/events', {
+				close({ connect }) {
+					console.log('event stream closed');
+					//connect();
+				}
+			})
 				.select('message')
 				.subscribe((message) => {
 					if (message) {
@@ -265,7 +270,9 @@
 		const pageSize = 10;
 
 		if (wasm) {
-			let x = await wasm.get_timeline(offset, pageSize);
+			let view = username ? 'home' : 'global';
+
+			let x = await wasm.get_timeline(offset, pageSize, view);
 
 			try {
 				let timeline = JSON.parse(String(x));
@@ -527,8 +534,10 @@
 	{#if wasm}
 		<header>
 			<nav>
-				<button><i class="fa-solid fa-house" />Home</button>
-				<button><i class="fa-solid fa-city" />Local</button>
+				{#if username}
+					<button><i class="fa-solid fa-house" />Home</button>
+					<button><i class="fa-solid fa-city" />Local</button>
+				{/if}
 				<button><i class="fa-solid fa-globe" />Global</button>
 			</nav>
 		</header>

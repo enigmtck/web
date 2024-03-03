@@ -21,7 +21,7 @@
 
 			let y = await x.json();
 
-			let actorStr = await wasm.get_profile(y.attributedTo);
+			let actorStr = await wasm.get_actor(y.attributedTo);
 
 			if (actorStr) {
 				const actor: UserProfile = JSON.parse(actorStr);
@@ -39,7 +39,7 @@
 
 							for (const conversation_note of conversation_notes) {
 								if (conversation_note.id && conversation_note.id != y.id) {
-									let actorStr = await wasm.get_profile(conversation_note.attributedTo);
+									let actorStr = await wasm.get_actor(conversation_note.attributedTo);
 									if (actorStr) {
 										const reply_actor: UserProfile = JSON.parse(actorStr);
 										replies.set(
@@ -97,5 +97,13 @@
 		height: calc(100% - 41px);
 		margin: 0 auto;
 		font-family: 'Open Sans';
+		overflow-y: auto;
+
+		.replies {
+			padding-bottom: 60px;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+		}
 	}
 </style>

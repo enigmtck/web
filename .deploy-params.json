@@ -1,4 +1,5 @@
 {
     "name":"enigmatick-web",
-    "ns":"enigmatick"
+    "ns":"enigmatick",
+    "helm":"webVersion"
 }

@@ -18,9 +18,9 @@
 	import { onDestroy, onMount } from 'svelte';
 
 	onMount(async () => {
-		const { Buffer } = await import('buffer')
-    	window.Buffer = Buffer
-	})
+		const { Buffer } = await import('buffer');
+		window.Buffer = Buffer;
+	});
 
 	function loadProfile(handle: string) {
 		console.debug(`INSTANCE DOMAIN: ${$appData.domain}`);
@@ -252,16 +252,16 @@
 	{#if profile}
 		<div class="profile">
 			<div class="banner">
+				{#if username}
+					<input
+						style="display:none"
+						type="file"
+						accept=".jpg, .jpeg, .png"
+						on:change={(e) => onBannerSelected(e)}
+						bind:this={bannerFileInput}
+					/>
+				{/if}
 				{#if profile.image}
-					{#if username}
-						<input
-							style="display:none"
-							type="file"
-							accept=".jpg, .jpeg, .png"
-							on:change={(e) => onBannerSelected(e)}
-							bind:this={bannerFileInput}
-						/>
-					{/if}
 					<img src={profile.image.url} alt="Banner" />
 				{/if}
 			</div>
@@ -472,7 +472,7 @@
 				@media screen and (max-width: 600px) {
 					button {
 						padding: 10px;
-						font-size: 3.0cqi;
+						font-size: 3cqi;
 					}
 				}
 			}
