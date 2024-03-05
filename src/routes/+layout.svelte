@@ -559,10 +559,6 @@
 					color: #eee;
 				}
 
-				a:hover i {
-					color: red;
-				}
-
 				.selected {
 					background: #222;
 				}

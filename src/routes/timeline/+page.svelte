@@ -20,6 +20,7 @@
 	import { goto } from '$app/navigation';
 
 	let composeComponent: Compose;
+	$: view = '';
 
 	$: wasm = $enigmatickWasm;
 	$: avatar = $appData.avatar;
@@ -35,6 +36,8 @@
 		}
 
 		if (username) {
+			view = 'home';
+
 			source('/api/user/' + username + '/events', {
 				close({ connect }) {
 					console.log('event stream closed');
@@ -91,6 +94,8 @@
 						}
 					}
 				});
+		} else {
+			view = 'global';
 		}
 	});
 
@@ -242,7 +247,7 @@
 		}
 	}
 
-	async function loadMinimum() {
+	function loadMinimum() {
 		let topLevel = 0;
 
 		notes.forEach((note) => {
@@ -255,27 +260,29 @@
 			try {
 				// if loadTimelineData returns 0, that means it's reached the end
 				// of what is available and we should stop
-				const results = await loadTimelineData();
-				console.debug('TIMELINE LENGTH: ' + results);
-				if (results > 0) {
-					await loadMinimum();
-				}
+				loadTimelineData().then((results) => {
+					console.debug('TIMELINE LENGTH: ' + results);
+					if (results > 0) {
+						loadMinimum();
+					}
+				});
 			} catch (e) {
 				console.error(e);
 			}
 		}
 	}
 
+	
 	async function loadTimelineData() {
-		const pageSize = 10;
+		const pageSize = 50;
+		let attempts = 0;
 
-		if (wasm) {
-			let view = username ? 'home' : 'global';
-
+		if (wasm && view) {
 			let x = await wasm.get_timeline(offset, pageSize, view);
 
 			try {
 				let timeline = JSON.parse(String(x));
+				console.debug(timeline);
 
 				try {
 					timeline.forEach((t: Note) => {
@@ -306,8 +313,16 @@
 
 				// I'm overriding this for now because my proxy seems to be throwing random 502s (probably related
 				// to network and NAT configuration) that I haven't taken time to diagnose
-				await sleep(1000);
+				while (attempts++ < 10) {
+					await sleep(1000);
+					await loadTimelineData();
+					console.debug("RETRYING TIMELINE");
+				}
 			}
+		} else {
+			console.error('NO WASM OR VIEW YET');
+			await sleep(500);
+			await loadTimelineData();
 		}
 	}
 
@@ -333,6 +348,27 @@
 			}
 		}
 	});
+
+	async function handleView(event: Event) {
+		console.log(event);
+		if (event.target) {
+			let selected = (<HTMLElement>event.target).dataset.view;
+			if (selected) {
+				Array.from(
+					document
+						.getElementsByTagName('header')[0]
+						.getElementsByTagName('nav')[0]
+						.getElementsByTagName('button')
+				).forEach((x) => x.classList.remove('selected'));
+
+				(<HTMLElement>event.target).classList.add('selected');
+
+				view = selected;
+				resetData();
+				await loadMinimum();
+			}
+		}
+	}
 
 	function handleNoteSelect(message: any) {
 		console.debug('NOTE SELECT');
@@ -446,6 +482,18 @@
 		console.debug('REMOVE');
 	}
 
+	function resetData() {
+		noteQueue = [];
+		locator = new Map<string, string[]>();
+		orphans = new Set<DisplayNote>();
+		offset = 0;
+		notes = new Map<string, DisplayNote>();
+		yPosition = scrollToTop();
+
+		const scroll = document.getElementsByClassName('scroll')[0] as HTMLElement;
+		scroll.style.display = 'none';
+	}
+
 	// controls whether messages from EventSource are immediately displayed or queued
 	let liveLoading = true;
 	let infiniteScrollDisabled = false;
@@ -526,78 +574,75 @@
 	}
 </script>
 
-{#if wasm}
-	<Compose {sender} bind:this={composeComponent} />
-{/if}
+<Compose {sender} bind:this={composeComponent} />
 
 <main>
-	{#if wasm}
-		<header>
-			<nav>
-				{#if username}
-					<button><i class="fa-solid fa-house" />Home</button>
-					<button><i class="fa-solid fa-city" />Local</button>
-				{/if}
-				<button><i class="fa-solid fa-globe" />Global</button>
-			</nav>
-		</header>
+	<header>
+		<nav>
+			{#if username}
+				<button class="selected" data-view="home" on:click={handleView}
+					><i class="fa-solid fa-house" />Home</button
+				>
+				<button data-view="local" on:click={handleView}
+					><i class="fa-solid fa-city" />Local</button
+				>
+			{/if}
+			<button data-view="global" on:click={handleView}
+				><i class="fa-solid fa-globe" />Global</button
+			>
+		</nav>
+	</header>
 
-		<div class="scrollable">
-			{#each Array.from(notes.values()).sort(compare).reverse() as note}
-				{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeralAnnounces?.length)) || note.note.id == focusNote)}
-					{#await replyToHeader(note.note) then replyTo}
-						{#await announceHeader(note.note) then announce}
-							<Article
-								{remove}
-								{refresh}
-								{note}
+	<div class="scrollable">
+		{#each Array.from(notes.values()).sort(compare).reverse() as note}
+			{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeralAnnounces?.length)) || note.note.id == focusNote)}
+				{#await replyToHeader(note.note) then replyTo}
+					{#await announceHeader(note.note) then announce}
+						<Article
+							{remove}
+							{refresh}
+							{note}
+							{username}
+							replyToHeader={replyTo}
+							announceHeader={announce}
+							on:reply_to={composeComponent.handleReplyToMessage}
+							on:note_select={handleNoteSelect}
+						/>
+					{/await}
+				{/await}
+
+				{#if note.note.id == focusNote && note.replies?.size}
+					<div class="replies">
+						{#each Array.from(note.replies.values()).sort(compare) as reply}
+							<Reply
+								note={reply}
 								{username}
-								replyToHeader={replyTo}
-								announceHeader={announce}
 								on:reply_to={composeComponent.handleReplyToMessage}
 								on:note_select={handleNoteSelect}
 							/>
-						{/await}
-					{/await}
-
-					{#if note.note.id == focusNote && note.replies?.size}
-						<div class="replies">
-							{#each Array.from(note.replies.values()).sort(compare) as reply}
-								<Reply
-									note={reply}
-									{username}
-									on:reply_to={composeComponent.handleReplyToMessage}
-									on:note_select={handleNoteSelect}
-								/>
-							{/each}
-						</div>
-					{/if}
+						{/each}
+					</div>
 				{/if}
-			{/each}
-		</div>
+			{/if}
+		{/each}
+	</div>
 
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div class="scroll" on:click={scrollToTop}>
-			<i class="fa-solid fa-chevron-up" />
-		</div>
+	<!-- svelte-ignore a11y-click-events-have-key-events -->
+	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<div class="scroll" on:click={scrollToTop}>
+		<i class="fa-solid fa-chevron-up" />
+	</div>
 
-		{#if focusNote || focusConversation}
-			<div class="back">
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i class="fa-solid fa-angles-left" on:click|preventDefault={clearNoteSelect} />
-			</div>
-		{/if}
+	{#if focusNote || focusConversation}
+		<div class="back">
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<i class="fa-solid fa-angles-left" on:click|preventDefault={clearNoteSelect} />
+		</div>
 	{/if}
 </main>
 
 <style lang="scss">
-	:global(i:hover) {
-		cursor: pointer;
-		color: red;
-	}
-
 	main {
 		width: 100%;
 		position: relative;
@@ -669,13 +714,17 @@
 					font-size: 14px;
 					padding: 5px;
 					margin: 0 5px;
-					color: #aaaaaa;
+					color: #eee;
 					background: none;
 					border: 0;
+					border-radius: 20px;
+				}
+
+				:global(.selected) {
+					background: #222 !important;
 				}
 
 				button:hover {
-					color: red;
 					cursor: pointer;
 				}
 
@@ -755,6 +804,14 @@
 	:global(body.dark) {
 		main {
 			background: #000;
+			header {
+				background: #000;
+				border-bottom: 1px solid #222;
+
+				a {
+					color: #eee;
+				}
+			}
 		}
 
 		a {
@@ -763,15 +820,6 @@
 
 		a:hover {
 			color: red;
-		}
-
-		header {
-			background: #000;
-			border-bottom: 1px solid #222;
-
-			a {
-				color: whitesmoke;
-			}
 		}
 	}
 </style>
