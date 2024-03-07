@@ -39,6 +39,7 @@
 	export let username: string | null;
 	export let replyToHeader: string | null;
 	export let announceHeader: AnnounceParams | null;
+	export let renderAction: (node: any) => void;
 	export let refresh: () => void;
 	export let remove: (note: string) => void;
 
@@ -128,7 +129,7 @@
 	}
 </script>
 
-<article>
+<article use:renderAction data-conversation={note.note.conversation}>
 	{#if replyToHeader}
 		<span class="reply">
 			<i class="fa-solid fa-reply" /> In <a href={note.note.inReplyTo} target="_blank" rel="noreferrer">reply</a> to {@html replyToHeader}

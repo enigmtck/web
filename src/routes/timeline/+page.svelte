@@ -25,11 +25,71 @@
 	$: wasm = $enigmatickWasm;
 	$: avatar = $appData.avatar;
 
+	let streamUuid: string | null = null;
+	let observer: IntersectionObserver | null = null;
+	let retrievedConversations: Set<string> = new Set();
+
+	function onIntersection(entries: IntersectionObserverEntry[]) {
+		for (let entry of entries) {
+			if (entry.isIntersecting && entry.target) {
+				let target = <HTMLElement>entry.target;
+				if (target.dataset) {
+					let dataset = <DOMStringMap>target.dataset;
+					console.log(dataset.conversation);
+					if (wasm && dataset.conversation) {
+						let conversation = dataset.conversation;
+
+						if (!retrievedConversations.has(conversation)) {
+							retrievedConversations.add(conversation);
+							wasm.get_conversation(dataset.conversation, 0, 50).then((conversation) => {
+								if (conversation) {
+									let notes: Note[] = JSON.parse(conversation);
+									notes.forEach((note) => {
+										if (note.inReplyTo) {
+											addNote(note);
+										}
+									});
+									console.log(notes);
+
+									placeOrphans(true);
+								}
+							});
+						}
+					}
+				}
+			}
+		}
+	}
+
+	function placeOrphans(recursive: boolean) {
+		let orphans_copy = new Map(orphans);
+		orphans_copy.forEach((orphan, id) => {
+			if (orphan.note.inReplyTo) {
+				if (notes.has(orphan.note.inReplyTo)) {
+					orphans.delete(id);
+					placeNote(orphan);
+				} else if (recursive && orphans.has(orphan.note.inReplyTo)) {
+					placeOrphans(false);
+				}
+			}
+		});
+	}
+
+	function observeNote(note: any) {
+		if (observer) {
+			observer.observe(note);
+		}
+	}
+
 	onMount(async () => {
 		const { Buffer } = await import('buffer');
 		window.Buffer = Buffer;
 
 		let scrollable = document.getElementsByClassName('scrollable')[0];
+		observer = new IntersectionObserver(onIntersection, {
+			root: null, // default is the viewport
+			threshold: 0.3 // percentage of target's visible area. Triggers "onIntersection"
+		});
 
 		if (scrollable) {
 			scrollable.addEventListener('scroll', handleInfiniteScroll);
@@ -41,7 +101,7 @@
 			source('/api/user/' + username + '/events', {
 				close({ connect }) {
 					console.log('event stream closed');
-					//connect();
+					connect();
 				}
 			})
 				.select('message')
@@ -52,18 +112,20 @@
 							console.log(e);
 
 							if ((<Note>e).type === 'Note') {
-								if (liveLoading) {
+								let note = <Note>e;
+								if (liveLoading || note.inReplyTo) {
 									// display the note immediately
-									addNote(<Note>e);
+									addNote(note);
 								} else {
 									// place the note in the queue to be added when scrolled to the top
-									noteQueue.push(<Note>e);
+									noteQueue.push(note);
 								}
 
 								offset += 1;
 							} else if (wasm && (<StreamConnect>e).uuid) {
-								wasm.send_authorization((<StreamConnect>e).uuid).then((x: any) => {
-									console.info('AUTHORIZATION SENT');
+								streamUuid = (<StreamConnect>e).uuid;
+								wasm.send_authorization(streamUuid).then((x: any) => {
+									console.info(`AUTHORIZATION SENT FOR ${streamUuid}`);
 								});
 							} else if (wasm && (<Announce>e).type == 'Announce') {
 								let announce = <Announce>e;
@@ -206,7 +268,9 @@
 				}
 			} else {
 				// we don't have this note's parent yet; queue it for review later
-				orphans.add(displayNote);
+				if (displayNote.note.id) {
+					orphans.set(displayNote.note.id, displayNote);
+				}
 			}
 		} else {
 			// this is a top-level note, add it to the notes and locator maps
@@ -272,7 +336,6 @@
 		}
 	}
 
-	
 	async function loadTimelineData() {
 		const pageSize = 50;
 		let attempts = 0;
@@ -293,11 +356,7 @@
 					console.debug(timeline);
 				}
 
-				let orphans_copy = new Set(orphans);
-				orphans_copy.forEach((orphan) => {
-					orphans.delete(orphan);
-					placeNote(orphan);
-				});
+				placeOrphans(true);
 
 				console.log(locator);
 				console.info(orphans);
@@ -316,7 +375,7 @@
 				while (attempts++ < 10) {
 					await sleep(1000);
 					await loadTimelineData();
-					console.debug("RETRYING TIMELINE");
+					console.debug('RETRYING TIMELINE');
 				}
 			}
 		} else {
@@ -485,9 +544,10 @@
 	function resetData() {
 		noteQueue = [];
 		locator = new Map<string, string[]>();
-		orphans = new Set<DisplayNote>();
+		orphans = new Map<string, DisplayNote>();
 		offset = 0;
 		notes = new Map<string, DisplayNote>();
+		retrievedConversations = new Set();
 		yPosition = scrollToTop();
 
 		const scroll = document.getElementsByClassName('scroll')[0] as HTMLElement;
@@ -508,7 +568,7 @@
 	// this is a map to locate a note within the nested notes structure;
 	// the list is an ordered set of steps to access a note's location
 	let locator = new Map<string, string[]>();
-	let orphans: Set<DisplayNote> = new Set<DisplayNote>();
+	let orphans: Map<string, DisplayNote> = new Map<string, DisplayNote>();
 
 	// used very temporarily to control requests to the API for new data
 	let loading = false;
@@ -583,12 +643,9 @@
 				<button class="selected" data-view="home" on:click={handleView}
 					><i class="fa-solid fa-house" />Home</button
 				>
-				<button data-view="local" on:click={handleView}
-					><i class="fa-solid fa-city" />Local</button
-				>
+				<button data-view="local" on:click={handleView}><i class="fa-solid fa-city" />Local</button>
 			{/if}
-			<button data-view="global" on:click={handleView}
-				><i class="fa-solid fa-globe" />Global</button
+			<button data-view="global" on:click={handleView}><i class="fa-solid fa-globe" />Global</button
 			>
 		</nav>
 	</header>
@@ -607,6 +664,7 @@
 							announceHeader={announce}
 							on:reply_to={composeComponent.handleReplyToMessage}
 							on:note_select={handleNoteSelect}
+							renderAction={observeNote}
 						/>
 					{/await}
 				{/await}

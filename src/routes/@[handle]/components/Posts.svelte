@@ -22,9 +22,33 @@
 	export let local: boolean;
 	export let handle: string;
 
+	let observer: IntersectionObserver | null = null;
+	function onIntersection(entries: IntersectionObserverEntry[]) {
+		for (let entry of entries) {
+			if (entry.isIntersecting && entry.target) {
+				let target = <HTMLElement>entry.target;
+				if (target.dataset) {
+					let dataset = <DOMStringMap>target.dataset;
+					console.log(dataset.conversation);
+				}
+			}
+		}
+	}
+
+	function observeNote(note: any) {
+		if (observer) {
+			observer.observe(note);
+		}
+	}
+
 	onMount(async () => {
 		const { Buffer } = await import('buffer');
 		window.Buffer = Buffer;
+
+		observer = new IntersectionObserver(onIntersection, {
+			root: null, // default is the viewport
+			threshold: 0.3 // percentage of target's visible area. Triggers "onIntersection"
+		});
 	});
 
 	console.debug(`HANDLE ${handle}`);
@@ -334,6 +358,7 @@
 							announceHeader={announce}
 							on:reply_to={composeComponent.handleReplyToMessage}
 							on:note_select={handleNoteSelect}
+							renderAction={observeNote}
 						/>
 					{/await}
 				{/await}
