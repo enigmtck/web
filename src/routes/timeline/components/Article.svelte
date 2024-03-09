@@ -122,17 +122,19 @@
 
 	let target: string | null = null;
 	let rel: string | null = null;
-	
+
 	if (note && note.note && note.note.url && !domainMatch($page.url.toString(), note.note.url)) {
-		target = "_blank";
-		rel = "noreferrer";
+		target = '_blank';
+		rel = 'noreferrer';
 	}
 </script>
 
 <article use:renderAction data-conversation={note.note.conversation}>
 	{#if replyToHeader}
 		<span class="reply">
-			<i class="fa-solid fa-reply" /> In <a href={note.note.inReplyTo} target="_blank" rel="noreferrer">reply</a> to {@html replyToHeader}
+			<i class="fa-solid fa-reply" /> In
+			<a href={note.note.inReplyTo} target="_blank" rel="noreferrer">reply</a>
+			to {@html replyToHeader}
 		</span>
 	{/if}
 	{#if announceHeader}
@@ -145,13 +147,17 @@
 	<header>
 		<div>
 			{#if note.actor && note.actor.icon}
-				<img src={cachedImage(window.Buffer, note.actor.icon.url)} alt="Sender" />
+				<img src={cachedImage(wasm, window.Buffer, note.actor.icon.url)} alt="Sender" />
 			{/if}
 		</div>
 		<address>
 			{#if note.actor}
 				<span
-					>{@html insertEmojis(note.actor.name || note.actor.preferredUsername, note.actor)}</span
+					>{@html insertEmojis(
+						wasm,
+						note.actor.name || note.actor.preferredUsername,
+						note.actor
+					)}</span
 				>
 				<a href="/{getWebFingerFromId(note.actor)}">
 					{getWebFingerFromId(note.actor)}
@@ -159,13 +165,12 @@
 			{/if}
 		</address>
 	</header>
-	<section>{@html insertEmojis(note.note.content || '', note.note)}</section>
-	{#if note.note.attachment && note.note.attachment.length > 0}
-		<Attachments note={note.note} />
-	{/if}
+	<section>{@html insertEmojis(wasm, note.note.content || '', note.note)}</section>
 
 	{#if note.note.ephemeralMetadata && note.note.ephemeralMetadata.length}
 		<LinkPreview links={note.note.ephemeralMetadata} />
+	{:else if note.note.attachment && note.note.attachment.length > 0}
+		<Attachments note={note.note} />
 	{/if}
 
 	<div class="activity">

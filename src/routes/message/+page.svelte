@@ -67,13 +67,13 @@
 						if (instrument.content) {
 							if (instrument.type === 'OlmSession') {
 								session_uuid = instrument.uuid;
-								session_pickle = wasm?.decrypt(instrument.content);
+								//session_pickle = wasm?.decrypt(instrument.content);
 							}
 						} else if (Array.isArray(session.instrument)) {
 							session.instrument.forEach((instrument) => {
 								if (instrument.type === 'OlmSession') {
 									session_uuid = instrument.uuid;
-									session_pickle = wasm?.decrypt(instrument.content);
+									//session_pickle = wasm?.decrypt(instrument.content);
 								}
 							});
 						}
@@ -199,7 +199,7 @@
 							) {
 								const instrument: Instrument = <Instrument>queue_item.instrument;
 								console.warn(instrument);
-								session = wasm.decrypt(instrument.content);
+								//session = wasm.decrypt(instrument.content);
 								session_uuid = instrument.uuid;
 							}
 
@@ -333,13 +333,13 @@
 			console.info(vaultItems);
 
 			vaultItems.orderedItems?.forEach((item) => {
-				let message: VaultedMessage = JSON.parse(String(wasm?.decrypt(<string>item.content)));
-				wasm?.get_webfinger_from_id(<string>item.attributedTo).then((x) => {
-					message.attributedTo = x;
-					messages.push(message);
+				//let message: VaultedMessage = JSON.parse(String(wasm?.decrypt(<string>item.content)));
+				// wasm?.get_webfinger_from_id(<string>item.attributedTo).then((x) => {
+				// 	message.attributedTo = x;
+				// 	messages.push(message);
 
-					messages = messages;
-				});
+				// 	messages = messages;
+				// });
 			});
 		}
 	}
@@ -385,6 +385,7 @@
 
 	<ul>
 		{#each Array.from(established.values()) as [id, webfinger, name, image, uuid, session]}
+			<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<li data-recipient={id} on:click|preventDefault={selectSession}>
 				<div><img alt="Profile" src={image} /></div>

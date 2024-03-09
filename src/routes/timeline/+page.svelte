@@ -101,7 +101,9 @@
 			source('/api/user/' + username + '/events', {
 				close({ connect }) {
 					console.log('event stream closed');
-					connect();
+					sleep(500).then(() => {
+						connect();
+					});
 				}
 			})
 				.select('message')
@@ -187,8 +189,8 @@
 
 				const sender: UserProfile | null = parseProfile(reply_actor);
 
-				if (sender) {
-					const name = insertEmojis(sender.name || sender.preferredUsername, sender);
+				if (sender && wasm) {
+					const name = insertEmojis(wasm, sender.name || sender.preferredUsername, sender);
 
 					return name;
 				} else {
@@ -216,8 +218,9 @@
 			if (announce_actor) {
 				const announce_profile: UserProfile | null = parseProfile(announce_actor);
 
-				if (announce_profile) {
+				if (announce_profile && wasm) {
 					const name = insertEmojis(
+						wasm,
 						announce_profile.name || announce_profile.preferredUsername,
 						announce_profile
 					);
@@ -737,25 +740,6 @@
 			grid-template-areas: 'left center right';
 			align-items: center;
 
-			> div {
-				grid-area: center;
-				display: inline-block;
-
-				a {
-					color: darkred;
-					text-decoration: none;
-				}
-
-				a:visited {
-					color: darkred;
-				}
-
-				a:hover {
-					color: red;
-					text-decoration: none;
-				}
-			}
-
 			nav {
 				grid-area: center;
 				display: flex;
@@ -865,19 +849,7 @@
 			header {
 				background: #000;
 				border-bottom: 1px solid #222;
-
-				a {
-					color: #eee;
-				}
 			}
-		}
-
-		a {
-			color: darkgoldenrod;
-		}
-
-		a:hover {
-			color: red;
 		}
 	}
 </style>

@@ -189,7 +189,7 @@
 
 		//console.log("NOTE ACTOR");
 		//console.debug(actor);
-		
+
 		if (actor) {
 			let actorProfile: UserProfile = JSON.parse(actor);
 			const displayNote = new DisplayNote(actorProfile, note);
@@ -240,7 +240,7 @@
 				const sender: UserProfile | null = parseProfile(reply_actor);
 
 				if (sender) {
-					const name = insertEmojis(sender.name || sender.preferredUsername, sender);
+					const name = insertEmojis(wasm, sender.name || sender.preferredUsername, sender);
 
 					return name;
 				} else {
@@ -270,6 +270,7 @@
 
 				if (announce_profile) {
 					const name = insertEmojis(
+						wasm,
 						announce_profile.name || announce_profile.preferredUsername,
 						announce_profile
 					);

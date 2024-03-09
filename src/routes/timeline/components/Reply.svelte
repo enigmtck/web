@@ -101,12 +101,12 @@
 	<address>
 		{#if note.actor}
 			<a href="/search?actor={note.actor.id}">
-				{@html insertEmojis(note.actor.name || note.actor.preferredUsername, note.actor)} &bull;
+				{@html insertEmojis(wasm, note.actor.name || note.actor.preferredUsername, note.actor)} &bull;
 				<span class="url">{getWebFingerFromId(note.actor)}</span>
 			</a>
 		{/if}
 	</address>
-	<section>{@html insertEmojis(note.note.content || '', note.note)}</section>
+	<section>{@html insertEmojis(wasm, note.note.content || '', note.note)}</section>
 
 	{#if note.note.attachment && note.note.attachment.length > 0}
 		<Attachments note={note.note} />

@@ -2,8 +2,11 @@
 	import type { Note } from '../../../common';
 	import { cachedImage } from '../../../common';
 	import { onDestroy, onMount } from 'svelte';
+	import { enigmatickWasm } from '../../../stores';
 
 	export let note: Note;
+
+	$: wasm = $enigmatickWasm;
 
 	onMount(async () => {
 		const { Buffer } = await import('buffer')
@@ -29,14 +32,14 @@
 			{#if x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))}
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 				<div class={getPlacement()} tabindex="0">
-					<img src={cachedImage(window.Buffer, String(x.url))} width={x.width} height={x.height} alt={x.name} />
+					<img src={cachedImage(wasm, window.Buffer, String(x.url))} width={x.width} height={x.height} alt={x.name} />
 				</div>
 			{:else if x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))}
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 				<div class={getPlacement()} tabindex="0">
 					<!-- svelte-ignore a11y-media-has-caption -->
 					<video width={x.width} height={x.height} controls
-						><source src={cachedImage(window.Buffer, String(x.url))} type={x.mediaType} /></video
+						><source src={cachedImage(wasm ,window.Buffer, String(x.url))} type={x.mediaType} /></video
 					>
 				</div>
 			{/if}

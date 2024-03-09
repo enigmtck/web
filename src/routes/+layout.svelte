@@ -178,7 +178,7 @@
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				<a class={$page.url.pathname == `/@${username}` ? 'selected' : ''} href={`/@${username}`}
 					><i
-						class="fa-solid fa-house {$page.url.pathname == '/@' + username ? 'selected' : ''}"
+						class="fa-solid fa-user {$page.url.pathname == '/@' + username ? 'selected' : ''}"
 					/></a
 				>
 			{:else}

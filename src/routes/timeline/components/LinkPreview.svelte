@@ -2,11 +2,14 @@
 	export let links: Metadata[];
 	import { cachedImage } from '../../../common';
 	import { onDestroy, onMount } from 'svelte';
+	import { enigmatickWasm } from '../../../stores';
+
+	$: wasm = $enigmatickWasm;
 
 	onMount(async () => {
-		const { Buffer } = await import('buffer')
-    	window.Buffer = Buffer
-	})
+		const { Buffer } = await import('buffer');
+		window.Buffer = Buffer;
+	});
 
 	type Metadata = {
 		twitterTitle?: string | null;
@@ -24,6 +27,15 @@
 	};
 
 	let selectedIndex: number = 0;
+
+	const imgError = (error: Event) => {
+		console.log(error.target);
+		let target = <HTMLElement>error.target;
+
+		if (target) {
+			target.style.display = 'none';
+		}
+	};
 </script>
 
 {#if links[selectedIndex].ogUrl && links[selectedIndex].ogTitle}
@@ -31,7 +43,11 @@
 		<div>
 			{#if links[selectedIndex].ogImage?.length}
 				<div class="image">
-					<img src={cachedImage(window.Buffer, String(links[selectedIndex].ogImage))} alt="Link Preview" />
+					<img
+						src={cachedImage(wasm, window.Buffer, String(links[selectedIndex].ogImage))}
+						alt="Link Preview"
+						on:error={imgError}
+					/>
 				</div>
 			{/if}
 			<div>
@@ -55,24 +71,19 @@
 		div {
 			width: 100%;
 			display: flex;
-			flex-direction: row;
+			flex-direction: column;
 			border: 1px solid #eee;
 			background: #fafafa;
+			border-radius: 20px;
 
 			div {
 				min-width: 60%;
 				border: 0;
-				padding: 5px;
+				padding: 20px;
 				display: flex;
+				overflow: hidden;
 				flex-direction: column;
-				mask: linear-gradient(
-							to bottom,
-							rgba(0, 0, 0, 1) 0,
-							rgba(0, 0, 0, 1) 50%,
-							rgba(0, 0, 0, 0) 83%,
-							rgba(0, 0, 0, 0) 0
-						)
-						100% 50% / 100% 100% repeat-x;
+				border-radius: 20px 20px 0 0;
 
 				span {
 					display: block;
@@ -82,7 +93,6 @@
 					max-height: 100px;
 					overflow: hidden;
 					text-overflow: ellipsis;
-					
 				}
 				span:first-child {
 					white-space: nowrap;
@@ -93,22 +103,26 @@
 				}
 			}
 
+			div:last-child {
+				border-radius: 20px;
+			}
+
 			.image {
 				min-width: unset;
-				max-width: 25%;
-				padding: 5px 0 5px 5px;
-				margin: 10px 0 10px 10px;
+				max-height: 30vh;
+				width: 100%;
+				padding: 0;
+				margin: 0;
 				display: flex;
 				align-items: center;
 				justify-content: center;
-				mask: unset;
 
 				img {
 					width: unset;
 					height: unset;
 					clip-path: unset;
 					width: 100%;
-					border: 1px solid #777;
+					border: 0;
 				}
 			}
 		}

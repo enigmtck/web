@@ -400,24 +400,6 @@
 					cursor: pointer;
 					color: red;
 				}
-
-				button {
-					display: inline-block;
-					margin: 5px;
-					padding: 5px 15px;
-					background: darkred;
-					color: whitesmoke;
-					border: 0;
-					font-family: 'Open Sans';
-					font-size: 18px;
-					font-weight: 600;
-				}
-
-				button:hover {
-					color: darkred;
-					background: whitesmoke;
-					cursor: pointer;
-				}
 			}
 		}
 
@@ -434,10 +416,6 @@
 			background: #ddd;
 			border-radius: unset;
 			transform: unset;
-
-			.mask {
-				display: none;
-			}
 
 			div {
 				position: relative;
@@ -501,13 +479,6 @@
 					border: 0;
 					height: 50px;
 					background: #ddd;
-
-					button {
-						position: fixed;
-						top: 40px;
-						right: 10px;
-						border-radius: 5px;
-					}
 				}
 			}
 		}
@@ -552,10 +523,6 @@
 				}
 			}
 
-			.mask {
-				background: black;
-			}
-
 			form {
 				background: #444;
 
@@ -575,13 +542,13 @@
 		justify-content: center;
 		align-items: center;
 		position: fixed;
-		right: calc(50% - 30px);
+		right: calc(50% - 100px);
 		bottom: 10px;
 		background: #eee;
 		width: 60px;
 		height: 60px;
 		border-radius: 10px;
-		opacity: 0.2;
+		opacity: 0.4;
 		border: 1px solid #ccc;
 		color: #444;
 		transition-duration: 1s;

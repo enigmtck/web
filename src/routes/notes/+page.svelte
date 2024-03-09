@@ -69,6 +69,9 @@
 
 	let note: DisplayNote | null = null;
 
+	function renderAction(note: any) {
+	}
+
 	$: if (wasm && $page.url.searchParams.get('uuid')) {
 		loadProfile().then(() => {
 			console.log('loadProfile');
@@ -78,7 +81,7 @@
 
 <main>
 	{#if wasm && note}
-		<Article {remove} {refresh} {note} username={null} replyToHeader={null} announceHeader={null} />
+		<Article {remove} {refresh} {note} username={null} replyToHeader={null} announceHeader={null} {renderAction} />
 		{#if note.replies?.size}
 			<div class="replies">
 				{#each Array.from(note.replies.values()).sort(compare) as reply}

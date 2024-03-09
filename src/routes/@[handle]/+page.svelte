@@ -281,7 +281,7 @@
 				</div>
 				<div class="details">
 					{#if profile.name}
-						<h1>{@html insertEmojis(profile.name, profile)}</h1>
+						<h1>{@html insertEmojis(wasm, profile.name, profile)}</h1>
 					{/if}
 
 					<a href={profile.url}>{getWebFingerFromId(profile)}</a>
@@ -381,7 +381,7 @@
 					<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 					<!-- svelte-ignore a11y-positive-tabindex -->
 					<div>
-						{@html insertEmojis(profile.summary || '', profile)}
+						{@html insertEmojis(wasm, profile.summary || '', profile)}
 					</div>
 				{/if}
 

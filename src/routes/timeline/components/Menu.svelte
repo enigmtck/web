@@ -39,12 +39,14 @@
 	let dialog: HTMLDialogElement;
 </script>
 
+<!-- svelte-ignore a11y-no-static-element-interactions -->
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <i class="fa-solid fa-ellipsis" data-object={object} on:click={handleMenu} />
 
 <dialog bind:this={dialog}>
 	<ul>
         {#if owner}
+			<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
             <!-- svelte-ignore a11y-click-events-have-key-events -->
             <li data-object={object} on:click|preventDefault={handleDelete}>Delete</li>
             <li>Edit</li>
