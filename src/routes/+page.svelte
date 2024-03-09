@@ -1,10 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-
-	onMount(() => {
-		goto('/@jdt');
-	});
 </script>
 
 <main>
@@ -13,7 +9,6 @@
 
 		<ul>
 			<li><a href="/login">Login</a></li>
-			<li><a href="https://ser.endipito.us/@justin">Contact</a></li>
 		</ul>
 	</div>
 </main>
