@@ -1,10 +1,11 @@
 <script lang="ts">
-	export { handleReplyToMessage, openAside };
+	export { handleReplyToMessage, handleNoteSelect, openAside, resetCompose };
 	import showdown from 'showdown';
 	const { Converter } = showdown;
 	import showdownHighlight from 'showdown-highlight';
 	import { appData, enigmatickWasm } from '../../../stores';
 	import type { Attachment } from '../../../common';
+	import { insertEmojis } from '../../../common';
 
 	$: wasm = $enigmatickWasm;
 
@@ -19,13 +20,27 @@
 		attachments: Attachment[]
 	) => Promise<boolean>;
 
+	async function handleNoteSelect(message: any) {
+		replyToRecipient = message.detail.reply_to_recipient;
+		replyToNote = message.detail.reply_to_note;
+		replyToDisplay = message.detail.reply_to_display;
+		conversation = message.detail.reply_to_conversation;
+
+		const reply_to_url = message.detail.reply_to_url;
+		const reply_to_username = message.detail.reply_to_username;
+
+		//const webfinger_acct = await get_webfinger_from_id(String(reply_to_recipient));
+		markdownNote = `<span class="h-card"><a href="${reply_to_url}" class="u-url mention" rel="noopener noreferrer">@${reply_to_username}</a></span> `;
+		htmlNote = convertToHtml(markdownNote);
+	}
+
 	async function handleReplyToMessage(message: any) {
 		console.log(message);
 
 		replyToRecipient = message.detail.reply_to_recipient;
 		replyToNote = message.detail.reply_to_note;
 		replyToDisplay = message.detail.reply_to_display;
-		replyToConversation = message.detail.reply_to_conversation;
+		conversation = message.detail.reply_to_conversation;
 
 		const reply_to_url = message.detail.reply_to_url;
 		const reply_to_username = message.detail.reply_to_username;
@@ -46,7 +61,7 @@
 	}
 
 	function closeAside() {
-		cancelReplyTo();
+		//cancelReplyTo();
 		const dialog = document.getElementsByTagName('dialog')[0];
 		dialog.close();
 
@@ -89,11 +104,6 @@
 	}
 
 	function resetCompose() {
-		let compose;
-		if ((compose = document.getElementById('compose'))) {
-			compose.innerText = '';
-		}
-
 		cancelReplyTo();
 		preview = false;
 		markdownNote = '';
@@ -103,7 +113,7 @@
 	function cancelReplyTo() {
 		replyToNote = null;
 		replyToDisplay = null;
-		replyToConversation = null;
+		conversation = null;
 		replyToRecipient = null;
 		markdownNote = '';
 	}
@@ -114,7 +124,7 @@
 		sender(
 			replyToRecipient,
 			replyToNote,
-			replyToConversation,
+			conversation,
 			htmlNote,
 			Array.from(attachments.values())
 		).then((x: any) => {
@@ -166,14 +176,15 @@
 		}
 	};
 
-	let markdownNote = '';
-	let htmlNote = '';
+	let conversation: string | null = null;
+	$: markdownNote = '';
+	$: htmlNote = '';
 	let preview = false;
 
 	let replyToRecipient: string | null = null;
 	let replyToNote: string | null = null;
 	let replyToDisplay: string | null = null;
-	let replyToConversation: string | null = null;
+	//let replyToConversation: string | null = null;
 
 	let imageBuffer: string | ArrayBuffer | null;
 	let imageFileInput: HTMLInputElement;
@@ -191,7 +202,7 @@
 			<i class="fa-solid fa-xmark" on:click={closeAside} />
 			{#if replyToDisplay}
 				<span
-					>Replying to {replyToDisplay}
+					>Replying to {@html replyToDisplay}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i class="fa-solid fa-xmark" on:click={cancelReplyTo} /></span
@@ -318,6 +329,12 @@
 				padding: 4px;
 				margin: 5px 0;
 				font-family: 'Open Sans';
+
+				position: fixed;
+				top: 5px;
+				left: 10px;
+				z-index: 30;
+				opacity: 0.9;
 			}
 
 			pre,

@@ -440,11 +440,16 @@
 
 		yPosition = scrollToTop();
 		infiniteScrollDisabled = true;
+
+		composeComponent.handleNoteSelect({
+			detail: message.detail
+		})
 	}
 
 	function clearNoteSelect() {
 		focusConversation = null;
 		focusNote = null;
+		composeComponent.resetCompose();
 
 		sleep(500).then(() => {
 			const main = document.getElementsByTagName('main')[0];
@@ -716,10 +721,6 @@
 			max-width: unset;
 			width: 100vw;
 			padding: 0;
-
-			.back {
-				top: 5px;
-			}
 		}
 
 		header {
@@ -772,6 +773,7 @@
 
 				button > i {
 					padding: 0 5px;
+					pointer-events: none;
 				}
 			}
 		}
@@ -797,7 +799,7 @@
 		.back {
 			position: absolute;
 			left: 10px;
-			top: 7px;
+			top: 5px;
 			width: 50px;
 			text-align: center;
 			border-radius: 10px;
@@ -812,6 +814,7 @@
 			opacity: 1;
 			color: red;
 			transition-duration: 1s;
+			cursor: pointer;
 		}
 
 		.scroll {

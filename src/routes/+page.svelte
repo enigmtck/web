@@ -9,6 +9,7 @@
 
 		<ul>
 			<li><a href="/login">Login</a></li>
+			<li><a href="/signup">Sign up</a></li>
 		</ul>
 	</div>
 </main>

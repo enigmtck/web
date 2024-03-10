@@ -87,7 +87,7 @@
 				on:change|preventDefault={checkPassword}
 				required
 				minlength="5"
-				placeholder="Provides access to the server"
+				placeholder="Use a password manager"
 			/>
 		</label>
 
@@ -232,9 +232,7 @@
 	}
 
 	:global(body.dark) {
-		@media screen and (max-width: 600px) {
-			background: #222;
-		}
+		background: #222;
 
 		main {
 			h1,

@@ -72,7 +72,7 @@
 
 		<label>
 			Password
-			<input name="password" type="password" placeholder="Provides access to the server" />
+			<input name="password" type="password" placeholder="Use a password manager" />
 		</label>
 
 		<button>Sign In</button>
@@ -207,18 +207,12 @@
 	}
 
 	:global(body.dark) {
-		@media screen and (max-width: 600px) {
 			background: #222;
-		}
 
 		main {
 			h1 {
 				color: whitesmoke;
-				background: #000;
-
-				@media screen and (max-width: 600px) {
-					background: #222;
-				}
+				background: #222;
 			}
 
 			h3 {
@@ -230,7 +224,7 @@
 			}
 
 			form {
-				background: #222;
+				background: #444;
 				outline: 0;
 				label {
 					color: #ddd;

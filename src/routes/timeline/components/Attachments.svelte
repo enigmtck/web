@@ -67,6 +67,7 @@
 			padding: 0;
 			overflow: hidden;
 			cursor: pointer;
+			border-radius: 20px;
 
 			:global(video),
 			:global(img) {

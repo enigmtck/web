@@ -6,6 +6,7 @@
 		"wasm": "wasm-pack build wasm/enigmatick_wasm --target web",
 		"dev": "yarn wasm && vite",
 		"build": "yarn wasm && vite build",
+		"static": "cross-env ADAPTER=static yarn build",
 		"preview": "vite preview",
 		"test": "playwright test",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -43,6 +44,8 @@
 		"@sveltejs/adapter-node": "^2.0.0",
 		"@sveltejs/adapter-static": "^3.0.1",
 		"buffer": "^6.0.3",
+		"cross-env": "^7.0.3",
+		"dotenv": "^16.4.5",
 		"path-browserify": "^1.0.1",
 		"showdown": "^2.1.0",
 		"showdown-highlight": "^3.1.0"

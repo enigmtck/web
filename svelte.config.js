@@ -1,6 +1,9 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
-//import adapter from '@sveltejs/adapter-node';
-import adapter from '@sveltejs/adapter-static';
+import adapterNode from '@sveltejs/adapter-node';
+import adapterStatic from '@sveltejs/adapter-static';
 
 
 /** @type {import('@sveltejs/kit').Config} */
@@ -11,9 +14,9 @@ const config = {
 
 	kit: {
 		//adapter: adapter()
-		adapter: adapter({
-			fallback: '200.html' // may differ from host to host
-		})
+		adapter: process.env.ADAPTER === 'static'
+		? adapterStatic({ fallback: '200.html' })
+		: adapterNode()
 	},
 };
 

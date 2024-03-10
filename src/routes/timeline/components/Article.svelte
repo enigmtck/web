@@ -104,7 +104,14 @@
 	function handleNoteSelect(event: any) {
 		dispatch('note_select', {
 			note: event.target.dataset.note,
-			conversation: event.target.dataset.conversation
+			conversation: event.target.dataset.conversation,
+
+			reply_to_recipient: event.target.dataset.recipient,
+			reply_to_note: event.target.dataset.reply,
+			reply_to_display: insertEmojis(wasm, event.target.dataset.display, note.actor),
+
+			reply_to_url: event.target.dataset.url,
+			reply_to_username: event.target.dataset.username
 		});
 	}
 
@@ -112,8 +119,8 @@
 		dispatch('reply_to', {
 			reply_to_recipient: event.target.dataset.recipient,
 			reply_to_note: event.target.dataset.reply,
-			reply_to_display: event.target.dataset.display,
-			reply_to_conversation: event.target.dataset.conversation,
+			reply_to_display: insertEmojis(wasm, event.target.dataset.display, note.actor),
+			conversation: event.target.dataset.conversation,
 
 			reply_to_url: event.target.dataset.url,
 			reply_to_username: event.target.dataset.username
@@ -167,10 +174,10 @@
 	</header>
 	<section>{@html insertEmojis(wasm, note.note.content || '', note.note)}</section>
 
-	{#if note.note.ephemeralMetadata && note.note.ephemeralMetadata.length}
-		<LinkPreview links={note.note.ephemeralMetadata} />
-	{:else if note.note.attachment && note.note.attachment.length > 0}
+	{#if note.note.attachment && note.note.attachment.length > 0}
 		<Attachments note={note.note} />
+	{:else if note.note.ephemeralMetadata && note.note.ephemeralMetadata.length}
+		<LinkPreview links={note.note.ephemeralMetadata} />
 	{/if}
 
 	<div class="activity">
@@ -207,6 +214,11 @@
 				class="fa-solid fa-expand"
 				data-conversation={note.note.conversation}
 				data-note={note.note.id}
+				data-reply={note.note.id}
+				data-display={note.actor.name || note.actor.preferredUsername}
+				data-url={note.actor.url}
+				data-username={note.actor.preferredUsername}
+				data-recipient={note.actor.id}
 				on:click|preventDefault={handleNoteSelect}
 			/>
 

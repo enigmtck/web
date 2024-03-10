@@ -105,6 +105,7 @@
 
 			div:last-child {
 				border-radius: 20px;
+				text-overflow: ellipsis;
 			}
 
 			.image {

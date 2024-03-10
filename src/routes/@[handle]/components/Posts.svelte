@@ -210,7 +210,21 @@
 		content: string,
 		attachments: Attachment[]
 	): Promise<boolean> {
-		return true;
+		if (wasm) {
+			let params = (await wasm.SendParams.new()).set_content(content).set_public();
+
+			params = params.set_attachments(JSON.stringify(attachments));
+
+			if (replyToMessageId) {
+				params = await params.add_recipient_id(String(recipientAddress), true);
+				params = params.set_in_reply_to(String(replyToMessageId));
+				params = params.set_conversation(String(conversationId));
+			}
+
+			return await wasm.send_note(params);
+		} else {
+			return false;
+		}
 	}
 
 	function parseProfile(text: string | null | undefined): UserProfile | null {

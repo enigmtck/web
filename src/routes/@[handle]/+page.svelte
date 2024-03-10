@@ -625,6 +625,8 @@
 	}
 
 	:global(body.dark) {
+		background: #000;
+		
 		main {
 			.profile {
 				border: 0;
