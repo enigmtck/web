@@ -29,33 +29,43 @@
 	let streamUuid: string | null = null;
 	let observer: IntersectionObserver | null = null;
 	let retrievedConversations: Set<string> = new Set();
+	let currentIds: Array<string> = new Array();
 
 	function onIntersection(entries: IntersectionObserverEntry[]) {
 		for (let entry of entries) {
-			if (entry.isIntersecting && entry.target) {
+			if (entry.target) {
 				let target = <HTMLElement>entry.target;
-				if (target.dataset) {
-					let dataset = <DOMStringMap>target.dataset;
-					console.log(dataset.conversation);
-					if (wasm && dataset.conversation) {
-						let conversation = dataset.conversation;
+				if (entry.isIntersecting) {
+					currentIds.push(target.id);
 
-						if (!retrievedConversations.has(conversation)) {
-							retrievedConversations.add(conversation);
-							wasm.get_conversation(dataset.conversation, 0, 50).then((conversation) => {
-								if (conversation) {
-									let notes: Note[] = JSON.parse(conversation);
-									notes.forEach((note) => {
-										if (note.inReplyTo) {
-											addNote(note);
-										}
-									});
-									console.log(notes);
+					if (target.dataset) {
+						let dataset = <DOMStringMap>target.dataset;
+						console.log(dataset.conversation);
+						if (wasm && dataset.conversation) {
+							let conversation = dataset.conversation;
 
-									placeOrphans(true);
-								}
-							});
+							if (!retrievedConversations.has(conversation)) {
+								retrievedConversations.add(conversation);
+								wasm.get_conversation(dataset.conversation, 0, 50).then((conversation) => {
+									if (conversation) {
+										let notes: Note[] = JSON.parse(conversation);
+										notes.forEach((note) => {
+											if (note.inReplyTo) {
+												addNote(note);
+											}
+										});
+										console.log(notes);
+
+										placeOrphans(true);
+									}
+								});
+							}
 						}
+					}
+				} else {
+					let index = currentIds.indexOf(target.id);
+					if (index !== -1) {
+						currentIds.splice(index, 1);
 					}
 				}
 			}
@@ -346,12 +356,14 @@
 
 		if (wasm && view) {
 			let x = await wasm.get_timeline(offset, pageSize, view);
-			console.debug("WASM RESPONSE")
-			console.debug(x)
+			console.debug('WASM RESPONSE');
+			console.debug(x);
 
 			try {
 				let timeline = JSON.parse(String(x));
 				console.debug(timeline);
+
+				let beforeId = currentIds[0];
 
 				try {
 					timeline.forEach((t: Note) => {
@@ -360,6 +372,10 @@
 				} catch (e) {
 					console.error(e);
 					console.debug(timeline);
+				}
+
+				if (beforeId) {
+					document.getElementById(beforeId)?.scrollIntoView();
 				}
 
 				placeOrphans(true);
@@ -440,17 +456,17 @@
 		console.debug(message);
 		focusConversation = message.detail.replyToConversation;
 		focusNote = message.detail.replyToNote;
-		console.debug(`setting focusNote to ${message.detail.replyToNote}`)
+		console.debug(`setting focusNote to ${message.detail.replyToNote}`);
 
 		yPosition = scrollToTop();
 		infiniteScrollDisabled = true;
 
 		// this doesn't seem to work
-		console.debug("MESSAGE DETAIL");
+		console.debug('MESSAGE DETAIL');
 		console.debug(message.detail);
 		composeComponent.handleReplyToMessage({
 			detail: message.detail
-		})
+		});
 	}
 
 	function clearNoteSelect() {

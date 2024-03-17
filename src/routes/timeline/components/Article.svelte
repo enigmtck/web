@@ -30,8 +30,9 @@
 	import Attachments from './Attachments.svelte';
 
 	onMount(async () => {
-		const { Buffer } = await import('buffer');
-		window.Buffer = Buffer;
+		if (wasm && note && note.note && note.note.id) {
+			article_id = wasm.get_url_safe_base64(note.note.id);
+		}
 	});
 
 	$: wasm = $enigmatickWasm;
@@ -139,9 +140,11 @@
 		target = '_blank';
 		rel = 'noreferrer';
 	}
+
+	let article_id = '';
 </script>
 
-<article use:renderAction data-conversation={note.note.conversation}>
+<article use:renderAction data-conversation={note.note.conversation} id={article_id}>
 	{#if replyToHeader}
 		<span class="reply">
 			<i class="fa-solid fa-reply" /> In
@@ -196,7 +199,6 @@
 		{#if note.replies?.size}
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<!-- THIS IS THE PROBLEM - NEED TO PASS ON OTHER DISPLAY DATA -->
 			<span
 				class="comments"
 				data-display={note.actor.name || note.actor.preferredUsername}

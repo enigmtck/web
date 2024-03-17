@@ -92,9 +92,9 @@
 			:global(video),
 			:global(img) {
 				flex-shrink: 0;
-				height: unset;
 				object-fit: cover;
 				max-height: 50vh;
+				height: 100%;
 				width: 100%;
 			}
 		}
