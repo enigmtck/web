@@ -18,11 +18,12 @@
 		cachedImage,
 		domainMatch
 	} from '../../../common';
-	import { replyCount } from './common';
+	import { replyCount, ComposeDispatch } from './common';
 	import { enigmatickWasm } from '../../../stores';
 
 	import { createEventDispatcher } from 'svelte';
-	const dispatch = createEventDispatcher();
+	const replyToDispatch = createEventDispatcher<{ replyTo: ComposeDispatch }>();
+	const noteSelectDispatch = createEventDispatcher<{ noteSelect: ComposeDispatch }>();
 
 	import LinkPreview from './LinkPreview.svelte';
 	import Menu from './Menu.svelte';
@@ -102,28 +103,32 @@
 	}
 
 	function handleNoteSelect(event: any) {
-		dispatch('note_select', {
-			note: event.target.dataset.note,
-			conversation: event.target.dataset.conversation,
+		console.log('DISPATCHING NOTE_SELECT');
+		console.log(event);
 
-			reply_to_recipient: event.target.dataset.recipient,
-			reply_to_note: event.target.dataset.reply,
-			reply_to_display: insertEmojis(wasm, event.target.dataset.display, note.actor),
+		noteSelectDispatch('noteSelect', {
+			replyToConversation: event.target.dataset.conversation,
 
-			reply_to_url: event.target.dataset.url,
-			reply_to_username: event.target.dataset.username
+			replyToRecipient: event.target.dataset.recipient,
+			replyToNote: event.target.dataset.note,
+			replyToDisplay: insertEmojis(wasm, event.target.dataset.display, note.actor),
+
+			replyToUrl: event.target.dataset.url,
+			replyToUsername: event.target.dataset.username,
+			openAside: false
 		});
 	}
 
 	function handleReplyTo(event: any) {
-		dispatch('reply_to', {
-			reply_to_recipient: event.target.dataset.recipient,
-			reply_to_note: event.target.dataset.reply,
-			reply_to_display: insertEmojis(wasm, event.target.dataset.display, note.actor),
-			conversation: event.target.dataset.conversation,
+		replyToDispatch('replyTo', {
+			replyToRecipient: event.target.dataset.recipient,
+			replyToNote: event.target.dataset.reply,
+			replyToDisplay: insertEmojis(wasm, event.target.dataset.display, note.actor),
+			replyToConversation: event.target.dataset.conversation,
 
-			reply_to_url: event.target.dataset.url,
-			reply_to_username: event.target.dataset.username
+			replyToUrl: event.target.dataset.url,
+			replyToUsername: event.target.dataset.username,
+			openAside: true
 		});
 	}
 
@@ -191,8 +196,13 @@
 		{#if note.replies?.size}
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<!-- THIS IS THE PROBLEM - NEED TO PASS ON OTHER DISPLAY DATA -->
 			<span
 				class="comments"
+				data-display={note.actor.name || note.actor.preferredUsername}
+				data-url={note.actor.url}
+				data-username={note.actor.preferredUsername}
+				data-recipient={note.actor.id}
 				data-conversation={note.note.conversation}
 				data-note={note.note.id}
 				on:click|preventDefault={handleNoteSelect}

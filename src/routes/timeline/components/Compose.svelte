@@ -1,18 +1,18 @@
 <script lang="ts">
-	export { handleReplyToMessage, handleNoteSelect, openAside, resetCompose };
+	export { handleReplyToMessage, openAside, resetCompose };
 	import showdown from 'showdown';
 	const { Converter } = showdown;
 	import showdownHighlight from 'showdown-highlight';
 	import { appData, enigmatickWasm } from '../../../stores';
 	import type { Attachment } from '../../../common';
-	import { insertEmojis } from '../../../common';
+	import type { ComposeDispatch } from './common';
 
 	$: wasm = $enigmatickWasm;
 
 	// Exporting the definition of this function is to allow Compose to be used in
 	// different contexts, like for both Notes and EncryptedNotes. The implementation
 	// of the sending function is left up to the container component.
-	export let sender: (
+	export let senderFunction: (
 		recipientAddress: string | null,
 		replyToMessageId: string | null,
 		conversationId: string | null,
@@ -20,36 +20,25 @@
 		attachments: Attachment[]
 	) => Promise<boolean>;
 
-	async function handleNoteSelect(message: any) {
-		replyToRecipient = message.detail.reply_to_recipient;
-		replyToNote = message.detail.reply_to_note;
-		replyToDisplay = message.detail.reply_to_display;
-		conversation = message.detail.reply_to_conversation;
-
-		const reply_to_url = message.detail.reply_to_url;
-		const reply_to_username = message.detail.reply_to_username;
-
-		//const webfinger_acct = await get_webfinger_from_id(String(reply_to_recipient));
-		markdownNote = `<span class="h-card"><a href="${reply_to_url}" class="u-url mention" rel="noopener noreferrer">@${reply_to_username}</a></span> `;
-		htmlNote = convertToHtml(markdownNote);
-	}
-
-	async function handleReplyToMessage(message: any) {
+	async function handleReplyToMessage(message: CustomEvent<ComposeDispatch>) {
+		console.log("IN COMPOSE");
 		console.log(message);
 
-		replyToRecipient = message.detail.reply_to_recipient;
-		replyToNote = message.detail.reply_to_note;
-		replyToDisplay = message.detail.reply_to_display;
-		conversation = message.detail.reply_to_conversation;
+		replyToRecipient = message.detail.replyToRecipient;
+		replyToNote = message.detail.replyToNote;
+		replyToDisplay = message.detail.replyToDisplay;
+		replyToConversation = message.detail.replyToConversation;
 
-		const reply_to_url = message.detail.reply_to_url;
-		const reply_to_username = message.detail.reply_to_username;
+		const replyToUrl = message.detail.replyToUrl;
+		const replyToUsername = message.detail.replyToUsername;
 
 		//const webfinger_acct = await get_webfinger_from_id(String(reply_to_recipient));
-		markdownNote = `<span class="h-card"><a href="${reply_to_url}" class="u-url mention" rel="noopener noreferrer">@${reply_to_username}</a></span> `;
+		markdownNote = `<span class="h-card"><a href="${replyToUrl}" class="u-url mention" rel="noopener noreferrer">@${replyToUsername}</a></span> `;
 		htmlNote = convertToHtml(markdownNote);
 
-		openAside();
+		if (message.detail.openAside) {
+			openAside();
+		}
 	}
 
 	function openAside() {
@@ -113,18 +102,22 @@
 	function cancelReplyTo() {
 		replyToNote = null;
 		replyToDisplay = null;
-		conversation = null;
+		replyToConversation = null;
 		replyToRecipient = null;
-		markdownNote = '';
 	}
 
 	async function handlePublish() {
 		captureChanges();
 
-		sender(
+		console.log(`recipient: ${replyToRecipient}`);
+		console.log(`reply_note: ${replyToNote}`);
+		console.log(`reply_conversation: ${replyToConversation}`);
+		console.log(`note: ${htmlNote}`);
+		
+		senderFunction(
 			replyToRecipient,
 			replyToNote,
-			conversation,
+			replyToConversation,
 			htmlNote,
 			Array.from(attachments.values())
 		).then((x: any) => {
@@ -176,7 +169,6 @@
 		}
 	};
 
-	let conversation: string | null = null;
 	$: markdownNote = '';
 	$: htmlNote = '';
 	let preview = false;
@@ -184,7 +176,7 @@
 	let replyToRecipient: string | null = null;
 	let replyToNote: string | null = null;
 	let replyToDisplay: string | null = null;
-	//let replyToConversation: string | null = null;
+	let replyToConversation: string | null = null;
 
 	let imageBuffer: string | ArrayBuffer | null;
 	let imageFileInput: HTMLInputElement;

@@ -157,7 +157,7 @@
 				</li>
 			</ul>
 
-			{#if username}
+			<!-- {#if username}
 				<div class="notifications">
 					<h1><i class="fa-solid fa-bell" />Notifications</h1>
 					<ul>
@@ -170,7 +170,7 @@
 				<ul>
 					<li>Nothing trending</li>
 				</ul>
-			</div>
+			</div> -->
 		</div>
 
 		<footer>
@@ -208,7 +208,7 @@
 				<span class="title"><a href="/">ENIGMATICK</a></span>
 				{#if avatar}
 					<span class="avatar"
-						><a href="/@{username}"><img src="/media/avatars/{avatar}" alt="You" /></a></span
+						><a href="/@{username}"><img src="{avatar}" alt="You" /></a></span
 					>
 				{/if}
 			</div>
@@ -217,11 +217,11 @@
 				<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
 					><i class="fa-solid fa-newspaper" />Timeline</a
 				>
-				{#if username}
+				<!-- {#if username}
 					<a class={$page.url.pathname == '/message' ? 'selected' : ''} href="/message"
 						><i class="fa-solid fa-inbox" />Messages</a
 					>
-				{/if}
+				{/if} -->
 				{#if username}
 					<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
 						><i class="fa-solid fa-magnifying-glass" />Search</a
@@ -288,7 +288,13 @@
 			[row1-start] 'left-aside content right-aside' auto [row2-end]
 			/ 250px auto 350px;
 
-		@media screen and (max-width: 600px) {
+		@media screen and (max-width: 1000px) {
+			grid-template:
+				[row1-start] 'left-aside content right-aside' auto [row2-end]
+				/ 250px auto 0;
+		}
+
+		@media screen and (max-width: 700px) {
 			grid-template:
 				[row1-start] 'left-aside content right-aside' auto [row2-end]
 				/ 0 auto 0;
@@ -298,7 +304,7 @@
 			grid-area: left-aside;
 			background: #eee;
 
-			@media screen and (max-width: 600px) {
+			@media screen and (max-width: 700px) {
 				display: none;
 			}
 
@@ -370,7 +376,7 @@
 		.context {
 			grid-area: right-aside;
 
-			@media screen and (max-width: 600px) {
+			@media screen and (max-width: 1000px) {
 				display: none;
 			}
 
@@ -486,7 +492,7 @@
 		footer {
 			display: none;
 
-			@media screen and (max-width: 600px) {
+			@media screen and (max-width: 700px) {
 				background: #eee;
 				display: flex;
 				flex-direction: row;

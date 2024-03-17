@@ -469,7 +469,7 @@
 					background: #eee;
 				}
 
-				@media screen and (max-width: 600px) {
+				@media screen and (max-width: 700px) {
 					button {
 						padding: 10px;
 						font-size: 3cqi;
@@ -505,7 +505,7 @@
 				   down to undo the overlap */
 
 				.avatar {
-					z-index: 30;
+					z-index: 25;
 					margin: 0 5%;
 					width: 20%;
 					height: 20%;
@@ -545,7 +545,7 @@
 						font-size: 18px;
 					}
 
-					@media screen and (max-width: 600px) {
+					@media screen and (max-width: 700px) {
 						a {
 							display: none;
 						}

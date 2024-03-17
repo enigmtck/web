@@ -95,7 +95,7 @@
 <style lang="scss">
 	main {
 		grid-area: content;
-		max-width: 800px;
+		max-width: 700px;
 		width: 100%;
 		height: calc(100% - 41px);
 		margin: 0 auto;

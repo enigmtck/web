@@ -23,6 +23,7 @@ export default defineConfig({
 		},
 		cors: false,
 		host: true,
+		port: 5273,
 		proxy: {
 			'/events': {
 				target: 'http://127.0.0.1:8010/',

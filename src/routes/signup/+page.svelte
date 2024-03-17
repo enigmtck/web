@@ -119,7 +119,7 @@
 			display: block;
 			background: white;
 
-			@media screen and (max-width: 600px) {
+			@media screen and (max-width: 700px) {
 				background: #fafafa;
 			}
 		}
@@ -139,7 +139,7 @@
 		max-width: unset;
 		grid-area: content;
 
-		@media screen and (max-width: 600px) {
+		@media screen and (max-width: 700px) {
 			height: unset;
 		}
 
@@ -174,7 +174,7 @@
 			width: 400px;
 			padding: 10px 20px;
 
-			@media screen and (max-width: 600px) {
+			@media screen and (max-width: 700px) {
 				width: 100%;
 				outline: 0;
 			}
@@ -239,10 +239,6 @@
 			h2 {
 				color: whitesmoke;
 				background: #222;
-
-				@media screen and (max-width: 600px) {
-					background: #222;
-				}
 			}
 
 			form {
@@ -252,7 +248,7 @@
 					color: #ddd;
 				}
 
-				@media screen and (max-width: 600px) {
+				@media screen and (max-width: 700px) {
 					background: #222;
 				}
 			}

@@ -18,6 +18,7 @@
 	import { insertEmojis, compare, sleep, DisplayNote } from '../../common';
 
 	import { goto } from '$app/navigation';
+	import type { ComposeDispatch } from './components/common';
 
 	let composeComponent: Compose;
 	$: view = '';
@@ -340,11 +341,13 @@
 	}
 
 	async function loadTimelineData() {
-		const pageSize = 50;
+		const pageSize = 20;
 		let attempts = 0;
 
 		if (wasm && view) {
 			let x = await wasm.get_timeline(offset, pageSize, view);
+			console.debug("WASM RESPONSE")
+			console.debug(x)
 
 			try {
 				let timeline = JSON.parse(String(x));
@@ -432,16 +435,20 @@
 		}
 	}
 
-	function handleNoteSelect(message: any) {
+	function handleNoteSelect(message: CustomEvent<ComposeDispatch>) {
 		console.debug('NOTE SELECT');
 		console.debug(message);
-		focusConversation = message.detail.conversation;
-		focusNote = message.detail.note;
+		focusConversation = message.detail.replyToConversation;
+		focusNote = message.detail.replyToNote;
+		console.debug(`setting focusNote to ${message.detail.replyToNote}`)
 
 		yPosition = scrollToTop();
 		infiniteScrollDisabled = true;
 
-		composeComponent.handleNoteSelect({
+		// this doesn't seem to work
+		console.debug("MESSAGE DETAIL");
+		console.debug(message.detail);
+		composeComponent.handleReplyToMessage({
 			detail: message.detail
 		})
 	}
@@ -517,7 +524,7 @@
 		return apCache.get(id);
 	}
 
-	async function sender(
+	async function senderFunction(
 		recipientAddress: string | null,
 		replyToMessageId: string | null,
 		conversationId: string | null,
@@ -642,7 +649,7 @@
 	}
 </script>
 
-<Compose {sender} bind:this={composeComponent} />
+<Compose {senderFunction} bind:this={composeComponent} />
 
 <main>
 	<header>
@@ -670,8 +677,8 @@
 							{username}
 							replyToHeader={replyTo}
 							announceHeader={announce}
-							on:reply_to={composeComponent.handleReplyToMessage}
-							on:note_select={handleNoteSelect}
+							on:replyTo={composeComponent.handleReplyToMessage}
+							on:noteSelect={handleNoteSelect}
 							renderAction={observeNote}
 						/>
 					{/await}
@@ -683,8 +690,8 @@
 							<Reply
 								note={reply}
 								{username}
-								on:reply_to={composeComponent.handleReplyToMessage}
-								on:note_select={handleNoteSelect}
+								on:replyTo={composeComponent.handleReplyToMessage}
+								on:noteSelect={handleNoteSelect}
 							/>
 						{/each}
 					</div>
@@ -716,7 +723,7 @@
 		grid-area: content;
 		min-width: 400px;
 
-		@media screen and (max-width: 600px) {
+		@media screen and (max-width: 700px) {
 			min-width: unset;
 			max-width: unset;
 			width: 100vw;
@@ -791,7 +798,7 @@
 				align-items: center;
 			}
 
-			@media screen and (max-width: 600px) {
+			@media screen and (max-width: 700px) {
 				padding: 0;
 			}
 		}

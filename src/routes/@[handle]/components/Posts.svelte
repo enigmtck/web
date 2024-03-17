@@ -203,7 +203,7 @@
 		notes = notes;
 	}
 
-	async function sender(
+	async function senderFunction(
 		recipientAddress: string | null,
 		replyToMessageId: string | null,
 		conversationId: string | null,
@@ -317,7 +317,7 @@
 		return apCache.get(id);
 	}
 
-	function handleNoteSelect() {}
+	function handleNoteSelect() { console.debug("NOT IMPLEMENTED") }
 
 	// controls whether messages from EventSource are immediately displayed or queued
 	let liveLoading = true;
@@ -355,7 +355,7 @@
 </script>
 
 {#if wasm}
-	<Compose {sender} bind:this={composeComponent} />
+	<Compose {senderFunction} bind:this={composeComponent} />
 {/if}
 
 <main>
@@ -371,8 +371,8 @@
 							{username}
 							replyToHeader={replyTo}
 							announceHeader={announce}
-							on:reply_to={composeComponent.handleReplyToMessage}
-							on:note_select={handleNoteSelect}
+							on:replyTo={composeComponent.handleReplyToMessage}
+							on:noteSelect={handleNoteSelect}
 							renderAction={observeNote}
 						/>
 					{/await}
@@ -384,8 +384,8 @@
 							<Reply
 								note={reply}
 								{username}
-								on:reply_to={composeComponent.handleReplyToMessage}
-								on:note_select={handleNoteSelect}
+								on:replyTo={composeComponent.handleReplyToMessage}
+								on:noteSelect={handleNoteSelect}
 							/>
 						{/each}
 					</div>

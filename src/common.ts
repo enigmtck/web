@@ -45,10 +45,12 @@ class DisplayNote {
 		this.note = note;
 		this.actor = profile;
 
-		if (note.ephemeralTimestamp) {
+		if (note.published) {
+			this.published = String(note.published);
+		} else if (note.ephemeralTimestamp) {
 			this.published = note.ephemeralTimestamp;
 		} else {
-			this.published = String(note.published);
+			this.published = new Date().toISOString();
 		}
 
 		this.replies = replies || new Map<string, DisplayNote>();
@@ -274,10 +276,12 @@ function insertEmojis(
 		profile.tag.forEach((tag) => {
 			if (tag.type === 'Emoji') {
 				if (tag.icon) {
-					text = text.replaceAll(
-						tag.name,
-						`<img class="emoji" src="${cachedImage(wasm, window.Buffer, tag.icon.url)}"/>`
-					);
+					if (text) {
+						text = text.replaceAll(
+							tag.name,
+							`<img class="emoji" src="${cachedImage(wasm, window.Buffer, tag.icon.url)}"/>`
+						);
+					}
 				}
 			}
 		});
@@ -287,7 +291,7 @@ function insertEmojis(
 }
 
 function timeSince(date: number) {
-	const now: number = new Date().getTime();
+	const now: number = Date.now();
 
 	const seconds = Math.floor((now - date) / 1000);
 

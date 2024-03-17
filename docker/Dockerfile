@@ -29,7 +29,7 @@ RUN source /root/.cargo/env && cargo install wasm-pack
 
 COPY src /opt/build/src/src
 
-COPY static/favicon.png /opt/build/src/static/favicon.png
+COPY static/icons /opt/build/src/static/icons
 COPY static/fontawesome /opt/build/src/static/fontawesome
 COPY static/fonts /opt/build/src/static/fonts
 COPY static/highlight /opt/build/src/static/highlight

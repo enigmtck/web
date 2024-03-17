@@ -1,4 +1,4 @@
-export { replyCount };
+export { replyCount, ComposeDispatch };
 
 import type { DisplayNote } from '../../../common';
 
@@ -13,3 +13,15 @@ function replyCount(note: DisplayNote): number {
 
     return count;
 }
+
+interface ComposeDispatch {
+    replyToConversation:string,
+    replyToRecipient:string,
+    replyToNote:string,
+    replyToDisplay:string,
+    replyToUrl:string,
+    replyToUsername:string,
+    openAside:boolean
+}
+
+class ComposeDispatch { };

@@ -9,19 +9,30 @@
 	$: wasm = $enigmatickWasm;
 
 	onMount(async () => {
-		const { Buffer } = await import('buffer')
-    	window.Buffer = Buffer
-	})
+		const { Buffer } = await import('buffer');
+		window.Buffer = Buffer;
+	});
 
-	function getPlacement(): string {
-		if (total > 1) {
-			return 'half';
-		} else {
-			return 'full';
+	class Placement {
+		constructor(total: number) {
+			Placement.total = total;
+		}
+
+		static total = 0;
+		static iteration = 0;
+
+		getPlacement(): string {
+			Placement.iteration++;
+
+			if (Placement.total % 2 === 0 || (Placement.total >= 3 && Placement.iteration !== 1)) {
+				return 'half';
+			} else {
+				return 'full';
+			}
 		}
 	}
 
-	let total = note.attachment?.length || 0;
+	let placement: Placement = new Placement(note.attachment?.length || 0);
 
 	let remaining = note.attachment?.length || 0;
 </script>
@@ -31,15 +42,23 @@
 		{#each note.attachment as x}
 			{#if x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))}
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
-				<div class={getPlacement()} tabindex="0">
-					<img src={cachedImage(wasm, window.Buffer, String(x.url))} width={x.width} height={x.height} alt={x.name} />
+				<div class={placement.getPlacement()} tabindex="0">
+					<img
+						src={cachedImage(wasm, window.Buffer, String(x.url))}
+						width={x.width}
+						height={x.height}
+						alt={x.name}
+					/>
 				</div>
 			{:else if x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))}
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
-				<div class={getPlacement()} tabindex="0">
+				<div class={placement.getPlacement()} tabindex="0">
 					<!-- svelte-ignore a11y-media-has-caption -->
 					<video width={x.width} height={x.height} controls
-						><source src={cachedImage(wasm ,window.Buffer, String(x.url))} type={x.mediaType} /></video
+						><source
+							src={cachedImage(wasm, window.Buffer, String(x.url))}
+							type={x.mediaType}
+						/></video
 					>
 				</div>
 			{/if}
@@ -50,28 +69,32 @@
 <style lang="scss">
 	section {
 		overflow: hidden;
-		padding: 20px;
 		display: flex;
-		flex-direction: row;
-		flex-wrap: wrap;
-		align-items: center;
+		flex-flow: row wrap;
+		align-items: flex-start;
 		justify-content: center;
+		border-radius: 20px;
+		border: 1px solid #444;
 
 		:global(div) {
+			display: flex;
 			min-width: unset;
 			min-height: unset;
 			max-height: 400px;
 			height: unset;
 			width: 100%;
 			text-align: center;
+			margin: unset;
 			padding: 0;
 			overflow: hidden;
 			cursor: pointer;
-			border-radius: 20px;
 
 			:global(video),
 			:global(img) {
+				flex-shrink: 0;
 				height: unset;
+				object-fit: cover;
+				max-height: 50vh;
 				width: 100%;
 			}
 		}
@@ -93,6 +116,7 @@
 
 		:global(div:focus) {
 			max-height: unset;
+			object-fit: contain;
 			width: 100%;
 		}
 	}

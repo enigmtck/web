@@ -58,6 +58,10 @@
 					<!-- <span>{@html links[selectedIndex].ogDescription}</span> -->
 					<span>{links[selectedIndex].ogDescription}</span>
 				{/if}
+
+				{#if links[selectedIndex].ogSiteName}
+					<span>{links[selectedIndex].ogSiteName}</span>
+				{/if}
 			</div>
 		</div>
 	</a>
@@ -86,20 +90,25 @@
 				border-radius: 20px 20px 0 0;
 
 				span {
-					display: block;
 					font-size: 13px;
-					padding-bottom: 5px;
 					color: black;
-					max-height: 100px;
 					overflow: hidden;
 					text-overflow: ellipsis;
+					display: -webkit-box;
+					-webkit-box-orient: vertical;
+					-webkit-line-clamp: 2;
 				}
 				span:first-child {
-					white-space: nowrap;
-					max-height: 22px;
 					font-weight: 600;
 					font-size: 16px;
+					margin-bottom: 10px;
 					mask: unset;
+				}
+
+				span:last-child {
+					font-weight: 600;
+					font-size: 16px;
+					margin-top: 10px;
 				}
 			}
 
@@ -110,7 +119,7 @@
 
 			.image {
 				min-width: unset;
-				max-height: 30vh;
+				max-height: 25vh;
 				width: 100%;
 				padding: 0;
 				margin: 0;
@@ -143,6 +152,9 @@
 					}
 					span:first-child {
 						color: #aaa;
+					}
+					span:last-child {
+						color: #444;
 					}
 				}
 			}
