@@ -75,6 +75,7 @@
 		justify-content: center;
 		border-radius: 20px;
 		border: 1px solid #444;
+		margin-top: 10px;
 
 		:global(div) {
 			display: flex;

@@ -374,7 +374,7 @@
 					console.debug(timeline);
 				}
 
-				if (beforeId) {
+				if (timeline.length > 0 && beforeId) {
 					document.getElementById(beforeId)?.scrollIntoView();
 				}
 

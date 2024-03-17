@@ -32,6 +32,7 @@ interface DisplayNote {
 	note: Note;
 	actor: UserProfile;
 	published: string;
+	created_at: string;
 	replies: Map<string, DisplayNote>;
 }
 
@@ -39,6 +40,7 @@ class DisplayNote {
 	note: Note;
 	actor: UserProfile;
 	published: string;
+	created_at: string;
 	replies: Map<string, DisplayNote>;
 
 	constructor(profile: UserProfile, note: Note, replies?: Map<string, DisplayNote>) {
@@ -51,6 +53,12 @@ class DisplayNote {
 			this.published = note.ephemeralTimestamp;
 		} else {
 			this.published = new Date().toISOString();
+		}
+
+		if (note.ephemeralTimestamp) {
+			this.created_at = note.ephemeralTimestamp;
+		} else {
+			this.created_at = new Date().toISOString();
 		}
 
 		this.replies = replies || new Map<string, DisplayNote>();
@@ -320,9 +328,9 @@ function timeSince(date: number) {
 }
 
 function compare(a: DisplayNote, b: DisplayNote) {
-	if (Date.parse(a.published) < Date.parse(b.published)) {
+	if (Date.parse(a.created_at) < Date.parse(b.created_at)) {
 		return -1;
-	} else if (Date.parse(a.published) > Date.parse(b.published)) {
+	} else if (Date.parse(a.created_at) > Date.parse(b.created_at)) {
 		return 1;
 	} else {
 		return 0;
