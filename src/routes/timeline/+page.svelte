@@ -363,7 +363,9 @@
 				let timeline = JSON.parse(String(x));
 				console.debug(timeline);
 
-				let beforeId = currentIds[0];
+				let scrollable = document.getElementsByClassName('scrollable')[0];
+				let beforeScroll = scrollable.scrollTop;
+				console.log(`SCROLL TOP ${beforeScroll}`);
 
 				try {
 					timeline.forEach((t: Note) => {
@@ -374,8 +376,9 @@
 					console.debug(timeline);
 				}
 
-				if (timeline.length > 0 && beforeId) {
-					document.getElementById(beforeId)?.scrollIntoView();
+				if (timeline.length > 0 && beforeScroll) {
+					scrollable.scrollTop = beforeScroll;
+					console.log(`SCROLLED ${scrollable.scrollTop}`);
 				}
 
 				placeOrphans(true);

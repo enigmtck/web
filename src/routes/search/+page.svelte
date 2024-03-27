@@ -126,9 +126,11 @@
 		let data = new FormData(event.target);
 		console.log('looking up: ' + data.get('address'));
 
-		address = String(data.get('address'));
+		goto(`/${data.get('address')}`);
 
-		await load_profile();
+		//address = String(data.get('address'));
+
+		//await load_profile();
 	}
 
 	function handleFollow(event: any) {

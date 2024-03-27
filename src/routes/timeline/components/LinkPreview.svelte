@@ -1,6 +1,6 @@
 <script lang="ts">
 	export let links: Metadata[];
-	import { cachedImage } from '../../../common';
+	import { cachedContent } from '../../../common';
 	import { onDestroy, onMount } from 'svelte';
 	import { enigmatickWasm } from '../../../stores';
 
@@ -12,6 +12,7 @@
 	});
 
 	type Metadata = {
+		url?: string | null;
 		twitterTitle?: string | null;
 		description?: string | null;
 		ogDescription?: string | null;
@@ -44,7 +45,7 @@
 			{#if links[selectedIndex].ogImage?.length}
 				<div class="image">
 					<img
-						src={cachedImage(wasm, window.Buffer, String(links[selectedIndex].ogImage))}
+						src={cachedContent(wasm, window.Buffer, String(links[selectedIndex].ogImage))}
 						alt="Link Preview"
 						on:error={imgError}
 					/>

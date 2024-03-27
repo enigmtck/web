@@ -24,7 +24,7 @@ export {
 	sleep,
 	DisplayNote,
 	extractUuid,
-	cachedImage,
+	cachedContent,
 	domainMatch
 };
 
@@ -287,7 +287,7 @@ function insertEmojis(
 					if (text) {
 						text = text.replaceAll(
 							tag.name,
-							`<img class="emoji" src="${cachedImage(wasm, window.Buffer, tag.icon.url)}"/>`
+							`<img class="emoji" src="${cachedContent(wasm, window.Buffer, tag.icon.url)}"/>`
 						);
 					}
 				}
@@ -363,7 +363,7 @@ function domainMatch(site1: string, site2: string): boolean {
 // URL, but that causes problems when the URL already includes URI encoding (i.e., I'm not the only one
 // who's had that idea). The resultant decoded URL ends up broken because the original URI decoding also
 // gets decoded at the core server.
-function cachedImage(
+function cachedContent(
 	wasm: typeof import('enigmatick_wasm') | null,
 	buffer: any,
 	url: string

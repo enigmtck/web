@@ -8,7 +8,9 @@
 		type UserProfile,
 		type Collection,
 		insertEmojis,
-		getWebFingerFromId
+		getWebFingerFromId,
+		cachedContent
+
 	} from '../../common';
 	import Posts from './components/Posts.svelte';
 
@@ -24,6 +26,7 @@
 
 	function loadProfile(handle: string) {
 		console.debug(`INSTANCE DOMAIN: ${$appData.domain}`);
+		console.log(`GETTING ${handle}`);
 
 		if (handle.includes('@')) {
 			console.debug('REQUEST FOR REMOTE PROFILE');
@@ -55,10 +58,13 @@
 				}
 			});
 		} else {
+			console.debug('REQUEST FOR LOCAL PROFILE');
 			local = true;
 
 			wasm?.get_profile_by_username(handle).then((x) => {
+				console.log("IN get_profile_by_username");
 				if (x) {
+					console.log(x);
 					profile = JSON.parse(x);
 					console.debug(profile);
 					if (postsComponent && profile) {
@@ -262,7 +268,7 @@
 					/>
 				{/if}
 				{#if profile.image}
-					<img src={profile.image.url} alt="Banner" />
+					<img src={cachedContent(wasm, window.Buffer, String(profile.image.url))} alt="Banner" />
 				{/if}
 			</div>
 			<div class="identity">
@@ -277,7 +283,7 @@
 						/>
 					{/if}
 
-					<img src={profile.icon?.url} alt="Avatar" />
+					<img src={cachedContent(wasm, window.Buffer, String(profile.icon?.url))} alt="Avatar" />
 				</div>
 				<div class="details">
 					{#if profile.name}

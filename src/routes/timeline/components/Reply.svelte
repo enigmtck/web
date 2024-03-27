@@ -90,113 +90,117 @@
 	}
 </script>
 
-<article>
-	<div class="avatar">
-		<div>
-			{#if note.actor && note.actor.icon}
-				<img src={note.actor.icon.url} alt="Sender" />
-			{/if}
+<div class="container">
+	<article>
+		<div class="avatar">
+			<div>
+				{#if note.actor && note.actor.icon}
+					<img src={note.actor.icon.url} alt="Sender" />
+				{/if}
+			</div>
 		</div>
-	</div>
-	<address>
-		{#if note.actor}
-			<a href="/search?actor={note.actor.id}">
-				{@html insertEmojis(wasm, note.actor.name || note.actor.preferredUsername, note.actor)} &bull;
-				<span class="url">{getWebFingerFromId(note.actor)}</span>
-			</a>
-		{/if}
-	</address>
-	<section>{@html insertEmojis(wasm, note.note.content || '', note.note)}</section>
+		<address>
+			{#if note.actor}
+				<a href="/search?actor={note.actor.id}">
+					{@html insertEmojis(wasm, note.actor.name || note.actor.preferredUsername, note.actor)} &bull;
+					<span class="url">{getWebFingerFromId(note.actor)}</span>
+				</a>
+			{/if}
+		</address>
+		<section>{@html insertEmojis(wasm, note.note.content || '', note.note)}</section>
 
-	{#if note.note.attachment && note.note.attachment.length > 0}
-		<Attachments note={note.note} />
-	{/if}
+		{#if note.note.attachment && note.note.attachment.length > 0}
+			<Attachments note={note.note} />
+		{/if}
+
+		{#if note.replies?.size}
+			<span class="comments" data-conversation={note.note.conversation} data-note={note.note.id}
+				><i class="fa-solid fa-comments" />
+				{replyCount(note)}</span
+			>
+		{/if}
+		<time datetime={note.published}>{timeSince(new Date(String(note.published)).getTime())}</time>
+		{#if username}
+			<nav>
+				{#if note.note.ephemeralAnnounced}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i
+						class="fa-solid fa-repeat selected"
+						data-object={note.note.id}
+						data-actor={note.note.attributedTo}
+						on:click|preventDefault={handleAnnounce}
+					/>
+				{:else}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i
+						class="fa-solid fa-repeat"
+						data-object={note.note.id}
+						data-actor={note.note.attributedTo}
+						on:click|preventDefault={handleAnnounce}
+					/>
+				{/if}
+
+				{#if note.note.ephemeralLiked}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i
+						class="fa-solid fa-star selected"
+						data-actor={note.note.attributedTo}
+						data-object={note.note.id}
+						on:click|preventDefault={handleUnlike}
+					/>
+				{:else}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i
+						class="fa-solid fa-star"
+						data-actor={note.note.attributedTo}
+						data-object={note.note.id}
+						on:click|preventDefault={handleLike}
+					/>
+				{/if}
+
+				{#if note.actor}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i
+						class="fa-solid fa-reply"
+						data-reply={note.note.id}
+						data-display={note.actor.name || note.actor.preferredUsername}
+						data-url={note.actor.url}
+						data-username={note.actor.preferredUsername}
+						data-recipient={note.actor.id}
+						data-conversation={note.note.conversation}
+						on:click={handleReplyTo}
+					/>
+				{/if}
+			</nav>
+		{/if}
+	</article>
 
 	{#if note.replies?.size}
-		<span class="comments" data-conversation={note.note.conversation} data-note={note.note.id}
-			><i class="fa-solid fa-comments" />
-			{replyCount(note)}</span
-		>
+		<div class="replies">
+			{#each Array.from(note.replies.values()).sort(compare) as reply}
+				<svelte:self
+					note={reply}
+					{username}
+					on:reply_to={forwardReplyTo}
+					on:note_select={forwardNoteSelect}
+				/>
+			{/each}
+		</div>
 	{/if}
-	<time datetime={note.published}>{timeSince(new Date(String(note.published)).getTime())}</time>
-	{#if username}
-		<nav>
-			{#if note.note.ephemeralAnnounced}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i
-					class="fa-solid fa-repeat selected"
-					data-object={note.note.id}
-					data-actor={note.note.attributedTo}
-					on:click|preventDefault={handleAnnounce}
-				/>
-			{:else}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i
-					class="fa-solid fa-repeat"
-					data-object={note.note.id}
-					data-actor={note.note.attributedTo}
-					on:click|preventDefault={handleAnnounce}
-				/>
-			{/if}
-
-			{#if note.note.ephemeralLiked}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i
-					class="fa-solid fa-star selected"
-					data-actor={note.note.attributedTo}
-					data-object={note.note.id}
-					on:click|preventDefault={handleUnlike}
-				/>
-			{:else}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i
-					class="fa-solid fa-star"
-					data-actor={note.note.attributedTo}
-					data-object={note.note.id}
-					on:click|preventDefault={handleLike}
-				/>
-			{/if}
-
-			{#if note.actor}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i
-					class="fa-solid fa-reply"
-					data-reply={note.note.id}
-					data-display={note.actor.name || note.actor.preferredUsername}
-					data-url={note.actor.url}
-					data-username={note.actor.preferredUsername}
-					data-recipient={note.actor.id}
-					data-conversation={note.note.conversation}
-					on:click={handleReplyTo}
-				/>
-			{/if}
-		</nav>
-	{/if}
-</article>
-
-{#if note.replies?.size}
-	<div class="replies">
-		{#each Array.from(note.replies.values()).sort(compare) as reply}
-			<svelte:self
-				note={reply}
-				{username}
-				on:reply_to={forwardReplyTo}
-				on:note_select={forwardNoteSelect}
-			/>
-		{/each}
-	</div>
-{/if}
+</div>
 
 <style lang="scss">
-	article {
-		position: relative;
+	div.container {
 		width: 100%;
 		max-width: 680px;
+	}
+	article {
+		position: relative;
 		margin: 0;
 		border-bottom: 1px solid #ddd;
 		font-family: 'Open Sans';
@@ -343,8 +347,10 @@
 	}
 
 	.replies {
+		width: calc(100% - 1px);
 		margin-left: 1px;
 		border-left: 2px solid darkred;
+		box-sizing: border-box;
 	}
 
 	:global(body.dark) {

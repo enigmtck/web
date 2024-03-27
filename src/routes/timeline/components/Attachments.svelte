@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Note } from '../../../common';
-	import { cachedImage } from '../../../common';
+	import { cachedContent } from '../../../common';
 	import { onDestroy, onMount } from 'svelte';
 	import { enigmatickWasm } from '../../../stores';
 
@@ -8,10 +8,7 @@
 
 	$: wasm = $enigmatickWasm;
 
-	onMount(async () => {
-		const { Buffer } = await import('buffer');
-		window.Buffer = Buffer;
-	});
+	onMount(async () => {});
 
 	class Placement {
 		constructor(total: number) {
@@ -34,8 +31,35 @@
 
 	let placement: Placement = new Placement(note.attachment?.length || 0);
 
-	let remaining = note.attachment?.length || 0;
+	let fullscreenImage: HTMLImageElement;
+	let fullscreenMask: HTMLDivElement;
+	let imageContainer: HTMLDivElement;
+
+	const cancelSelect = (event: Event) => {
+		console.log(event);
+		fullscreenImage.src = '#';
+		imageContainer.classList.add('hidden');
+		fullscreenMask.classList.add('hidden');
+	};
+
+	const selectImage = (event: Event) => {
+		console.log(event);
+
+		if (event.target && (<HTMLImageElement>event.target).src) {
+			fullscreenImage.src = (<HTMLImageElement>event.target).src;
+			imageContainer.classList.remove('hidden');
+			fullscreenMask.classList.remove('hidden');
+		}
+	};
 </script>
+
+<div class="mask hidden" bind:this={fullscreenMask} />
+<div role="img" aria-labelledby="cancel" class="image hidden" bind:this={imageContainer}>
+	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+	<!-- svelte-ignore a11y-click-events-have-key-events -->
+	<!-- svelte-ignore a11y-missing-attribute -->
+	<img bind:this={fullscreenImage} src="#" on:click={cancelSelect} />
+</div>
 
 <section>
 	{#if note.attachment}
@@ -43,11 +67,14 @@
 			{#if x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))}
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 				<div class={placement.getPlacement()} tabindex="0">
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 					<img
-						src={cachedImage(wasm, window.Buffer, String(x.url))}
+						src={cachedContent(wasm, window.Buffer, String(x.url))}
 						width={x.width}
 						height={x.height}
 						alt={x.name}
+						on:click={selectImage}
 					/>
 				</div>
 			{:else if x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))}
@@ -56,10 +83,16 @@
 					<!-- svelte-ignore a11y-media-has-caption -->
 					<video width={x.width} height={x.height} controls
 						><source
-							src={cachedImage(wasm, window.Buffer, String(x.url))}
+							src={cachedContent(wasm, window.Buffer, String(x.url))}
 							type={x.mediaType}
 						/></video
 					>
+				</div>
+			{:else if x.type == 'Document' && /^(?:audio)\/.+$/.test(String(x.mediaType))}
+				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
+				<div class={placement.getPlacement()} tabindex="0">
+					<!-- svelte-ignore a11y-media-has-caption -->
+					<audio controls src={cachedContent(wasm, window.Buffer, String(x.url))}></audio>
 				</div>
 			{/if}
 		{/each}
@@ -67,28 +100,62 @@
 </section>
 
 <style lang="scss">
+	.mask {
+		display: block;
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100vw;
+		height: 100vh;
+		background: #222;
+		z-index: 31;
+		opacity: 0.7;
+	}
+
+	div.image {
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		height: 90vh;
+		width: 90vw;
+		z-index: 32;
+
+		img {
+			object-fit: contain;
+			width: 100%;
+			height: 100%;
+			cursor: pointer;
+		}
+	}
+
+	.hidden {
+		visibility: hidden;
+	}
+
 	section {
 		overflow: hidden;
 		display: flex;
 		flex-flow: row wrap;
 		align-items: flex-start;
 		justify-content: center;
-		border-radius: 20px;
-		border: 1px solid #444;
 		margin-top: 10px;
 
 		:global(div) {
 			display: flex;
 			min-width: unset;
 			min-height: unset;
-			max-height: 400px;
-			height: unset;
+			max-height: 50vh;
+			height: 200px;
+			box-sizing: border-box;
 			width: 100%;
 			text-align: center;
-			margin: unset;
-			padding: 0;
+			margin: 0;
+			padding: 2px;
+			border-radius: 10px;
 			overflow: hidden;
 			cursor: pointer;
+			align-items: center;
 
 			:global(video),
 			:global(img) {
@@ -96,6 +163,11 @@
 				object-fit: cover;
 				max-height: 50vh;
 				height: 100%;
+				width: 100%;
+			}
+
+			:global(audio) {
+				height: auto;
 				width: 100%;
 			}
 		}
@@ -113,12 +185,6 @@
 
 		:global(div.half) {
 			width: 50%;
-		}
-
-		:global(div:focus) {
-			max-height: unset;
-			object-fit: contain;
-			width: 100%;
 		}
 	}
 </style>

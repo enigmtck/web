@@ -15,7 +15,7 @@
 		insertEmojis,
 		timeSince,
 		getWebFingerFromId,
-		cachedImage,
+		cachedContent,
 		domainMatch
 	} from '../../../common';
 	import { replyCount, ComposeDispatch } from './common';
@@ -162,7 +162,7 @@
 	<header>
 		<div>
 			{#if note.actor && note.actor.icon}
-				<img src={cachedImage(wasm, window.Buffer, note.actor.icon.url)} alt="Sender" />
+				<img src={cachedContent(wasm, window.Buffer, note.actor.icon.url)} alt="Sender" />
 			{/if}
 		</div>
 		<address>
