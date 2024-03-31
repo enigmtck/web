@@ -217,6 +217,9 @@
 
 	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
 		if (note.ephemeralAnnounces) {
+			console.log("EPHEMERAL ANNOUNCES");
+			console.debug(note.ephemeralAnnounces);
+
 			const announce_actor = await cachedActor(note.ephemeralAnnounces[0]);
 			let others = '';
 
@@ -527,12 +530,20 @@
 		}
 	}
 
-	async function cachedActor(id: string) {
-		if (wasm && !apCache.has(id)) {
-			apCache.set(id, await wasm.get_actor(id));
-		}
+	async function cachedActor(id: string | undefined) {
+		if (id && wasm) {
+			if (!apCache.has(id)) {
+				let actor = await wasm.get_actor(id);
 
-		return apCache.get(id);
+				if (actor) {
+					apCache.set(id, actor);
+				}
+			}
+
+			return apCache.get(id);
+		}
+		
+		return null;
 	}
 
 	async function cachedNote(id: string) {
