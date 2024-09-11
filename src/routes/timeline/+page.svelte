@@ -13,9 +13,11 @@
 		StreamConnect,
 		Announce,
 		AnnounceParams,
-		Attachment
+		Attachment,
+		Activity,
+		Collection
 	} from '../../common';
-	import { insertEmojis, compare, sleep, DisplayNote } from '../../common';
+	import { insertEmojis, compare, sleep, DisplayNote, extractMaxMin } from '../../common';
 
 	import { goto } from '$app/navigation';
 	import type { ComposeDispatch } from './components/common';
@@ -217,7 +219,7 @@
 
 	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
 		if (note.ephemeralAnnounces) {
-			console.log("EPHEMERAL ANNOUNCES");
+			console.log('EPHEMERAL ANNOUNCES');
 			console.debug(note.ephemeralAnnounces);
 
 			const announce_actor = await cachedActor(note.ephemeralAnnounces[0]);
@@ -343,7 +345,7 @@
 				// of what is available and we should stop
 				loadTimelineData().then((results) => {
 					console.debug('TIMELINE LENGTH: ' + results);
-					if (results > 0) {
+					if (results && results > 0) {
 						loadMinimum();
 					}
 				});
@@ -354,32 +356,41 @@
 	}
 
 	async function loadTimelineData() {
-		const pageSize = 20;
+		const pageSize = 10;
 		let attempts = 0;
 
 		if (wasm && view) {
-			let x = await wasm.get_timeline(offset, pageSize, view);
+			let x = await wasm.get_timeline(maxValue, undefined, pageSize, view);
 			console.debug('WASM RESPONSE');
-			console.debug(x);
 
 			try {
-				let timeline = JSON.parse(String(x));
-				console.debug(timeline);
+				let collection: Collection = JSON.parse(String(x));
+				console.debug(collection);
+
+				if (collection.next) {
+					const result = extractMaxMin(collection.next);
+
+					if (result.type === 'max' && result.value) {
+						maxValue = result.value;
+					}
+				}
 
 				let scrollable = document.getElementsByClassName('scrollable')[0];
 				let beforeScroll = scrollable.scrollTop;
 				console.log(`SCROLL TOP ${beforeScroll}`);
 
 				try {
-					timeline.forEach((t: Note) => {
-						addNote(t);
+					collection.orderedItems?.forEach((a: Activity) => {
+						console.debug(a);
+						addNote(a.object);
 					});
 				} catch (e) {
 					console.error(e);
-					console.debug(timeline);
+					console.debug(collection);
 				}
 
-				if (timeline.length > 0 && beforeScroll) {
+				let l: number = collection.orderedItems?.length ?? 0;
+				if (l > 0 && beforeScroll) {
 					scrollable.scrollTop = beforeScroll;
 					console.log(`SCROLLED ${scrollable.scrollTop}`);
 				}
@@ -390,7 +401,7 @@
 				console.info(orphans);
 
 				offset += pageSize;
-				return timeline.length;
+				return length;
 			} catch (e) {
 				console.error(e);
 				console.debug(x);
@@ -508,7 +519,7 @@
 				scrollable.scrollTop + scrollable.offsetHeight >= scrollable.scrollHeight * 0.8 &&
 				results > 0
 			) {
-				results = await loadTimelineData();
+				results = (await loadTimelineData()) || 0;
 			}
 
 			loading = false;
@@ -541,8 +552,9 @@
 			}
 
 			return apCache.get(id);
+			3;
 		}
-		
+
 		return null;
 	}
 
@@ -620,6 +632,8 @@
 
 	// the offset sent to the API for new data; adjusted when Notes are added by EventSource
 	let offset = 0;
+	let maxValue: string | undefined = undefined;
+	let minValue: string | undefined = undefined;
 
 	// used to reduce calls to the API for Actor data
 	let apCache = new Map<string, string | undefined>();

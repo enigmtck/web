@@ -2,6 +2,7 @@ export type {
 	UserProfile,
 	EnigmatickEvent,
 	EnigmatickEventObject,
+	Activity,
 	Announce,
 	Tag,
 	Attachment,
@@ -24,6 +25,7 @@ export {
 	sleep,
 	DisplayNote,
 	extractUuid,
+	extractMaxMin,
 	cachedContent,
 	domainMatch
 };
@@ -207,6 +209,19 @@ interface Note {
 	ephemeralMetadata?: Metadata[] | null;
 }
 
+interface Activity {
+	'@context': string;
+	type: 'Create' | 'Announce';
+	actor: string;
+	to: string[];
+	cc: string[];
+	id: string;
+	object: Note;
+	published: string | null;
+	ephemeralCreatedAt: string | null;
+	ephemeralUpdatedAt: string | null;
+}
+
 interface StreamConnect {
 	uuid: string;
 }
@@ -243,8 +258,8 @@ interface Collection {
 	type: 'Collection' | 'CollectionPage' | 'OrderedCollection' | 'OrderedCollectionPage';
 	id: string;
 	totalItems: number;
-	items?: QueueItem[];
-	orderedItems?: QueueItem[];
+	items?: Activity[];
+	orderedItems?: Activity[];
 	prev?: string;
 	next?: string;
 	first?: string;
@@ -334,6 +349,20 @@ function compare(a: DisplayNote, b: DisplayNote) {
 		return 1;
 	} else {
 		return 0;
+	}
+}
+
+function extractMaxMin(url: string): { value: string | null; type: 'max' | 'min' | null } {
+	const parsedUrl = new URL(url);
+	const maxValue = parsedUrl.searchParams.get('max');
+	const minValue = parsedUrl.searchParams.get('min');
+
+	if (maxValue) {
+		return { value: maxValue, type: 'max' };
+	} else if (minValue) {
+		return { value: minValue, type: 'min' };
+	} else {
+		return { value: null, type: null };
 	}
 }
 

@@ -26,37 +26,49 @@ export default defineConfig({
 		port: 5273,
 		proxy: {
 			'/events': {
-				target: 'http://127.0.0.1:8010/',
+				//target: 'http://127.0.0.1:8010/',
+				target: 'http://10.42.113.8/',
 				changeOrigin: true,
 				secure: false,
 				ws: false
 			},
 			'/api': {
-				target: 'http://127.0.0.1:8010/',
+				//target: 'http://127.0.0.1:8010/',
+				target: 'http://10.42.113.8/',
 				changeOrigin: false,
 				secure: false,
 				ws: false
 			},
 			'/user': {
-				target: 'http://127.0.0.1:8010/',
+				//target: 'http://127.0.0.1:8010/',
+				target: 'http://10.42.113.8/',
 				changeOrigin: false,
 				secure: false,
 				ws: false
 			},
 			'/conversation': {
-				target: 'http://127.0.0.1:8010/',
+				//target: 'http://127.0.0.1:8010/',
+				target: 'http://10.42.113.8/',
 				changeOrigin: false,
 				secure: false,
 				ws: false
 			},
 			'/inbox': {
-				target: 'http://127.0.0.1:8010/',
+				//target: 'http://127.0.0.1:8010/',
+				target: 'http://10.42.113.8/',
 				changeOrigin: false,
 				secure: false,
 				ws: false
 			},
 			'/.well-known': {
-				target: 'http://127.0.0.1:8010/',
+				//target: 'http://127.0.0.1:8010/',
+				target: 'http://10.42.113.8/',
+				changeOrigin: false,
+				secure: false,
+				ws: false
+			},
+			'/media': {
+				target: 'https://enigmatick.social/',
 				changeOrigin: false,
 				secure: false,
 				ws: false
