@@ -86,14 +86,14 @@
 	}
 
 	async function loadPosts(handle: string, local: boolean) {
-		notes = new Map<string, DisplayNote>();
+		notesMap = new Map<string, DisplayNote>();
 
 		let state = wasm?.get_state();
 		if (state) {
 			let server = state.get_server_url();
 
 			if (local && handle) {
-				const outbox = await wasm?.get_outbox(`${server}/user/${handle}/outbox?page=true`);
+				const outbox = await wasm?.get_outbox(`${server}/user/${handle}/outbox`);
 
 				if (outbox) {
 					const collection: Collection = JSON.parse(outbox);
@@ -157,14 +157,14 @@
 	function refresh() {
 		console.debug('REFRESH');
 
-		notes.clear();
+		notesMap.clear();
 		loadPosts(handle, local).then((x) => {
 			console.log('LOADED');
 		});
 	}
 
 	function remove(note: string) {
-		notes.delete(note);
+		notesMap.delete(note);
 		notes = notes;
 	}
 
@@ -194,12 +194,15 @@
 			let actorProfile: UserProfile = JSON.parse(actor);
 			const displayNote = new DisplayNote(actorProfile, note);
 
-			if (!notes.get(String(note.id))) {
-				notes.set(String(note.id), displayNote);
+			if (!notesMap.get(String(note.id))) {
+				notesMap.set(String(note.id), displayNote);
 				locator.set(String(note.id), [String(note.id)]);
 			}
+
+			notes.push(displayNote)
 		}
 
+		notesMap = notesMap;
 		notes = notes;
 	}
 
@@ -327,8 +330,10 @@
 	let noteQueue: Note[] = [];
 
 	// HTML formatted notes to display in the Timeline
+	$: notes = new Array<DisplayNote>();
+
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
-	$: notes = new Map<string, DisplayNote>();
+	$: notesMap = new Map<string, DisplayNote>();
 
 	// this is a map to locate a note within the nested notes structure;
 	// the list is an ordered set of steps to access a note's location
@@ -360,7 +365,7 @@
 
 <main>
 	{#if wasm}
-		{#each Array.from(notes.values()).sort(compare).reverse() as note}
+		{#each notes as note}
 			{#if note.note}
 				{#await replyToHeader(note.note) then replyTo}
 					{#await announceHeader(note.note) then announce}

@@ -78,7 +78,7 @@
 		let orphans_copy = new Map(orphans);
 		orphans_copy.forEach((orphan, id) => {
 			if (orphan.note.inReplyTo) {
-				if (notes.has(orphan.note.inReplyTo)) {
+				if (notesMap.has(orphan.note.inReplyTo)) {
 					orphans.delete(id);
 					placeNote(orphan);
 				} else if (recursive && orphans.has(orphan.note.inReplyTo)) {
@@ -262,7 +262,7 @@
 
 			if (traversal) {
 				// set the cursor to the first step in the traversal
-				let cursor = notes.get(traversal[0]);
+				let cursor = notesMap.get(traversal[0]);
 
 				// traverse through the steps, updating the cursor to find the
 				// deepest point
@@ -293,8 +293,9 @@
 			}
 		} else {
 			// this is a top-level note, add it to the notes and locator maps
-			if (!notes.get(String(note.id))) {
-				notes.set(String(note.id), displayNote);
+			if (!notesMap.get(String(note.id))) {
+				notesMap.set(String(note.id), displayNote);
+				notes.push(displayNote);
 				locator.set(String(note.id), [String(note.id)]);
 			}
 		}
@@ -325,6 +326,7 @@
 					placeNote(displayNote);
 				}
 
+				notesMap = notesMap;
 				notes = notes;
 			}
 		}
@@ -603,9 +605,12 @@
 		locator = new Map<string, string[]>();
 		orphans = new Map<string, DisplayNote>();
 		offset = 0;
-		notes = new Map<string, DisplayNote>();
+		notesMap = new Map<string, DisplayNote>();
+		notes = new Array<DisplayNote>();
 		retrievedConversations = new Set();
 		yPosition = scrollToTop();
+		maxValue = undefined;
+		minValue = undefined;
 
 		const scroll = document.getElementsByClassName('scroll')[0] as HTMLElement;
 		scroll.style.display = 'none';
@@ -619,8 +624,9 @@
 	let noteQueue: Note[] = [];
 
 	// HTML formatted notes to display in the Timeline
+	$: notes = new Array<DisplayNote>();
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
-	$: notes = new Map<string, DisplayNote>();
+	$: notesMap = new Map<string, DisplayNote>();
 
 	// this is a map to locate a note within the nested notes structure;
 	// the list is an ordered set of steps to access a note's location
@@ -710,7 +716,7 @@
 	</header>
 
 	<div class="scrollable">
-		{#each Array.from(notes.values()).sort(compare).reverse() as note}
+		{#each notes as note}
 			{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeralAnnounces?.length)) || note.note.id == focusNote)}
 				{#await replyToHeader(note.note) then replyTo}
 					{#await announceHeader(note.note) then announce}
