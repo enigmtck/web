@@ -48,19 +48,22 @@
 
 							if (!retrievedConversations.has(conversation)) {
 								retrievedConversations.add(conversation);
-								wasm.get_conversation(dataset.conversation, 0, 50).then((conversation) => {
-									if (conversation) {
-										let notes: Note[] = JSON.parse(conversation);
-										notes.forEach((note) => {
-											if (note.inReplyTo) {
-												addNote(note);
-											}
-										});
-										console.log(notes);
+								wasm
+									.get_conversation(encodeURIComponent(dataset.conversation), 50)
+									.then((conversation) => {
+										if (conversation) {
+											let collection: Collection = JSON.parse(conversation);
 
-										placeOrphans(true);
-									}
-								});
+											collection.orderedItems?.forEach((a: Activity) => {
+												console.debug(a);
+												if (a.object.inReplyTo) {
+													addNote(a.object);
+												}
+											});
+
+											placeOrphans(true);
+										}
+									});
 							}
 						}
 					}
@@ -78,7 +81,7 @@
 		let orphans_copy = new Map(orphans);
 		orphans_copy.forEach((orphan, id) => {
 			if (orphan.note.inReplyTo) {
-				if (notesMap.has(orphan.note.inReplyTo)) {
+				if (notes.has(orphan.note.inReplyTo)) {
 					orphans.delete(id);
 					placeNote(orphan);
 				} else if (recursive && orphans.has(orphan.note.inReplyTo)) {
@@ -262,7 +265,7 @@
 
 			if (traversal) {
 				// set the cursor to the first step in the traversal
-				let cursor = notesMap.get(traversal[0]);
+				let cursor = notes.get(traversal[0]);
 
 				// traverse through the steps, updating the cursor to find the
 				// deepest point
@@ -293,9 +296,9 @@
 			}
 		} else {
 			// this is a top-level note, add it to the notes and locator maps
-			if (!notesMap.get(String(note.id))) {
-				notesMap.set(String(note.id), displayNote);
-				notes.push(displayNote);
+			if (!notes.get(String(note.id))) {
+				notes.set(String(note.id), displayNote);
+				//notes.push(displayNote);
 				locator.set(String(note.id), [String(note.id)]);
 			}
 		}
@@ -326,7 +329,7 @@
 					placeNote(displayNote);
 				}
 
-				notesMap = notesMap;
+				//notesMap = notesMap;
 				notes = notes;
 			}
 		}
@@ -554,7 +557,6 @@
 			}
 
 			return apCache.get(id);
-			3;
 		}
 
 		return null;
@@ -605,8 +607,8 @@
 		locator = new Map<string, string[]>();
 		orphans = new Map<string, DisplayNote>();
 		offset = 0;
-		notesMap = new Map<string, DisplayNote>();
-		notes = new Array<DisplayNote>();
+		notes = new Map<string, DisplayNote>();
+		//notes = new Array<DisplayNote>();
 		retrievedConversations = new Set();
 		yPosition = scrollToTop();
 		maxValue = undefined;
@@ -624,9 +626,9 @@
 	let noteQueue: Note[] = [];
 
 	// HTML formatted notes to display in the Timeline
-	$: notes = new Array<DisplayNote>();
+	//$: notes = new Array<DisplayNote>();
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
-	$: notesMap = new Map<string, DisplayNote>();
+	$: notes = new Map<string, DisplayNote>();
 
 	// this is a map to locate a note within the nested notes structure;
 	// the list is an ordered set of steps to access a note's location
@@ -716,7 +718,7 @@
 	</header>
 
 	<div class="scrollable">
-		{#each notes as note}
+		{#each Array.from(notes.values()) as note}
 			{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeralAnnounces?.length)) || note.note.id == focusNote)}
 				{#await replyToHeader(note.note) then replyTo}
 					{#await announceHeader(note.note) then announce}
