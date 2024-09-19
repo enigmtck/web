@@ -10,7 +10,6 @@
 		insertEmojis,
 		getWebFingerFromId,
 		cachedContent
-
 	} from '../../common';
 	import Posts from './components/Posts.svelte';
 
@@ -20,11 +19,10 @@
 	import { onDestroy, onMount } from 'svelte';
 
 	onMount(async () => {
-		const { Buffer } = await import('buffer');
-		window.Buffer = Buffer;
+
 	});
 
-	function loadProfile(handle: string) {
+	async function loadProfile(handle: string) {
 		console.debug(`INSTANCE DOMAIN: ${$appData.domain}`);
 		console.log(`GETTING ${handle}`);
 
@@ -32,29 +30,32 @@
 			console.debug('REQUEST FOR REMOTE PROFILE');
 			local = false;
 
-			wasm?.get_actor_from_webfinger(`@${handle}`).then((x) => {
+			// The '@' below is the prepended one; the '@' above is the one in the middle
+			let p = await cachedActor(`@${handle}`);
+			// let p = await wasm?.get_actor_cached(cache, `@${handle}`).catch((e) => {
+			// 	 console.error(`FAILED TO RETRIEVE: ${handle}`);
+			// 	 return null;
+			// });
+
+			profile = JSON.parse(p);
+			console.debug(profile);
+			if (postsComponent && profile) {
+				postsComponent.local = local;
+				postsComponent.handle = handle;
+				postsComponent.profile = profile;
+			}
+
+			wasm?.get_remote_followers(`@${handle}`).then((x) => {
 				if (x) {
-					profile = JSON.parse(x);
-					console.debug(profile);
-					if (postsComponent && profile) {
-						postsComponent.local = local;
-						postsComponent.handle = handle;
-						postsComponent.profile = profile;
-					}
+					let followers: Collection = JSON.parse(x);
+					followerCount = followers.totalItems;
+				}
+			});
 
-					wasm?.get_remote_followers(`@${handle}`).then((x) => {
-						if (x) {
-							let followers: Collection = JSON.parse(x);
-							followerCount = followers.totalItems;
-						}
-					});
-
-					wasm?.get_remote_following(`@${handle}`).then((x) => {
-						if (x) {
-							let following: Collection = JSON.parse(x);
-							followingCount = following.totalItems;
-						}
-					});
+			wasm?.get_remote_following(`@${handle}`).then((x) => {
+				if (x) {
+					let following: Collection = JSON.parse(x);
+					followingCount = following.totalItems;
 				}
 			});
 		} else {
@@ -62,7 +63,7 @@
 			local = true;
 
 			wasm?.get_profile_by_username(handle).then((x) => {
-				console.log("IN get_profile_by_username");
+				console.log('IN get_profile_by_username');
 				if (x) {
 					console.log(x);
 					profile = JSON.parse(x);
@@ -76,6 +77,20 @@
 				}
 			});
 		}
+	}
+
+	async function cachedActor(id: string) {
+		if (cache) {
+			try {
+				console.debug(`RETRIEVING ${id} FROM CACHE`);
+				return await wasm?.get_actor_cached(cache, id);
+			} catch (e) {
+				console.error(`FAILED TO RETRIEVE: ${id}`);
+				return null;
+			}
+		}
+
+		return null;
 	}
 
 	function convertToHtml(data: string) {
@@ -248,8 +263,10 @@
 	let postsComponent: Posts | null;
 	let profile: UserProfile | null = null;
 	let local = true;
+	let cache: any = null;
 
 	$: if ($enigmatickWasm) {
+		cache = new $enigmatickWasm.EnigmatickCache();
 		loadProfile($page.params.handle);
 	}
 </script>
@@ -632,7 +649,7 @@
 
 	:global(body.dark) {
 		background: #000;
-		
+
 		main {
 			.profile {
 				border: 0;

@@ -5,7 +5,7 @@
 
 	import { onDestroy, onMount } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
-	import { appData, enigmatickWasm } from '../../stores';
+	import { appData, enigmatickWasm, wasmState } from '../../stores';
 	import { source } from 'sveltekit-sse';
 	import type {
 		UserProfile,
@@ -365,6 +365,10 @@
 		let attempts = 0;
 
 		if (wasm && view) {
+			if (!cache) {
+				cache = new wasm.EnigmatickCache();
+			}
+
 			let x = await wasm.get_timeline(maxValue, undefined, pageSize, view);
 			console.debug('WASM RESPONSE');
 
@@ -546,17 +550,15 @@
 		}
 	}
 
-	async function cachedActor(id: string | undefined) {
-		if (id && wasm) {
-			if (!apCache.has(id)) {
-				let actor = await wasm.get_actor(id);
-
-				if (actor) {
-					apCache.set(id, actor);
-				}
+	async function cachedActor(id: string) {
+		if (id && wasm && cache) {
+			try {
+				console.debug(`RETRIEVING ${id} FROM CACHE`);
+				return await wasm.get_actor_cached(cache, id);
+			} catch (e) {
+				console.error(`FAILED TO RETRIEVE: ${id}`);
+				return null;
 			}
-
-			return apCache.get(id);
 		}
 
 		return null;
@@ -617,6 +619,8 @@
 		const scroll = document.getElementsByClassName('scroll')[0] as HTMLElement;
 		scroll.style.display = 'none';
 	}
+
+	let cache: any = null;
 
 	// controls whether messages from EventSource are immediately displayed or queued
 	let liveLoading = true;

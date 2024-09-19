@@ -14,7 +14,8 @@
 		StreamConnect,
 		Announce,
 		AnnounceParams,
-		Attachment
+		Attachment,
+		Activity
 	} from '../../../common';
 	import { insertEmojis, compare, sleep, DisplayNote, type Collection } from '../../../common';
 
@@ -22,14 +23,46 @@
 	export let local: boolean;
 	export let handle: string;
 
+	let retrievedConversations: Set<string> = new Set();
+	let currentIds: Array<string> = new Array();
 	let observer: IntersectionObserver | null = null;
 	function onIntersection(entries: IntersectionObserverEntry[]) {
 		for (let entry of entries) {
-			if (entry.isIntersecting && entry.target) {
+			if (entry.target) {
 				let target = <HTMLElement>entry.target;
-				if (target.dataset) {
-					let dataset = <DOMStringMap>target.dataset;
-					console.log(dataset.conversation);
+				if (entry.isIntersecting) {
+					if (target.dataset) {
+						let dataset = <DOMStringMap>target.dataset;
+						console.log(dataset.conversation);
+						if (wasm && dataset.conversation) {
+							let conversation = dataset.conversation;
+
+							if (!retrievedConversations.has(conversation)) {
+								retrievedConversations.add(conversation);
+								wasm
+									.get_conversation(encodeURIComponent(dataset.conversation), 50)
+									.then((conversation) => {
+										if (conversation) {
+											let collection: Collection = JSON.parse(conversation);
+
+											collection.orderedItems?.forEach((a: Activity) => {
+												console.debug(a);
+												if (a.object.inReplyTo) {
+													addNote(a.object);
+												}
+											});
+
+											placeOrphans(true);
+										}
+									});
+							}
+						}
+					}
+				} else {
+					let index = currentIds.indexOf(target.id);
+					if (index !== -1) {
+						currentIds.splice(index, 1);
+					}
 				}
 			}
 		}
@@ -42,9 +75,6 @@
 	}
 
 	onMount(async () => {
-		const { Buffer } = await import('buffer');
-		window.Buffer = Buffer;
-
 		observer = new IntersectionObserver(onIntersection, {
 			root: null, // default is the viewport
 			threshold: 0.3 // percentage of target's visible area. Triggers "onIntersection"
@@ -86,14 +116,18 @@
 	}
 
 	async function loadPosts(handle: string, local: boolean) {
-		notesMap = new Map<string, DisplayNote>();
+		notes = new Map<string, DisplayNote>();
+
+		if (!cache && wasm) {
+			cache = new wasm.EnigmatickCache();
+		}
 
 		let state = wasm?.get_state();
 		if (state) {
 			let server = state.get_server_url();
 
 			if (local && handle) {
-				const outbox = await wasm?.get_outbox(`${server}/user/${handle}/outbox`);
+				const outbox = await wasm?.get_outbox(handle);
 
 				if (outbox) {
 					const collection: Collection = JSON.parse(outbox);
@@ -157,15 +191,77 @@
 	function refresh() {
 		console.debug('REFRESH');
 
-		notesMap.clear();
+		notes.clear();
 		loadPosts(handle, local).then((x) => {
 			console.log('LOADED');
 		});
 	}
 
 	function remove(note: string) {
-		notesMap.delete(note);
+		notes.delete(note);
 		notes = notes;
+	}
+
+	function placeOrphans(recursive: boolean) {
+		let orphans_copy = new Map(orphans);
+		orphans_copy.forEach((orphan, id) => {
+			if (orphan.note.inReplyTo) {
+				if (notes.has(orphan.note.inReplyTo)) {
+					orphans.delete(id);
+					placeNote(orphan);
+				} else if (recursive && orphans.has(orphan.note.inReplyTo)) {
+					placeOrphans(false);
+				}
+			}
+		});
+	}
+
+	function placeNote(displayNote: DisplayNote) {
+		const note = displayNote.note;
+
+		if (note.inReplyTo) {
+			// lookup the parent note in the locator to get its traversal path
+			let traversal = locator.get(String(note.inReplyTo));
+
+			if (traversal) {
+				// set the cursor to the first step in the traversal
+				let cursor = notes.get(traversal[0]);
+
+				// traverse through the steps, updating the cursor to find the
+				// deepest point
+				traversal.forEach((id, key, arr) => {
+					if (key > 0) {
+						cursor = cursor?.replies.get(id);
+					}
+				});
+
+				if (cursor?.note.id == note.inReplyTo) {
+					// attch this note to its parent
+					cursor.replies.set(String(note.id), displayNote);
+
+					// copy the traversal path and add this note's id to the end
+					let traversalCopy = [...traversal];
+					traversalCopy.push(String(note.id));
+
+					// update the locator map with the traversal path for this note
+					locator.set(String(note.id), traversalCopy);
+				} else {
+					console.error('TRAVERSAL ENDED SOMEWHERE UNEXPECTED');
+				}
+			} else {
+				// we don't have this note's parent yet; queue it for review later
+				if (displayNote.note.id) {
+					orphans.set(displayNote.note.id, displayNote);
+				}
+			}
+		} else {
+			// this is a top-level note, add it to the notes and locator maps
+			if (!notes.get(String(note.id))) {
+				notes.set(String(note.id), displayNote);
+				//notes.push(displayNote);
+				locator.set(String(note.id), [String(note.id)]);
+			}
+		}
 	}
 
 	async function addNote(note: Note) {
@@ -185,24 +281,35 @@
 			console.debug(note.ephemeralLikes);
 		}
 
+		console.debug(`NOTE ATTRIBUTED_TO: ${note.attributedTo}`);
 		const actor = await cachedActor(note.attributedTo);
+
+		console.debug(`NOTE ACTOR: ${actor}`);
+		if (actor) {
+			const profile: UserProfile | null = parseProfile(actor);
+
+			if (profile) {
+				const displayNote = new DisplayNote(profile, note);
+				placeNote(displayNote);
+			}
+
+			//notesMap = notesMap;
+			notes = notes;
+		}
 
 		//console.log("NOTE ACTOR");
 		//console.debug(actor);
 
-		if (actor) {
-			let actorProfile: UserProfile = JSON.parse(actor);
-			const displayNote = new DisplayNote(actorProfile, note);
+		// if (actor) {
+		// 	let actorProfile: UserProfile = JSON.parse(actor);
+		// 	const displayNote = new DisplayNote(actorProfile, note);
 
-			if (!notesMap.get(String(note.id))) {
-				notesMap.set(String(note.id), displayNote);
-				locator.set(String(note.id), [String(note.id)]);
-			}
+		// 	if (!notes.get(String(note.id))) {
+		// 		notes.set(String(note.id), displayNote);
+		// 		locator.set(String(note.id), [String(note.id)]);
+		// 	}
+		// }
 
-			notes.push(displayNote)
-		}
-
-		notesMap = notesMap;
 		notes = notes;
 	}
 
@@ -250,10 +357,13 @@
 			const reply_note = await cachedNote(note.inReplyTo);
 
 			if (reply_note) {
+				console.debug(`REPLY_NOTE: ${reply_note}`);
 				const note: Note = JSON.parse(String(reply_note));
 
+				console.debug(`ATTRIBUTED_TO: ${note.attributedTo}`);
 				const reply_actor = await cachedActor(note.attributedTo);
 
+				console.debug(`REPLY_ACTOR: ${reply_actor}`);
 				const sender: UserProfile | null = parseProfile(reply_actor);
 
 				if (sender) {
@@ -305,11 +415,17 @@
 	}
 
 	async function cachedActor(id: string) {
-		if (wasm && !apCache.has(id)) {
-			apCache.set(id, await wasm.get_actor(id));
+		if (id && wasm && cache) {
+			try {
+				console.debug(`RETRIEVING ${id} FROM CACHE`);
+				return await wasm.get_actor_cached(cache, id);
+			} catch (e) {
+				console.error(`FAILED TO RETRIEVE: ${handle}`);
+				return null;
+			}
 		}
 
-		return apCache.get(id);
+		return null;
 	}
 
 	async function cachedNote(id: string) {
@@ -320,7 +436,9 @@
 		return apCache.get(id);
 	}
 
-	function handleNoteSelect() { console.debug("NOT IMPLEMENTED") }
+	function handleNoteSelect() {
+		console.debug('NOT IMPLEMENTED');
+	}
 
 	// controls whether messages from EventSource are immediately displayed or queued
 	let liveLoading = true;
@@ -329,16 +447,14 @@
 	// the queue used when the page is not scrolled to the top
 	let noteQueue: Note[] = [];
 
-	// HTML formatted notes to display in the Timeline
-	$: notes = new Array<DisplayNote>();
-
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
-	$: notesMap = new Map<string, DisplayNote>();
+	$: notes = new Map<string, DisplayNote>();
 
 	// this is a map to locate a note within the nested notes structure;
 	// the list is an ordered set of steps to access a note's location
 	let locator = new Map<string, string[]>();
-	let orphans: Set<DisplayNote> = new Set<DisplayNote>();
+	//let orphans: Set<DisplayNote> = new Set<DisplayNote>();
+	let orphans: Map<string, DisplayNote> = new Map<string, DisplayNote>();
 
 	// used very temporarily to control requests to the API for new data
 	let loading = false;
@@ -348,6 +464,7 @@
 
 	// used to reduce calls to the API for Actor data
 	let apCache = new Map<string, string | undefined>();
+	let cache: any = null;
 
 	let username = $appData.username;
 
@@ -365,7 +482,7 @@
 
 <main>
 	{#if wasm}
-		{#each notes as note}
+		{#each Array.from(notes.values()) as note}
 			{#if note.note}
 				{#await replyToHeader(note.note) then replyTo}
 					{#await announceHeader(note.note) then announce}
