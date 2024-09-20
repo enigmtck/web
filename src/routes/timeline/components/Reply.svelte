@@ -63,29 +63,32 @@
 	}
 
 	function forwardNoteSelect(event: any) {
-		dispatch('note_select', event.detail);
+		dispatch('noteSelect', event.detail);
 	}
 
 	function handleNoteSelect(event: any) {
-		dispatch('note_select', {
+		dispatch('noteSelect', {
 			note: event.target.dataset.note,
 			conversation: event.target.dataset.conversation
 		});
 	}
 
 	function forwardReplyTo(event: any) {
-		dispatch('reply_to', event.detail);
+		dispatch('replyTo', event.detail);
 	}
 
 	function handleReplyTo(event: any) {
-		dispatch('reply_to', {
-			reply_to_recipient: event.target.dataset.recipient,
-			reply_to_note: event.target.dataset.reply,
-			reply_to_display: event.target.dataset.display,
-			reply_to_conversation: event.target.dataset.conversation,
+		console.log("IN handleReplyTo");
 
-			reply_to_url: event.target.dataset.url,
-			reply_to_username: event.target.dataset.username
+		dispatch('replyTo', {
+			replyToRecipient: event.target.dataset.recipient,
+			replyToNote: event.target.dataset.reply,
+			replyToDisplay: event.target.dataset.display,
+			replyToConversation: event.target.dataset.conversation,
+
+			replyToUrl: event.target.dataset.url,
+			replyToUsername: event.target.dataset.username,
+			openAside: true
 		});
 	}
 </script>
@@ -173,7 +176,7 @@
 						data-username={note.actor.preferredUsername}
 						data-recipient={note.actor.id}
 						data-conversation={note.note.conversation}
-						on:click={handleReplyTo}
+						on:click|preventDefault={handleReplyTo}
 					/>
 				{/if}
 			</nav>

@@ -17,7 +17,14 @@
 		Attachment,
 		Activity
 	} from '../../../common';
-	import { insertEmojis, compare, sleep, DisplayNote, type Collection } from '../../../common';
+	import {
+		insertEmojis,
+		compare,
+		sleep,
+		DisplayNote,
+		type Collection,
+		extractMaxMin
+	} from '../../../common';
 
 	let composeComponent: Compose;
 	export let local: boolean;
@@ -155,26 +162,32 @@
 		}
 	}
 
-	async function loadMore(previous: boolean) {
+	async function loadMore() {
 		let url: string | null = null;
-		if (!previous && next) {
+		if (next) {
 			url = next;
 		} else if (prev) {
 			url = prev;
 		}
 
+		console.debug(`loadMore URL: ${url}`);
+
 		if (url) {
 			moreDisabled = true;
 
-			if (local) {
-				wasm?.get_outbox(url).then((x) => {
-					if (x) {
-						const collection: Collection = JSON.parse(x);
-						processCollection(collection).then(() => {
-							moreDisabled = false;
-						});
-					}
-				});
+			if (local && username) {
+				let maxMin = extractMaxMin(url);
+				console.debug(`maxMin: ${maxMin}`);
+				if (maxMin && maxMin.type && maxMin.value) {
+					wasm?.get_outbox(username, maxMin.type, maxMin.value).then((x) => {
+						if (x) {
+							const collection: Collection = JSON.parse(x);
+							processCollection(collection).then(() => {
+								moreDisabled = false;
+							});
+						}
+					});
+				}
 			} else {
 				wasm?.get_remote_outbox(`@${handle}`, url).then((x) => {
 					if (x) {
@@ -515,7 +528,7 @@
 			{/if}
 		{/each}
 		{#if next}
-			<button on:click|preventDefault={() => loadMore(false)} disabled={moreDisabled}
+			<button on:click|preventDefault={() => loadMore()} disabled={moreDisabled}
 				><i class="fa-solid fa-ellipsis" /></button
 			>
 		{/if}

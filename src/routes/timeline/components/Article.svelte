@@ -534,9 +534,8 @@
 				}
 			}
 
-			:global(> code),
-			:global(p > code) {
-				background: #222;
+			:global(code) {
+				background: maroon;
 			}
 
 			.activity {

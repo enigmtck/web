@@ -500,8 +500,8 @@
 	}
 
 	:global(body.dark) {
-		:global(dialog > div > div > p > code) {
-			background: #222;
+		:global(code) {
+			background: maroon;
 		}
 
 		dialog {
