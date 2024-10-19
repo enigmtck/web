@@ -29,6 +29,7 @@
 	let composeComponent: Compose;
 	export let local: boolean;
 	export let handle: string;
+	export let actorId: string | undefined;
 
 	let retrievedConversations: Set<string> = new Set();
 	let currentIds: Array<string> = new Array();
@@ -110,7 +111,7 @@
 						const n: Note = JSON.parse(note);
 						console.debug(item);
 						if (item.actor) {
-							n.ephemeralAnnounces = [item.actor];
+							//n.ephemeralAnnounces = [item.actor];
 						}
 						addNote(n);
 					}
@@ -229,52 +230,53 @@
 		});
 	}
 
-	function placeNote(displayNote: DisplayNote) {
+	async function placeNote(displayNote: DisplayNote) {
 		const note = displayNote.note;
 
-		if (note.inReplyTo) {
-			// lookup the parent note in the locator to get its traversal path
-			let traversal = locator.get(String(note.inReplyTo));
+		// if (note.inReplyTo) {
+		// 	// lookup the parent note in the locator to get its traversal path
+		// 	let traversal = locator.get(String(note.inReplyTo));
 
-			if (traversal) {
-				// set the cursor to the first step in the traversal
-				let cursor = notes.get(traversal[0]);
+		// 	if (traversal) {
+		// 		// set the cursor to the first step in the traversal
+		// 		let cursor = notes.get(traversal[0]);
 
-				// traverse through the steps, updating the cursor to find the
-				// deepest point
-				traversal.forEach((id, key, arr) => {
-					if (key > 0) {
-						cursor = cursor?.replies.get(id);
-					}
-				});
+		// 		// traverse through the steps, updating the cursor to find the
+		// 		// deepest point
+		// 		traversal.forEach((id, key, arr) => {
+		// 			if (key > 0) {
+		// 				cursor = cursor?.replies.get(id);
+		// 			}
+		// 		});
 
-				if (cursor?.note.id == note.inReplyTo) {
-					// attch this note to its parent
-					cursor.replies.set(String(note.id), displayNote);
+		// 		if (cursor?.note.id == note.inReplyTo) {
+		// 			// attch this note to its parent
+		// 			cursor.replies.set(String(note.id), displayNote);
 
-					// copy the traversal path and add this note's id to the end
-					let traversalCopy = [...traversal];
-					traversalCopy.push(String(note.id));
+		// 			// copy the traversal path and add this note's id to the end
+		// 			let traversalCopy = [...traversal];
+		// 			traversalCopy.push(String(note.id));
 
-					// update the locator map with the traversal path for this note
-					locator.set(String(note.id), traversalCopy);
-				} else {
-					console.error('TRAVERSAL ENDED SOMEWHERE UNEXPECTED');
-				}
-			} else {
-				// we don't have this note's parent yet; queue it for review later
-				if (displayNote.note.id) {
-					orphans.set(displayNote.note.id, displayNote);
-				}
-			}
-		} else {
-			// this is a top-level note, add it to the notes and locator maps
-			if (!notes.get(String(note.id))) {
-				notes.set(String(note.id), displayNote);
-				//notes.push(displayNote);
-				locator.set(String(note.id), [String(note.id)]);
-			}
+		// 			// update the locator map with the traversal path for this note
+		// 			locator.set(String(note.id), traversalCopy);
+		// 		} else {
+		// 			console.error('TRAVERSAL ENDED SOMEWHERE UNEXPECTED');
+		// 		}
+		// 	} else {
+		// 		// we don't have this note's parent yet; queue it for review later
+		// 		if (displayNote.note.id) {
+		// 			orphans.set(displayNote.note.id, displayNote);
+		// 		}
+		// 	}
+		// } else {
+		// this is a top-level note, add it to the notes and locator maps
+		//let ap_id = await wasm?.get_ap_id();
+		if (!notes.get(String(note.id)) && actorId && note.attributedTo == actorId) {
+			notes.set(String(note.id), displayNote);
+			//notes.push(displayNote);
+			locator.set(String(note.id), [String(note.id)]);
 		}
+		//}
 	}
 
 	async function addNote(note: Note) {
@@ -302,8 +304,13 @@
 			const profile: UserProfile | null = parseProfile(actor);
 
 			if (profile) {
+				console.debug('PARSED PROFILE');
+				console.debug(profile);
 				const displayNote = new DisplayNote(profile, note);
-				placeNote(displayNote);
+
+				console.debug('DISPLAY_NOTE');
+				console.debug(displayNote);
+				await placeNote(displayNote);
 			}
 
 			//notesMap = notesMap;
@@ -351,6 +358,8 @@
 	}
 
 	function parseProfile(text: string | null | undefined): UserProfile | null {
+		console.debug(`IN parseProfile: ${text}`);
+
 		if (text) {
 			try {
 				return JSON.parse(text);
@@ -379,6 +388,8 @@
 				console.debug(`REPLY_ACTOR: ${reply_actor}`);
 				const sender: UserProfile | null = parseProfile(reply_actor);
 
+				console.debug(`SENDER: ${sender}`);
+
 				if (sender) {
 					const name = insertEmojis(wasm, sender.name || sender.preferredUsername, sender);
 
@@ -396,7 +407,7 @@
 
 	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
 		if (note.ephemeralAnnounces) {
-			const announce_actor = await cachedActor(note.ephemeralAnnounces[0]);
+			const announce_actor = note.ephemeralAnnounces[0];
 			let others = '';
 
 			if (note.ephemeralAnnounces.length == 2) {
@@ -406,19 +417,9 @@
 			}
 
 			if (announce_actor) {
-				const announce_profile: UserProfile | null = parseProfile(announce_actor);
+				const name = insertEmojis(wasm, announce_actor.name, announce_actor);
 
-				if (announce_profile) {
-					const name = insertEmojis(
-						wasm,
-						announce_profile.name || announce_profile.preferredUsername,
-						announce_profile
-					);
-
-					return <AnnounceParams>{ url: announce_profile.url, name, others };
-				} else {
-					return null;
-				}
+				return <AnnounceParams>{ url: announce_actor.url, name, others };
 			} else {
 				return null;
 			}
@@ -442,6 +443,8 @@
 	}
 
 	async function cachedNote(id: string) {
+		console.debug(`RETRIEVING NOTE: ${id}`);
+
 		if (wasm && !apCache.has(id)) {
 			apCache.set(id, await wasm.get_note(id));
 		}

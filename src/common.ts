@@ -1,5 +1,6 @@
 export type {
 	UserProfile,
+	UserProfileTerse,
 	EnigmatickEvent,
 	EnigmatickEventObject,
 	Activity,
@@ -82,6 +83,14 @@ interface AnnounceParams {
 interface Capabilities {
 	acceptsChatMessages?: boolean;
 	enigmatickEncryption?: boolean;
+}
+
+interface UserProfileTerse {
+	id: string;
+	url: string;
+	name: string;
+	tag: Tag[];
+	icon?: Image;
 }
 
 interface UserProfile {
@@ -199,14 +208,15 @@ interface Note {
 	inReplyTo?: string | null;
 	attachment?: Attachment[];
 	conversation: string | null;
-	ephemeralAnnounces?: string[] | null;
+	ephemeralAnnounces?: UserProfileTerse[] | null;
 	ephemeralAnnounced?: string | null;
 	ephemeralActors?: UserProfile[];
 	ephemeralLiked?: string | null;
-	ephemeralLikes?: string[] | null;
+	ephemeralLikes?: UserProfileTerse[] | null;
 	ephemeralTargeted?: boolean | null;
 	ephemeralTimestamp?: string | null;
 	ephemeralMetadata?: Metadata[] | null;
+	ephemeralAttributedTo?: UserProfileTerse[] | null;
 }
 
 interface Activity {
@@ -293,7 +303,7 @@ function getWebFingerFromId(actor: UserProfile): string {
 function insertEmojis(
 	wasm: typeof import('enigmatick_wasm') | null,
 	text: string,
-	profile: UserProfile | Note
+	profile: UserProfile | Note | UserProfileTerse
 ) {
 	if (wasm && profile.tag) {
 		profile.tag.forEach((tag) => {

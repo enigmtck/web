@@ -16,6 +16,9 @@
 	$: wasm = $enigmatickWasm;
 	$: username = $appData.username;
 
+	let actorId: string | undefined;
+	$: actorId;
+
 	import { onDestroy, onMount } from 'svelte';
 
 	onMount(async () => {
@@ -39,6 +42,9 @@
 
 			profile = JSON.parse(p);
 			console.debug(profile);
+
+			actorId = profile?.id;
+
 			if (postsComponent && profile) {
 				postsComponent.local = local;
 				postsComponent.handle = handle;
@@ -67,6 +73,7 @@
 				if (x) {
 					console.log(x);
 					profile = JSON.parse(x);
+					actorId = profile?.id;
 					console.debug(profile);
 					if (postsComponent && profile) {
 						postsComponent.local = local;
@@ -426,7 +433,7 @@
 		</div>
 		<section>
 			{#if currentView === Views.Posts}
-				<Posts bind:this={postsComponent} handle={$page.params.handle} {local} />
+				<Posts bind:this={postsComponent} handle={$page.params.handle} {actorId} {local} />
 			{/if}
 		</section>
 	{/if}

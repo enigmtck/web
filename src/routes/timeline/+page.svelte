@@ -9,6 +9,7 @@
 	import { source } from 'sveltekit-sse';
 	import type {
 		UserProfile,
+		UserProfileTerse,
 		Note,
 		StreamConnect,
 		Announce,
@@ -150,7 +151,7 @@
 								wasm.get_note(announce.object).then((x: any) => {
 									try {
 										let note: Note = JSON.parse(String(x));
-										note.ephemeralAnnounces = [announce.actor];
+										//note.ephemeralAnnounces = [announce.actor];
 										note.id = announce.id;
 										note.published = announce.published;
 										note.ephemeralTimestamp = announce.published;
@@ -178,6 +179,21 @@
 			view = 'global';
 		}
 	});
+
+	function parseTerseProfile(text: string | null | undefined): UserProfileTerse | null {
+		if (text) {
+			try {
+				return JSON.parse(text);
+			} catch (e) {
+				console.error('UNABLE TO PARSE TERSE PROFILE');
+				console.debug(text);
+				return null;
+			}
+		} else {
+			console.error('UNABLE TO PARSE NULL OR UNDEFINED');
+			return null;
+		}
+	}
 
 	function parseProfile(text: string | null | undefined): UserProfile | null {
 		if (text) {
@@ -225,7 +241,7 @@
 			console.log('EPHEMERAL ANNOUNCES');
 			console.debug(note.ephemeralAnnounces);
 
-			const announce_actor = await cachedActor(note.ephemeralAnnounces[0]);
+			const announceActor = note.ephemeralAnnounces[0];
 			let others = '';
 
 			if (note.ephemeralAnnounces.length == 2) {
@@ -234,20 +250,10 @@
 				others = ` and ${note.ephemeralAnnounces.length - 1} others`;
 			}
 
-			if (announce_actor) {
-				const announce_profile: UserProfile | null = parseProfile(announce_actor);
+			if (announceActor && wasm) {
+				const name = insertEmojis(wasm, announceActor.name, announceActor);
 
-				if (announce_profile && wasm) {
-					const name = insertEmojis(
-						wasm,
-						announce_profile.name || announce_profile.preferredUsername,
-						announce_profile
-					);
-
-					return <AnnounceParams>{ url: announce_profile.url, name, others };
-				} else {
-					return null;
-				}
+				return <AnnounceParams>{ url: announceActor.url, name, others };
 			} else {
 				return null;
 			}
