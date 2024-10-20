@@ -75,16 +75,18 @@
 						height={x.height}
 						alt={x.name}
 						on:click={selectImage}
+						on:error={(e) => console.log(e)}
 					/>
 				</div>
 			{:else if x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))}
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 				<div class={placement.getPlacement()} tabindex="0">
 					<!-- svelte-ignore a11y-media-has-caption -->
-					<video width={x.width} height={x.height} controls
+					<video width={x.width} height={x.height} controls on:error={(e) => console.log(e)}
 						><source
 							src={cachedContent(wasm, window.Buffer, String(x.url))}
 							type={x.mediaType}
+							on:error={(e) => console.log(e)}
 						/></video
 					>
 				</div>
@@ -92,7 +94,7 @@
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 				<div class={placement.getPlacement()} tabindex="0">
 					<!-- svelte-ignore a11y-media-has-caption -->
-					<audio controls src={cachedContent(wasm, window.Buffer, String(x.url))}></audio>
+					<audio controls src={cachedContent(wasm, window.Buffer, String(x.url))} on:error={(e) => console.log(e)}></audio>
 				</div>
 			{/if}
 		{/each}

@@ -33,7 +33,7 @@ export {
 
 interface DisplayNote {
 	note: Note;
-	actor: UserProfile;
+	actor: UserProfile | UserProfileTerse;
 	published: string;
 	created_at: string;
 	replies: Map<string, DisplayNote>;
@@ -41,12 +41,12 @@ interface DisplayNote {
 
 class DisplayNote {
 	note: Note;
-	actor: UserProfile;
+	actor: UserProfile | UserProfileTerse;
 	published: string;
 	created_at: string;
 	replies: Map<string, DisplayNote>;
 
-	constructor(profile: UserProfile, note: Note, replies?: Map<string, DisplayNote>) {
+	constructor(profile: UserProfile | UserProfileTerse, note: Note, replies?: Map<string, DisplayNote>) {
 		this.note = note;
 		this.actor = profile;
 
@@ -88,7 +88,8 @@ interface Capabilities {
 interface UserProfileTerse {
 	id: string;
 	url: string;
-	name: string;
+	name?: string;
+	preferredUsername: string;
 	tag: Tag[];
 	icon?: Image;
 }
@@ -286,7 +287,7 @@ function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getWebFingerFromId(actor: UserProfile): string {
+function getWebFingerFromId(actor: UserProfile | UserProfileTerse): string {
 	const re = /^https:\/\/([a-zA-Z0-9\-.]+?)\/[A-Za-z0-9/\-._]+$/;
 
 	if (actor.id) {

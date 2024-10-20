@@ -45,6 +45,12 @@
 	export let refresh: () => void;
 	export let remove: (note: string) => void;
 
+	let profile = note.note.ephemeralAttributedTo ?? [note.actor];
+	let actorIcon = profile[0].icon?.url;
+	let actorName = profile[0].name ?? profile[0].preferredUsername;
+	let actorId = profile[0].id;
+	let actorTerseProfile = profile[0];
+
 	function handleUnlike(event: any) {
 		const object: string = String(event.target.dataset.object);
 		const actor: string = String(event.target.dataset.actor);
@@ -161,21 +167,21 @@
 
 	<header>
 		<div>
-			{#if note.actor && note.actor.icon}
-				<img src={cachedContent(wasm, window.Buffer, note.actor.icon.url)} alt="Sender" />
+			{#if actorIcon}
+				<img src={cachedContent(wasm, window.Buffer, actorIcon)} alt="Sender" on:error={(e) => console.log(e)}/>
 			{/if}
 		</div>
 		<address>
-			{#if note.actor}
+			{#if actorName && actorTerseProfile}
 				<span
 					>{@html insertEmojis(
 						wasm,
-						note.actor.name || note.actor.preferredUsername,
-						note.actor
+						actorName,
+						actorTerseProfile
 					)}</span
 				>
-				<a href="/{getWebFingerFromId(note.actor)}">
-					{getWebFingerFromId(note.actor)}
+				<a href="/{getWebFingerFromId(actorTerseProfile)}">
+					{getWebFingerFromId(actorTerseProfile)}
 				</a>
 			{/if}
 		</address>

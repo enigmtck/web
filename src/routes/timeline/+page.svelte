@@ -3,7 +3,7 @@
 	import Article from './components/Article.svelte';
 	import Compose from './components/Compose.svelte';
 
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, tick, afterUpdate } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { appData, enigmatickWasm, wasmState } from '../../stores';
 	import { source } from 'sveltekit-sse';
@@ -27,7 +27,6 @@
 	$: view = '';
 
 	$: wasm = $enigmatickWasm;
-	$: avatar = $appData.avatar;
 
 	let streamUuid: string | null = null;
 	let observer: IntersectionObserver | null = null;
@@ -102,7 +101,6 @@
 		const { Buffer } = await import('buffer');
 		window.Buffer = Buffer;
 
-		let scrollable = document.getElementsByClassName('scrollable')[0];
 		observer = new IntersectionObserver(onIntersection, {
 			root: null, // default is the viewport
 			threshold: 0.3 // percentage of target's visible area. Triggers "onIntersection"
@@ -212,17 +210,23 @@
 
 	async function replyToHeader(note: Note): Promise<string | null> {
 		if (note.inReplyTo) {
-			const reply_note = await cachedNote(note.inReplyTo);
+			const replyNote = await cachedNote(note.inReplyTo);
 
-			if (reply_note) {
-				const note: Note = JSON.parse(String(reply_note));
+			if (replyNote) {
+				const note: Note = JSON.parse(String(replyNote));
 
-				const reply_actor = await cachedActor(note.attributedTo);
+				//const reply_actor = await cachedActor(note.attributedTo);
+				const replyActor = note.ephemeralAttributedTo?.at(0);
 
-				const sender: UserProfile | null = parseProfile(reply_actor);
+				//const sender: UserProfile | null = parseProfile(reply_actor);
 
-				if (sender && wasm) {
-					const name = insertEmojis(wasm, sender.name || sender.preferredUsername, sender);
+				if (replyActor && wasm) {
+					const name = insertEmojis(
+						wasm,
+						replyActor.name || replyActor.preferredUsername,
+						replyActor
+					);
+					//const name = insertEmojis(wasm, sender.name || sender.preferredUsername, sender);
 
 					return name;
 				} else {
@@ -238,8 +242,8 @@
 
 	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
 		if (note.ephemeralAnnounces) {
-			console.log('EPHEMERAL ANNOUNCES');
-			console.debug(note.ephemeralAnnounces);
+			// console.log('EPHEMERAL ANNOUNCES');
+			// console.debug(note.ephemeralAnnounces);
 
 			const announceActor = note.ephemeralAnnounces[0];
 			let others = '';
@@ -251,7 +255,11 @@
 			}
 
 			if (announceActor && wasm) {
-				const name = insertEmojis(wasm, announceActor.name, announceActor);
+				const name = insertEmojis(
+					wasm,
+					announceActor.name || announceActor.preferredUsername,
+					announceActor
+				);
 
 				return <AnnounceParams>{ url: announceActor.url, name, others };
 			} else {
@@ -308,6 +316,21 @@
 				locator.set(String(note.id), [String(note.id)]);
 			}
 		}
+
+		let beforeScroll = scrollable.scrollTop;
+		console.log(`SCROLL TOP ${beforeScroll}`);
+
+		try {
+			notes = notes;
+
+			tick().then(() => {
+				console.log(`SCROLLING TO ${beforeScroll}`);
+				scrollable.scrollTo({ top: beforeScroll, left: 0, behavior: 'instant' });
+			});
+		} catch (e) {
+			console.debug('Error updating notes');
+			console.error(e);
+		}
 	}
 
 	async function addNote(note: Note) {
@@ -319,24 +342,12 @@
 			});
 		}
 
-		if (note.ephemeralLikes) {
-			console.debug('EPHEMERAL LIKES');
-			console.debug(note.ephemeralLikes);
-		}
-
 		if (note.attributedTo) {
-			const actor = await cachedActor(note.attributedTo);
+			const actor = note.ephemeralAttributedTo?.at(0);
 
 			if (actor) {
-				const profile: UserProfile | null = parseProfile(actor);
-
-				if (profile) {
-					const displayNote = new DisplayNote(profile, note);
-					placeNote(displayNote);
-				}
-
-				//notesMap = notesMap;
-				notes = notes;
+				const displayNote = new DisplayNote(actor, note);
+				placeNote(displayNote);
 			}
 		}
 	}
@@ -370,17 +381,17 @@
 		const pageSize = 10;
 		let attempts = 0;
 
-		if (wasm && view) {
+		if (wasm && view && scrollable) {
 			if (!cache) {
 				cache = new wasm.EnigmatickCache();
 			}
 
 			let x = await wasm.get_timeline(maxValue, undefined, pageSize, view);
-			console.debug('WASM RESPONSE');
+			//console.debug('WASM RESPONSE');
 
 			try {
 				let collection: Collection = JSON.parse(String(x));
-				console.debug(collection);
+				//console.debug(collection);
 
 				if (collection.next) {
 					const result = extractMaxMin(collection.next);
@@ -390,13 +401,9 @@
 					}
 				}
 
-				let scrollable = document.getElementsByClassName('scrollable')[0];
-				let beforeScroll = scrollable.scrollTop;
-				console.log(`SCROLL TOP ${beforeScroll}`);
-
 				try {
 					collection.orderedItems?.forEach((a: Activity) => {
-						console.debug(a);
+						//console.debug(a);
 						addNote(a.object);
 					});
 				} catch (e) {
@@ -404,16 +411,29 @@
 					console.debug(collection);
 				}
 
-				let l: number = collection.orderedItems?.length ?? 0;
-				if (l > 0 && beforeScroll) {
-					scrollable.scrollTop = beforeScroll;
-					console.log(`SCROLLED ${scrollable.scrollTop}`);
-				}
+				// let scrollable = document.getElementsByClassName('scrollable')[0];
+				let beforeScroll = scrollable.scrollTop;
+				console.log(`SCROLL TOP ${beforeScroll}`);
+
+				notes = notes;
+
+				await tick();
+				await tick();
+				await tick();
+				scrollable.scrollTo({ top: beforeScroll, left: 0, behavior: 'instant' });
+
+				// let l: number = collection.orderedItems?.length ?? 0;
+				// if (l > 0 && beforeScroll) {
+				// 	sleep(100).then(() => {
+				// 		scrollable.scrollTo({ top: beforeScroll, left: 0, behavior: 'instant' });
+				// 		console.log(`SCROLLED ${scrollable.scrollTop}`);
+				// 	});
+				// }
 
 				placeOrphans(true);
 
-				console.log(locator);
-				console.info(orphans);
+				//console.log(locator);
+				//console.info(orphans);
 
 				offset += pageSize;
 				return length;
@@ -515,7 +535,6 @@
 	}
 
 	function scrollToTop(): number {
-		const scrollable = document.getElementsByClassName('scrollable')[0];
 		let current: number = scrollable.scrollTop;
 		scrollable.scrollTop = 0;
 
@@ -523,8 +542,6 @@
 	}
 
 	async function handleInfiniteScroll() {
-		const scrollable = document.getElementsByClassName('scrollable')[0] as HTMLElement;
-
 		if (!loading && !infiniteScrollDisabled) {
 			loading = true;
 
@@ -709,6 +726,15 @@
 			setDark();
 		}
 	}
+
+	let scrollable: HTMLDivElement;
+	let scrollPosition = 0;
+
+	const updateScrollPosition = (event: UIEvent) => {
+		if (!loading) {
+			scrollPosition = scrollable.scrollTop;
+		}
+	};
 </script>
 
 <Compose {senderFunction} bind:this={composeComponent} />
@@ -727,7 +753,7 @@
 		</nav>
 	</header>
 
-	<div class="scrollable">
+	<div class="scrollable" on:scroll={updateScrollPosition} bind:this={scrollable}>
 		{#each Array.from(notes.values()) as note}
 			{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeralAnnounces?.length)) || note.note.id == focusNote)}
 				{#await replyToHeader(note.note) then replyTo}

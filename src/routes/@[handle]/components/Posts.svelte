@@ -15,7 +15,8 @@
 		Announce,
 		AnnounceParams,
 		Attachment,
-		Activity
+		Activity,
+		UserProfileTerse
 	} from '../../../common';
 	import {
 		insertEmojis,
@@ -297,23 +298,23 @@
 		}
 
 		console.debug(`NOTE ATTRIBUTED_TO: ${note.attributedTo}`);
-		const actor = await cachedActor(note.attributedTo);
+		let actor: UserProfile | UserProfileTerse | null | undefined =
+			note.ephemeralAttributedTo?.at(0);
+
+		if (actor == undefined || actor == null) {
+			actor = parseProfile(await cachedActor(note.attributedTo));
+		}
 
 		console.debug(`NOTE ACTOR: ${actor}`);
 		if (actor) {
-			const profile: UserProfile | null = parseProfile(actor);
+			console.debug('PARSED PROFILE');
+			console.debug(actor);
+			const displayNote = new DisplayNote(actor, note);
 
-			if (profile) {
-				console.debug('PARSED PROFILE');
-				console.debug(profile);
-				const displayNote = new DisplayNote(profile, note);
+			console.debug('DISPLAY_NOTE');
+			console.debug(displayNote);
+			await placeNote(displayNote);
 
-				console.debug('DISPLAY_NOTE');
-				console.debug(displayNote);
-				await placeNote(displayNote);
-			}
-
-			//notesMap = notesMap;
 			notes = notes;
 		}
 
@@ -376,22 +377,27 @@
 
 	async function replyToHeader(note: Note): Promise<string | null> {
 		if (note.inReplyTo) {
-			const reply_note = await cachedNote(note.inReplyTo);
+			const replyNote = await cachedNote(note.inReplyTo);
 
-			if (reply_note) {
-				console.debug(`REPLY_NOTE: ${reply_note}`);
-				const note: Note = JSON.parse(String(reply_note));
+			if (replyNote) {
+				console.debug(`REPLY_NOTE: ${replyNote}`);
+				const note: Note = JSON.parse(String(replyNote));
 
-				console.debug(`ATTRIBUTED_TO: ${note.attributedTo}`);
-				const reply_actor = await cachedActor(note.attributedTo);
+				//console.debug(`ATTRIBUTED_TO: ${note.attributedTo}`);
+				//const reply_actor = await cachedActor(note.attributedTo);
+				const replyActor = note.ephemeralAttributedTo?.at(0) || await cachedActor(note.attributedTo);
 
-				console.debug(`REPLY_ACTOR: ${reply_actor}`);
-				const sender: UserProfile | null = parseProfile(reply_actor);
+				console.debug(`REPLY_ACTOR: ${replyActor}`);
+				//const sender: UserProfile | null = parseProfile(reply_actor);
 
-				console.debug(`SENDER: ${sender}`);
+				//console.debug(`SENDER: ${sender}`);
 
-				if (sender) {
-					const name = insertEmojis(wasm, sender.name || sender.preferredUsername, sender);
+				if (replyActor) {
+					const name = insertEmojis(
+						wasm,
+						replyActor.name || replyActor.preferredUsername,
+						replyActor
+					);
 
 					return name;
 				} else {
@@ -407,7 +413,7 @@
 
 	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
 		if (note.ephemeralAnnounces) {
-			const announce_actor = note.ephemeralAnnounces[0];
+			const announceActor = note.ephemeralAnnounces[0];
 			let others = '';
 
 			if (note.ephemeralAnnounces.length == 2) {
@@ -416,10 +422,14 @@
 				others = ` and ${note.ephemeralAnnounces.length - 1} others`;
 			}
 
-			if (announce_actor) {
-				const name = insertEmojis(wasm, announce_actor.name, announce_actor);
+			if (announceActor) {
+				const name = insertEmojis(
+					wasm,
+					announceActor.name || announceActor.preferredUsername,
+					announceActor
+				);
 
-				return <AnnounceParams>{ url: announce_actor.url, name, others };
+				return <AnnounceParams>{ url: announceActor.url, name, others };
 			} else {
 				return null;
 			}
