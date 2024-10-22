@@ -28,7 +28,8 @@ export {
 	extractUuid,
 	extractMaxMin,
 	cachedContent,
-	domainMatch
+	domainMatch,
+	convertMastodonUrlToWebfinger
 };
 
 interface DisplayNote {
@@ -86,11 +87,11 @@ interface Capabilities {
 }
 
 interface UserProfileTerse {
-	id: string;
-	url: string;
+	id?: string;
+	url?: string;
 	name?: string;
 	preferredUsername: string;
-	tag: Tag[];
+	tag?: Tag[];
 	icon?: Image;
 }
 
@@ -282,6 +283,23 @@ interface VaultedMessage {
 	published: string;
 	attributedTo?: string;
 }
+
+const convertMastodonUrlToWebfinger = (url: string): string | null => {
+	try {
+		const parsedUrl = new URL(url);
+		const username = parsedUrl.pathname.slice(1); // Remove the leading '/'
+		const domain = parsedUrl.hostname;
+
+		if (!username.startsWith('@')) {
+			throw new Error('Invalid Mastodon URL format');
+		}
+
+		return `${username}@${domain}`;
+	} catch (error) {
+		console.error('Error parsing URL:', error);
+		return null;
+	}
+};
 
 function sleep(ms: number) {
 	return new Promise((resolve) => setTimeout(resolve, ms));

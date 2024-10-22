@@ -18,7 +18,15 @@
 		Activity,
 		Collection
 	} from '../../common';
-	import { insertEmojis, compare, sleep, DisplayNote, extractMaxMin } from '../../common';
+	import {
+		insertEmojis,
+		compare,
+		sleep,
+		DisplayNote,
+		extractMaxMin,
+		getWebFingerFromId,
+		convertMastodonUrlToWebfinger
+	} from '../../common';
 
 	import { goto } from '$app/navigation';
 	import type { ComposeDispatch } from './components/common';
@@ -214,11 +222,7 @@
 
 			if (replyNote) {
 				const note: Note = JSON.parse(String(replyNote));
-
-				//const reply_actor = await cachedActor(note.attributedTo);
 				const replyActor = note.ephemeralAttributedTo?.at(0);
-
-				//const sender: UserProfile | null = parseProfile(reply_actor);
 
 				if (replyActor && wasm) {
 					const name = insertEmojis(
@@ -226,7 +230,6 @@
 						replyActor.name || replyActor.preferredUsername,
 						replyActor
 					);
-					//const name = insertEmojis(wasm, sender.name || sender.preferredUsername, sender);
 
 					return name;
 				} else {
@@ -270,7 +273,7 @@
 		}
 	}
 
-	function placeNote(displayNote: DisplayNote) {
+	async function placeNote(displayNote: DisplayNote) {
 		const note = displayNote.note;
 
 		if (note.inReplyTo) {
@@ -312,21 +315,23 @@
 			// this is a top-level note, add it to the notes and locator maps
 			if (!notes.get(String(note.id))) {
 				notes.set(String(note.id), displayNote);
-				//notes.push(displayNote);
 				locator.set(String(note.id), [String(note.id)]);
 			}
 		}
 
-		let beforeScroll = scrollable.scrollTop;
-		console.log(`SCROLL TOP ${beforeScroll}`);
-
 		try {
+			let beforeScroll = scrollPosition;
+			console.log(`SCROLL TOP ${beforeScroll}`);
+
 			notes = notes;
 
-			tick().then(() => {
+			if (!note.inReplyTo) {
+				await tick();
+				await tick();
+				await tick();
 				console.log(`SCROLLING TO ${beforeScroll}`);
 				scrollable.scrollTo({ top: beforeScroll, left: 0, behavior: 'instant' });
-			});
+			}
 		} catch (e) {
 			console.debug('Error updating notes');
 			console.error(e);
@@ -347,7 +352,7 @@
 
 			if (actor) {
 				const displayNote = new DisplayNote(actor, note);
-				placeNote(displayNote);
+				await placeNote(displayNote);
 			}
 		}
 	}
@@ -378,7 +383,7 @@
 	}
 
 	async function loadTimelineData() {
-		const pageSize = 10;
+		const pageSize = 20;
 		let attempts = 0;
 
 		if (wasm && view && scrollable) {
@@ -387,11 +392,9 @@
 			}
 
 			let x = await wasm.get_timeline(maxValue, undefined, pageSize, view);
-			//console.debug('WASM RESPONSE');
 
 			try {
 				let collection: Collection = JSON.parse(String(x));
-				//console.debug(collection);
 
 				if (collection.next) {
 					const result = extractMaxMin(collection.next);
@@ -403,7 +406,6 @@
 
 				try {
 					collection.orderedItems?.forEach((a: Activity) => {
-						//console.debug(a);
 						addNote(a.object);
 					});
 				} catch (e) {
@@ -411,29 +413,7 @@
 					console.debug(collection);
 				}
 
-				// let scrollable = document.getElementsByClassName('scrollable')[0];
-				let beforeScroll = scrollable.scrollTop;
-				console.log(`SCROLL TOP ${beforeScroll}`);
-
-				notes = notes;
-
-				await tick();
-				await tick();
-				await tick();
-				scrollable.scrollTo({ top: beforeScroll, left: 0, behavior: 'instant' });
-
-				// let l: number = collection.orderedItems?.length ?? 0;
-				// if (l > 0 && beforeScroll) {
-				// 	sleep(100).then(() => {
-				// 		scrollable.scrollTo({ top: beforeScroll, left: 0, behavior: 'instant' });
-				// 		console.log(`SCROLLED ${scrollable.scrollTop}`);
-				// 	});
-				// }
-
 				placeOrphans(true);
-
-				//console.log(locator);
-				//console.info(orphans);
 
 				offset += pageSize;
 				return length;
@@ -459,7 +439,7 @@
 		}
 	}
 
-	beforeNavigate((navigation) => {
+	beforeNavigate(async (navigation) => {
 		// this is currently triggered (and not reset) when opening a link in to a new tab. this is likely a bug
 		// and may be addressed here: https://github.com/sveltejs/kit/issues/8482
 		// UPDATE - ran a 'yarn upgrade' and this seems to be fixed now
@@ -474,9 +454,13 @@
 				const re = /^https:\/\/(:?[a-zA-Z0-9\-]+)(:?\.[a-zA-Z0-9\-]+)+?\/@[a-zA-Z0-9_]+$/;
 
 				if (actor.match(re)) {
-					console.log(actor);
-					navigation.cancel();
-					goto(`/search?actor=${actor}`);
+					let webfinger = convertMastodonUrlToWebfinger(actor);
+
+					if (webfinger) {
+						console.log(`WEBFINGER: ${webfinger}`);
+						navigation.cancel();
+						goto(`/${webfinger}`);
+					}
 				}
 			}
 		}
@@ -503,14 +487,15 @@
 		}
 	}
 
-	function handleNoteSelect(message: CustomEvent<ComposeDispatch>) {
+	async function handleNoteSelect(message: CustomEvent<ComposeDispatch>) {
 		console.debug('NOTE SELECT');
 		console.debug(message);
 		focusConversation = message.detail.replyToConversation;
 		focusNote = message.detail.replyToNote;
 		console.debug(`setting focusNote to ${message.detail.replyToNote}`);
 
-		yPosition = scrollToTop();
+		yPosition = await scrollToTop();
+
 		infiniteScrollDisabled = true;
 
 		// this doesn't seem to work
@@ -521,22 +506,34 @@
 		});
 	}
 
-	function clearNoteSelect() {
+	async function clearNoteSelect() {
 		focusConversation = null;
 		focusNote = null;
 		composeComponent.resetCompose();
 
-		sleep(500).then(() => {
-			const main = document.getElementsByTagName('main')[0];
-			main.scrollTop = yPosition;
-		});
+		await revertScroll();
 
 		infiniteScrollDisabled = false;
 	}
 
-	function scrollToTop(): number {
+	async function revertScroll() {
+		await tick();
+		await tick();
+		await tick();
+		scrollable.scrollTo({top: yPosition, left: 0, behavior: "instant"});
+	}
+
+	async function scrollToTop(): Promise<number> {
 		let current: number = scrollable.scrollTop;
-		scrollable.scrollTop = 0;
+
+		console.debug(`CURRENT: ${current}`);
+
+		await tick();
+		await tick();
+		await tick();
+		scrollable.scrollTo({top: 0, left: 0, behavior: "instant"});
+
+		console.debug("SCROLLED TO TOP");
 
 		return current;
 	}
@@ -627,15 +624,14 @@
 		console.debug('REMOVE');
 	}
 
-	function resetData() {
+	async function resetData() {
 		noteQueue = [];
 		locator = new Map<string, string[]>();
 		orphans = new Map<string, DisplayNote>();
 		offset = 0;
 		notes = new Map<string, DisplayNote>();
-		//notes = new Array<DisplayNote>();
 		retrievedConversations = new Set();
-		yPosition = scrollToTop();
+		await scrollToTop();
 		maxValue = undefined;
 		minValue = undefined;
 
@@ -774,7 +770,7 @@
 
 				{#if note.note.id == focusNote && note.replies?.size}
 					<div class="replies">
-						{#each Array.from(note.replies.values()).sort(compare) as reply}
+						{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
 							<Reply
 								note={reply}
 								{username}

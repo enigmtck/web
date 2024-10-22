@@ -84,10 +84,13 @@
 	}
 
 	onMount(async () => {
-		observer = new IntersectionObserver(onIntersection, {
-			root: null, // default is the viewport
-			threshold: 0.3 // percentage of target's visible area. Triggers "onIntersection"
-		});
+		// Commenting this out until I have time to think about how to add comments to top-level notes
+		// in this context (i.e., adding comments to notes that are not direct ancestors, but are in the
+		// same conversation). Timeline relies on the inReplyTo to manage these relationships.
+		// observer = new IntersectionObserver(onIntersection, {
+		// 	root: null, // default is the viewport
+		// 	threshold: 0.3 // percentage of target's visible area. Triggers "onIntersection"
+		// });
 	});
 
 	console.debug(`HANDLE ${handle}`);
@@ -107,12 +110,19 @@
 				if (item.type === 'Create') {
 					addNote(<Note>item.object);
 				} else if (item.type === 'Announce') {
+					console.debug('PROCESSING ANNOUNCE');
 					let note = await wasm?.get_note(String(item.object));
+					console.debug('ANNOUNCED NOTE');
+					console.debug(note);
+
 					if (note) {
 						const n: Note = JSON.parse(note);
-						console.debug(item);
+						console.debug(n);
 						if (item.actor) {
-							//n.ephemeralAnnounces = [item.actor];
+							let actor = parseProfile(await cachedActor(item.actor));
+							if (actor) {
+								n.ephemeralAnnounces = [actor];
+							}
 						}
 						addNote(n);
 					}
@@ -272,7 +282,8 @@
 		// } else {
 		// this is a top-level note, add it to the notes and locator maps
 		//let ap_id = await wasm?.get_ap_id();
-		if (!notes.get(String(note.id)) && actorId && note.attributedTo == actorId) {
+		//if (!notes.get(String(note.id)) && actorId && note.attributedTo == actorId) {
+		if (!notes.get(String(note.id))) {
 			notes.set(String(note.id), displayNote);
 			//notes.push(displayNote);
 			locator.set(String(note.id), [String(note.id)]);
@@ -281,8 +292,8 @@
 	}
 
 	async function addNote(note: Note) {
-		//console.log("ADDING NOTE");
-		//console.debug(note);
+		console.log('ADDING NOTE');
+		console.debug(note);
 
 		if (note.ephemeralActors) {
 			note.ephemeralActors.forEach((actor) => {
@@ -305,7 +316,9 @@
 			actor = parseProfile(await cachedActor(note.attributedTo));
 		}
 
-		console.debug(`NOTE ACTOR: ${actor}`);
+		console.debug(`NOTE ACTOR`);
+		console.debug(actor);
+
 		if (actor) {
 			console.debug('PARSED PROFILE');
 			console.debug(actor);
@@ -385,20 +398,23 @@
 
 				//console.debug(`ATTRIBUTED_TO: ${note.attributedTo}`);
 				//const reply_actor = await cachedActor(note.attributedTo);
-				const replyActor = note.ephemeralAttributedTo?.at(0) || await cachedActor(note.attributedTo);
+				const replyActor =
+					note.ephemeralAttributedTo?.at(0) ?? parseProfile(await cachedActor(note.attributedTo));
 
 				console.debug(`REPLY_ACTOR: ${replyActor}`);
 				//const sender: UserProfile | null = parseProfile(reply_actor);
 
 				//console.debug(`SENDER: ${sender}`);
 
-				if (replyActor) {
+				if (replyActor && wasm) {
+					console.debug(`IN replyActor: ${replyActor.name} | ${replyActor.preferredUsername}`);
 					const name = insertEmojis(
 						wasm,
-						replyActor.name || replyActor.preferredUsername,
+						replyActor.name ?? replyActor.preferredUsername,
 						replyActor
 					);
 
+					console.debug(`NAME: ${name}`);
 					return name;
 				} else {
 					return null;

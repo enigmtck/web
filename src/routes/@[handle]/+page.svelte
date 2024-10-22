@@ -9,7 +9,10 @@
 		type Collection,
 		insertEmojis,
 		getWebFingerFromId,
-		cachedContent
+		cachedContent,
+
+		convertMastodonUrlToWebfinger
+
 	} from '../../common';
 	import Posts from './components/Posts.svelte';
 
@@ -20,6 +23,7 @@
 	$: actorId;
 
 	import { onDestroy, onMount } from 'svelte';
+	import { beforeNavigate, goto } from '$app/navigation';
 
 	onMount(async () => {
 
@@ -276,6 +280,33 @@
 		cache = new $enigmatickWasm.EnigmatickCache();
 		loadProfile($page.params.handle);
 	}
+
+	beforeNavigate(async (navigation) => {
+		// this is currently triggered (and not reset) when opening a link in to a new tab. this is likely a bug
+		// and may be addressed here: https://github.com/sveltejs/kit/issues/8482
+		// UPDATE - ran a 'yarn upgrade' and this seems to be fixed now
+		console.log(navigation);
+		if (navigation.to) {
+			if (navigation.to.route.id === null) {
+				let actor = navigation.to.url.href;
+
+				// we want to catch the calls to external profiles so that we can offer actions on them; the
+				// intention of this expression is to match Mastodon-isms like (with grouping notated)
+				// ^https://(ser)(.endipito)(.us)/@justin$ or ^https://(infosec)(.exchange)/@jdt$
+				const re = /^https:\/\/(:?[a-zA-Z0-9\-]+)(:?\.[a-zA-Z0-9\-]+)+?\/@[a-zA-Z0-9_]+$/;
+
+				if (actor.match(re)) {
+					let webfinger = convertMastodonUrlToWebfinger(actor);
+
+					if (webfinger) {
+						console.log(`WEBFINGER: ${webfinger}`);
+						navigation.cancel();
+						goto(`/${webfinger}`);
+					}
+				}
+			}
+		}
+	});
 </script>
 
 <main>

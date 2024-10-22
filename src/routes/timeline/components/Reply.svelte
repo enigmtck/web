@@ -104,7 +104,7 @@
 		</div>
 		<address>
 			{#if note.actor}
-				<a href="/search?actor={note.actor.id}">
+				<a href="/{getWebFingerFromId(note.actor)}">
 					{@html insertEmojis(wasm, note.actor.name || note.actor.preferredUsername, note.actor)} &bull;
 					<span class="url">{getWebFingerFromId(note.actor)}</span>
 				</a>
