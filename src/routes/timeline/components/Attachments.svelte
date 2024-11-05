@@ -70,7 +70,7 @@
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
 					<img
-						src={cachedContent(wasm, window.Buffer, String(x.url))}
+						src={cachedContent(wasm, String(x.url))}
 						width={x.width}
 						height={x.height}
 						alt={x.name}
@@ -84,7 +84,7 @@
 					<!-- svelte-ignore a11y-media-has-caption -->
 					<video width={x.width} height={x.height} controls on:error={(e) => console.log(e)}
 						><source
-							src={cachedContent(wasm, window.Buffer, String(x.url))}
+							src={cachedContent(wasm, String(x.url))}
 							type={x.mediaType}
 							on:error={(e) => console.log(e)}
 						/></video
@@ -94,7 +94,7 @@
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 				<div class={placement.getPlacement()} tabindex="0">
 					<!-- svelte-ignore a11y-media-has-caption -->
-					<audio controls src={cachedContent(wasm, window.Buffer, String(x.url))} on:error={(e) => console.log(e)}></audio>
+					<audio controls src={cachedContent(wasm, String(x.url))} on:error={(e) => console.log(e)}></audio>
 				</div>
 			{/if}
 		{/each}

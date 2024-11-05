@@ -5,8 +5,7 @@
 	import Article from '../../timeline/components/Article.svelte';
 	import Compose from '../../timeline/components/Compose.svelte';
 
-	import { onDestroy, onMount } from 'svelte';
-	import { beforeNavigate } from '$app/navigation';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { appData, enigmatickWasm } from '../../../stores';
 	import type {
 		UserProfile,
@@ -30,7 +29,6 @@
 	let composeComponent: Compose;
 	export let local: boolean;
 	export let handle: string;
-	export let actorId: string | undefined;
 
 	let retrievedConversations: Set<string> = new Set();
 	let currentIds: Array<string> = new Array();
@@ -98,7 +96,7 @@
 	$: wasm = $enigmatickWasm;
 
 	$: loadPosts(handle, local).then(() => {
-		console.debug('RELOADED');
+		console.debug('RELOADED POSTS');
 	});
 
 	async function processCollection(collection: Collection) {
@@ -121,7 +119,9 @@
 						if (item.actor) {
 							let actor = parseProfile(await cachedActor(item.actor));
 							if (actor) {
-								n.ephemeralAnnounces = [actor];
+								let ephemeral = n.ephemeral || {};
+								ephemeral.announces = [actor];	
+								n.ephemeral = ephemeral;
 							}
 						}
 						addNote(n);
@@ -135,6 +135,7 @@
 	}
 
 	async function loadPosts(handle: string, local: boolean) {
+		console.debug("RESETTING NOTES MAP");
 		notes = new Map<string, DisplayNote>();
 
 		if (!cache && wasm) {
@@ -295,22 +296,22 @@
 		console.log('ADDING NOTE');
 		console.debug(note);
 
-		if (note.ephemeralActors) {
-			note.ephemeralActors.forEach((actor) => {
+		if (note.ephemeral?.actors) {
+			note.ephemeral.actors.forEach((actor) => {
 				if (actor.id) {
 					apCache.set(actor.id, JSON.stringify(actor));
 				}
 			});
 		}
 
-		if (note.ephemeralLikes) {
+		if (note.ephemeral?.likes) {
 			console.debug('EPHEMERAL LIKES');
-			console.debug(note.ephemeralLikes);
+			console.debug(note.ephemeral.likes);
 		}
 
 		console.debug(`NOTE ATTRIBUTED_TO: ${note.attributedTo}`);
 		let actor: UserProfile | UserProfileTerse | null | undefined =
-			note.ephemeralAttributedTo?.at(0);
+			note.ephemeral?.attributedTo?.at(0);
 
 		if (actor == undefined || actor == null) {
 			actor = parseProfile(await cachedActor(note.attributedTo));
@@ -399,7 +400,7 @@
 				//console.debug(`ATTRIBUTED_TO: ${note.attributedTo}`);
 				//const reply_actor = await cachedActor(note.attributedTo);
 				const replyActor =
-					note.ephemeralAttributedTo?.at(0) ?? parseProfile(await cachedActor(note.attributedTo));
+					note.ephemeral?.attributedTo?.at(0) ?? parseProfile(await cachedActor(note.attributedTo));
 
 				console.debug(`REPLY_ACTOR: ${replyActor}`);
 				//const sender: UserProfile | null = parseProfile(reply_actor);
@@ -428,14 +429,14 @@
 	}
 
 	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
-		if (note.ephemeralAnnounces) {
-			const announceActor = note.ephemeralAnnounces[0];
+		if (note.ephemeral?.announces) {
+			const announceActor = note.ephemeral.announces[0];
 			let others = '';
 
-			if (note.ephemeralAnnounces.length == 2) {
-				others = ` and ${note.ephemeralAnnounces.length - 1} other`;
-			} else if (note.ephemeralAnnounces.length > 2) {
-				others = ` and ${note.ephemeralAnnounces.length - 1} others`;
+			if (note.ephemeral?.announces.length == 2) {
+				others = ` and ${note.ephemeral.announces.length - 1} other`;
+			} else if (note.ephemeral.announces.length > 2) {
+				others = ` and ${note.ephemeral.announces.length - 1} others`;
 			}
 
 			if (announceActor) {
@@ -490,7 +491,7 @@
 	let noteQueue: Note[] = [];
 
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
-	$: notes = new Map<string, DisplayNote>();
+	let notes = new Map<string, DisplayNote>();
 
 	// this is a map to locate a note within the nested notes structure;
 	// the list is an ordered set of steps to access a note's location

@@ -10,10 +10,10 @@
 
 	$: wasm = $enigmatickWasm;
 
-	async function loadProfile() {
+	async function loadObject() {
 		if (wasm) {
 			console.log('LOADING PROFILE');
-			let x = await fetch('/notes/' + $page.url.searchParams.get('uuid'), {
+			let x = await fetch('/objects/' + $page.url.searchParams.get('uuid'), {
 				headers: {
 					Accept: 'application/activity+json'
 				}
@@ -73,8 +73,8 @@
 	}
 
 	$: if (wasm && $page.url.searchParams.get('uuid')) {
-		loadProfile().then(() => {
-			console.log('loadProfile');
+		loadObject().then(() => {
+			console.log('loadObject');
 		});
 	}
 </script>

@@ -16,7 +16,8 @@ export type {
 	OlmSessionResponse,
 	Collection,
 	QueueItem,
-	VaultedMessage
+	VaultedMessage,
+	Ephemeral
 };
 export {
 	insertEmojis,
@@ -29,7 +30,10 @@ export {
 	extractMaxMin,
 	cachedContent,
 	domainMatch,
-	convertMastodonUrlToWebfinger
+	convertMastodonUrlToWebfinger,
+	formatProfileTags,
+	getFirst,
+	abbreviateNumber
 };
 
 interface DisplayNote {
@@ -47,20 +51,24 @@ class DisplayNote {
 	created_at: string;
 	replies: Map<string, DisplayNote>;
 
-	constructor(profile: UserProfile | UserProfileTerse, note: Note, replies?: Map<string, DisplayNote>) {
+	constructor(
+		profile: UserProfile | UserProfileTerse,
+		note: Note,
+		replies?: Map<string, DisplayNote>
+	) {
 		this.note = note;
 		this.actor = profile;
 
 		if (note.published) {
 			this.published = String(note.published);
-		} else if (note.ephemeralTimestamp) {
-			this.published = note.ephemeralTimestamp;
+		} else if (note.ephemeral?.timestamp) {
+			this.published = note.ephemeral.timestamp;
 		} else {
 			this.published = new Date().toISOString();
 		}
 
-		if (note.ephemeralTimestamp) {
-			this.created_at = note.ephemeralTimestamp;
+		if (note.ephemeral?.timestamp) {
+			this.created_at = note.ephemeral.timestamp;
 		} else {
 			this.created_at = new Date().toISOString();
 		}
@@ -88,7 +96,7 @@ interface Capabilities {
 
 interface UserProfileTerse {
 	id?: string;
-	url?: string;
+	url?: string | string[];
 	name?: string;
 	preferredUsername: string;
 	tag?: Tag[];
@@ -110,7 +118,7 @@ interface UserProfile {
 	publicKey: object;
 	featured?: string;
 	featuredTags?: string;
-	url?: string;
+	url?: string | string[];
 	manuallyApprovesFollowers?: boolean;
 	published?: string;
 	tag?: Tag[];
@@ -119,12 +127,27 @@ interface UserProfile {
 	icon?: Image;
 	image?: Image;
 	capabilities?: Capabilities;
-	ephemeralFollowing?: boolean;
-	ephemeralLeaderApId?: string;
-	ephemeralFollowActivityApId?: string;
-	ephemeralSummaryMarkdown?: string;
-	ephemeralLeaders?: string[] | UserProfile[];
-	ephemeralFollowers?: string[] | UserProfile[];
+	ephemeral?: Ephemeral;
+}
+
+interface Ephemeral {
+	following?: boolean;
+	leaderApId?: string;
+	followActivityAsId?: string;
+	summaryMarkdown?: string;
+	leaders?: number;
+	followers?: number;
+	announces?: UserProfileTerse[] | null;
+	announced?: string | null;
+	actors?: UserProfileTerse[];
+	liked?: string | null;
+	likes?: UserProfileTerse[] | null;
+	targeted?: boolean | null;
+	timestamp?: string | null;
+	metadata?: Metadata[] | null;
+	attributedTo?: UserProfileTerse[] | null;
+	createdAt?: string | null;
+	updatedAt?: string | null;
 }
 
 interface EnigmatickEventObject {
@@ -210,15 +233,7 @@ interface Note {
 	inReplyTo?: string | null;
 	attachment?: Attachment[];
 	conversation: string | null;
-	ephemeralAnnounces?: UserProfileTerse[] | null;
-	ephemeralAnnounced?: string | null;
-	ephemeralActors?: UserProfile[];
-	ephemeralLiked?: string | null;
-	ephemeralLikes?: UserProfileTerse[] | null;
-	ephemeralTargeted?: boolean | null;
-	ephemeralTimestamp?: string | null;
-	ephemeralMetadata?: Metadata[] | null;
-	ephemeralAttributedTo?: UserProfileTerse[] | null;
+	ephemeral?: Ephemeral;
 }
 
 interface Activity {
@@ -230,8 +245,7 @@ interface Activity {
 	id: string;
 	object: Note;
 	published: string | null;
-	ephemeralCreatedAt: string | null;
-	ephemeralUpdatedAt: string | null;
+	ephemeral?: Ephemeral;
 }
 
 interface StreamConnect {
@@ -276,6 +290,7 @@ interface Collection {
 	next?: string;
 	first?: string;
 	last?: string;
+	ephemeral?: Ephemeral;
 }
 
 interface VaultedMessage {
@@ -284,17 +299,66 @@ interface VaultedMessage {
 	attributedTo?: string;
 }
 
-const convertMastodonUrlToWebfinger = (url: string): string | null => {
+function abbreviateNumber(num: number): string {
+	const suffixes = ['', 'k', 'M', 'B', 'T'];
+	let index = 0;
+  
+	while (num >= 1000 && index < suffixes.length - 1) {
+	  num /= 1000;
+	  index++;
+	}
+  
+	// For numbers less than 1000, return as integer
+	if (index === 0) {
+	  return Math.floor(num).toString();
+	}
+  
+	// For numbers 1000 and above, return with 2 decimal places
+	return num.toFixed(1) + suffixes[index];
+  }
+  
+
+function getFirst(s: string | string[] | undefined): string | undefined {
+	if (typeof s === 'string') {
+		return s;
+	} else if (Array.isArray(s)) {
+		return s[0];
+	}
+	return undefined;
+}
+
+const formatProfileTags = (profile: UserProfileTerse): string => {
+	const hashTags = profile.tag?.filter((tag) => tag.type === 'Hashtag');
+
+	const tagLinks = hashTags?.map((tag) => {
+		return `<a href="${tag.href}">${tag.name}</a>`;
+	});
+
+	if (tagLinks) {
+		return tagLinks.join(' ');
+	} else {
+		return '';
+	}
+};
+
+const convertMastodonUrlToWebfinger = (url: string, short?: boolean): string | null => {
 	try {
 		const parsedUrl = new URL(url);
-		const username = parsedUrl.pathname.slice(1); // Remove the leading '/'
+		let username = parsedUrl.pathname.slice(1); // Remove the leading '/'
 		const domain = parsedUrl.hostname;
 
+		username = username.endsWith('/') ? username.slice(0, -1) : username;
+
 		if (!username.startsWith('@')) {
-			throw new Error('Invalid Mastodon URL format');
+			//throw new Error('Invalid Mastodon URL format');
+			return null;
 		}
 
-		return `${username}@${domain}`;
+		if (short) {
+			return `${username}`;
+		} else {
+			return `${username}@${domain}`;
+		}
 	} catch (error) {
 		console.error('Error parsing URL:', error);
 		return null;
@@ -331,7 +395,7 @@ function insertEmojis(
 					if (text) {
 						text = text.replaceAll(
 							tag.name,
-							`<img class="emoji" src="${cachedContent(wasm, window.Buffer, tag.icon.url)}"/>`
+							`<img class="emoji" src="${cachedContent(wasm, tag.icon.url)}"/>`
 						);
 					}
 				}
@@ -421,16 +485,10 @@ function domainMatch(site1: string, site2: string): boolean {
 // URL, but that causes problems when the URL already includes URI encoding (i.e., I'm not the only one
 // who's had that idea). The resultant decoded URL ends up broken because the original URI decoding also
 // gets decoded at the core server.
-function cachedContent(
-	wasm: typeof import('enigmatick_wasm') | null,
-	buffer: any,
-	url: string
-): string {
+function cachedContent(wasm: typeof import('enigmatick_wasm') | null, url: string): string {
 	//if (buffer) {
 	if (wasm) {
 		let encoded = wasm.get_url_safe_base64(url);
-		//let encoded = buffer.from(url).toString('base64').replaceAll('=','')
-		//return '/api/cache?url=' + encodeURIComponent(encoded);
 		return '/api/cache?url=' + encoded;
 	} else {
 		return url;

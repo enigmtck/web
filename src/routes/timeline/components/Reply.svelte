@@ -125,7 +125,7 @@
 		<time datetime={note.published}>{timeSince(new Date(String(note.published)).getTime())}</time>
 		{#if username}
 			<nav>
-				{#if note.note.ephemeralAnnounced}
+				{#if note.note.ephemeral?.announced}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i
@@ -145,7 +145,7 @@
 					/>
 				{/if}
 
-				{#if note.note.ephemeralLiked}
+				{#if note.note.ephemeral?.liked}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i
@@ -185,7 +185,7 @@
 
 	{#if note.replies?.size}
 		<div class="replies">
-			{#each Array.from(note.replies.values()).sort(compare) as reply}
+			{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
 				<svelte:self
 					note={reply}
 					{username}

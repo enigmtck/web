@@ -6,7 +6,10 @@
 		Tag,
 		Attachment,
 		DisplayNote,
-		AnnounceParams
+		AnnounceParams,
+
+		Ephemeral
+
 	} from '../../../common';
 	import { onDestroy, onMount, getContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
@@ -45,7 +48,7 @@
 	export let refresh: () => void;
 	export let remove: (note: string) => void;
 
-	let profile = note.note.ephemeralAttributedTo ?? [note.actor];
+	let profile = note.note.ephemeral?.attributedTo ?? [note.actor];
 	let actorIcon = profile[0].icon?.url;
 	let actorName = profile[0].name ?? profile[0].preferredUsername;
 	let actorId = profile[0].id;
@@ -61,7 +64,9 @@
 		if (wasm) {
 			wasm.send_unlike(actor, object, activity).then((uuid) => {
 				console.debug('UNLIKE SENT');
-				note.note.ephemeralLiked = null;
+				let ephemeral: Ephemeral = note.note.ephemeral || {};
+				ephemeral.liked = null;
+				note.note.ephemeral = ephemeral;
 				note = note;
 			});
 		}
@@ -74,7 +79,9 @@
 		if (wasm) {
 			wasm.send_like(actor, object).then((uuid) => {
 				console.debug(`LIKE SENT ${uuid}`);
-				note.note.ephemeralLiked = uuid;
+				let ephemeral: Ephemeral = note.note.ephemeral || {};
+				ephemeral.liked = uuid;
+				note.note.ephemeral = ephemeral;
 				note = note;
 			});
 		}
@@ -87,7 +94,9 @@
 		if (wasm && object) {
 			wasm.send_unannounce(object, activity).then((uuid) => {
 				console.debug('UNANNOUNCE SENT');
-				note.note.ephemeralAnnounced = null;
+				let ephemeral: Ephemeral = note.note.ephemeral || {};
+				ephemeral.announced = null;
+				note.note.ephemeral = ephemeral;
 				note = note;
 			});
 		} else {
@@ -101,7 +110,9 @@
 		if (wasm && object) {
 			wasm.send_announce(object).then((uuid) => {
 				console.debug(`ANNOUNCE SENT ${uuid}`);
-				note.note.ephemeralAnnounced = uuid;
+				let ephemeral: Ephemeral = note.note.ephemeral || {};
+				ephemeral.announced = uuid;
+				note.note.ephemeral = ephemeral;
 				note = note;
 			});
 		} else {
@@ -168,7 +179,7 @@
 	<header>
 		<div>
 			{#if actorIcon}
-				<img src={cachedContent(wasm, window.Buffer, actorIcon)} alt="Sender" on:error={(e) => console.log(e)}/>
+				<img src={cachedContent(wasm, actorIcon)} alt="Sender" on:error={(e) => console.log(e)}/>
 			{/if}
 		</div>
 		<address>
@@ -190,16 +201,16 @@
 
 	{#if note.note.attachment && note.note.attachment.length > 0}
 		<Attachments note={note.note} />
-	{:else if note.note.ephemeralMetadata && note.note.ephemeralMetadata.length}
-		<LinkPreview links={note.note.ephemeralMetadata} />
+	{:else if note.note.ephemeral?.metadata && note.note.ephemeral?.metadata.length}
+		<LinkPreview links={note.note.ephemeral?.metadata} />
 	{/if}
 
 	<div class="activity">
-		{#if note.note.ephemeralLikes?.length}
+		{#if note.note.ephemeral?.likes?.length}
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<span class="likes"
 				><i class="fa-solid fa-star" />
-				{note.note.ephemeralLikes.length}</span
+				{note.note.ephemeral?.likes.length}</span
 			>
 		{/if}
 		{#if note.replies?.size}
@@ -240,13 +251,13 @@
 				on:click|preventDefault={handleNoteSelect}
 			/>
 
-			{#if note.note.ephemeralAnnounced}
+			{#if note.note.ephemeral?.announced}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-repeat selected"
 					data-object={note.note.id}
-					data-activity={note.note.ephemeralAnnounced}
+					data-activity={note.note.ephemeral?.announced}
 					on:click|preventDefault={handleUnannounce}
 				/>
 			{:else}
@@ -259,14 +270,14 @@
 				/>
 			{/if}
 
-			{#if note.note.ephemeralLiked}
+			{#if note.note.ephemeral?.liked}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-star selected"
 					data-actor={note.note.attributedTo}
 					data-object={note.note.id}
-					data-activity={note.note.ephemeralLiked}
+					data-activity={note.note.ephemeral?.liked}
 					on:click|preventDefault={handleUnlike}
 				/>
 			{:else}
@@ -474,6 +485,7 @@
 		:global(section > p) {
 			user-select: none;
 			margin: 0 0 10px 0;
+			overflow: hidden;
 		}
 
 		:global(.emoji) {

@@ -16,7 +16,8 @@
 		AnnounceParams,
 		Attachment,
 		Activity,
-		Collection
+		Collection,
+		Ephemeral
 	} from '../../common';
 	import {
 		insertEmojis,
@@ -69,8 +70,14 @@
 												}
 											});
 
-											placeOrphans(true);
+											placeOrphans();
 										}
+
+										console.debug('NOTES MAP');
+										console.debug(notes);
+
+										console.debug('ORPHANS MAP');
+										console.debug(orphans);
 									});
 							}
 						}
@@ -83,20 +90,6 @@
 				}
 			}
 		}
-	}
-
-	function placeOrphans(recursive: boolean) {
-		let orphans_copy = new Map(orphans);
-		orphans_copy.forEach((orphan, id) => {
-			if (orphan.note.inReplyTo) {
-				if (notes.has(orphan.note.inReplyTo)) {
-					orphans.delete(id);
-					placeNote(orphan);
-				} else if (recursive && orphans.has(orphan.note.inReplyTo)) {
-					placeOrphans(false);
-				}
-			}
-		});
 	}
 
 	function observeNote(note: any) {
@@ -160,7 +153,9 @@
 										//note.ephemeralAnnounces = [announce.actor];
 										note.id = announce.id;
 										note.published = announce.published;
-										note.ephemeralTimestamp = announce.published;
+										let ephemeral: Ephemeral = note.ephemeral || {};
+										ephemeral.timestamp = announce.published;
+										note.ephemeral = ephemeral;
 
 										if (liveLoading) {
 											addNote(note);
@@ -222,7 +217,7 @@
 
 			if (replyNote) {
 				const note: Note = JSON.parse(String(replyNote));
-				const replyActor = note.ephemeralAttributedTo?.at(0);
+				const replyActor = note.ephemeral?.attributedTo?.at(0);
 
 				if (replyActor && wasm) {
 					const name = insertEmojis(
@@ -244,17 +239,14 @@
 	}
 
 	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
-		if (note.ephemeralAnnounces) {
-			// console.log('EPHEMERAL ANNOUNCES');
-			// console.debug(note.ephemeralAnnounces);
-
-			const announceActor = note.ephemeralAnnounces[0];
+		if (note.ephemeral?.announces) {
+			const announceActor = note.ephemeral.announces[0];
 			let others = '';
 
-			if (note.ephemeralAnnounces.length == 2) {
-				others = ` and ${note.ephemeralAnnounces.length - 1} other`;
-			} else if (note.ephemeralAnnounces.length > 2) {
-				others = ` and ${note.ephemeralAnnounces.length - 1} others`;
+			if (note.ephemeral.announces.length == 2) {
+				others = ` and ${note.ephemeral.announces.length - 1} other`;
+			} else if (note.ephemeral.announces.length > 2) {
+				others = ` and ${note.ephemeral.announces.length - 1} others`;
 			}
 
 			if (announceActor && wasm) {
@@ -273,62 +265,77 @@
 		}
 	}
 
+	function placeOrphans() {
+		let orphans_copy = [...orphans];
+
+		orphans_copy.forEach((orphan) => {
+			orphans.delete(orphan[0]);
+			placeNote(orphan[1]);
+		});
+	}
+
 	async function placeNote(displayNote: DisplayNote) {
-		const note = displayNote.note;
+		if (!displayNote.note.inReplyTo && displayNote.note.id) {
+			// If 'inReplyTo' is blank or no matching DisplayNote found, add it to the top level
+			if (!notes.has(displayNote.note.id)) {
+				notes.set(displayNote.note.id, displayNote);
+			}
+			await updateDOM(true, 4);
+			return;
+		}
 
-		if (note.inReplyTo) {
-			// lookup the parent note in the locator to get its traversal path
-			let traversal = locator.get(String(note.inReplyTo));
-
-			if (traversal) {
-				// set the cursor to the first step in the traversal
-				let cursor = notes.get(traversal[0]);
-
-				// traverse through the steps, updating the cursor to find the
-				// deepest point
-				traversal.forEach((id, key, arr) => {
-					if (key > 0) {
-						cursor = cursor?.replies.get(id);
+		function findAndAddReply(map: Map<string, DisplayNote>): boolean {
+			for (const [, parentDisplayNote] of map.entries()) {
+				if (parentDisplayNote.note.id === displayNote.note.inReplyTo && displayNote.note.id) {
+					// Add the reply to the 'replies' Map of the matching DisplayNote
+					if (!parentDisplayNote.replies.has(displayNote.note.id)) {
+						parentDisplayNote.replies.set(displayNote.note.id, displayNote);
 					}
-				});
-
-				if (cursor?.note.id == note.inReplyTo) {
-					// attch this note to its parent
-					cursor.replies.set(String(note.id), displayNote);
-
-					// copy the traversal path and add this note's id to the end
-					let traversalCopy = [...traversal];
-					traversalCopy.push(String(note.id));
-
-					// update the locator map with the traversal path for this note
-					locator.set(String(note.id), traversalCopy);
-				} else {
-					console.error('TRAVERSAL ENDED SOMEWHERE UNEXPECTED');
+					return true;
 				}
-			} else {
-				// we don't have this note's parent yet; queue it for review later
-				if (displayNote.note.id) {
-					orphans.set(displayNote.note.id, displayNote);
+
+				// Recursively search in the replies
+				if (findAndAddReply(parentDisplayNote.replies)) {
+					return true;
 				}
 			}
-		} else {
-			// this is a top-level note, add it to the notes and locator maps
-			if (!notes.get(String(note.id))) {
-				notes.set(String(note.id), displayNote);
-				locator.set(String(note.id), [String(note.id)]);
+			return false;
+		}
+
+		// If 'inReplyTo' exists, try to find the parent note
+		if (displayNote.note.inReplyTo && findAndAddReply(notes)) {
+			await updateDOM(false);
+			return;
+		} else if (displayNote.note.id && displayNote.note.inReplyTo) {
+			orphans.set(displayNote.note.id, displayNote);
+
+			if (!orphans.has(displayNote.note.id)) {
+				let noteString = await cachedNote(displayNote.note.inReplyTo);
+				if (noteString) {
+					let note: Note = JSON.parse(noteString);
+					let profile: UserProfile = await cachedActor(note.attributedTo);
+
+					if (note.id) {
+						orphans.set(note.id, new DisplayNote(profile, note));
+					}
+				}
 			}
 		}
 
+		await updateDOM(false);
+	}
+
+	const updateDOM = async (fixScroll: boolean, ticks?: number) => {
 		try {
 			let beforeScroll = scrollPosition;
 			console.log(`SCROLL TOP ${beforeScroll}`);
 
 			notes = notes;
 
-			if (!note.inReplyTo) {
-				await tick();
-				await tick();
-				await tick();
+			if (fixScroll && ticks) {
+				for (let t = 0; t < ticks; t++) {
+					await tick();
+				}
 				console.log(`SCROLLING TO ${beforeScroll}`);
 				scrollable.scrollTo({ top: beforeScroll, left: 0, behavior: 'instant' });
 			}
@@ -336,19 +343,11 @@
 			console.debug('Error updating notes');
 			console.error(e);
 		}
-	}
+	};
 
 	async function addNote(note: Note) {
-		if (note.ephemeralActors) {
-			note.ephemeralActors.forEach((actor) => {
-				if (actor.id) {
-					apCache.set(actor.id, JSON.stringify(actor));
-				}
-			});
-		}
-
 		if (note.attributedTo) {
-			const actor = note.ephemeralAttributedTo?.at(0);
+			const actor = note.ephemeral?.attributedTo?.at(0);
 
 			if (actor) {
 				const displayNote = new DisplayNote(actor, note);
@@ -395,6 +394,8 @@
 
 			try {
 				let collection: Collection = JSON.parse(String(x));
+				console.debug('RETRIEVED TIMELINE DATA');
+				console.debug(collection);
 
 				if (collection.next) {
 					const result = extractMaxMin(collection.next);
@@ -410,12 +411,10 @@
 					});
 				} catch (e) {
 					console.error(e);
-					console.debug(collection);
 				}
 
-				placeOrphans(true);
+				placeOrphans();
 
-				offset += pageSize;
 				return length;
 			} catch (e) {
 				console.error(e);
@@ -481,7 +480,7 @@
 				(<HTMLElement>event.target).classList.add('selected');
 
 				view = selected;
-				resetData();
+				await resetData();
 				await loadMinimum();
 			}
 		}
@@ -520,7 +519,7 @@
 		await tick();
 		await tick();
 		await tick();
-		scrollable.scrollTo({top: yPosition, left: 0, behavior: "instant"});
+		scrollable.scrollTo({ top: yPosition, left: 0, behavior: 'instant' });
 	}
 
 	async function scrollToTop(): Promise<number> {
@@ -531,9 +530,9 @@
 		await tick();
 		await tick();
 		await tick();
-		scrollable.scrollTo({top: 0, left: 0, behavior: "instant"});
+		scrollable.scrollTo({ top: 0, left: 0, behavior: 'instant' });
 
-		console.debug("SCROLLED TO TOP");
+		console.debug('SCROLLED TO TOP');
 
 		return current;
 	}
@@ -584,7 +583,7 @@
 		return null;
 	}
 
-	async function cachedNote(id: string) {
+	async function cachedNote(id: string): Promise<string | undefined> {
 		if (wasm && !apCache.has(id)) {
 			apCache.set(id, await wasm.get_note(id));
 		}
@@ -656,6 +655,7 @@
 	// this is a map to locate a note within the nested notes structure;
 	// the list is an ordered set of steps to access a note's location
 	let locator = new Map<string, string[]>();
+	//let orphans: Map<string, DisplayNote> = new Map<string, DisplayNote>();
 	let orphans: Map<string, DisplayNote> = new Map<string, DisplayNote>();
 
 	// used very temporarily to control requests to the API for new data
@@ -743,6 +743,9 @@
 					><i class="fa-solid fa-house" />Home</button
 				>
 				<button data-view="local" on:click={handleView}><i class="fa-solid fa-city" />Local</button>
+				<button data-view="direct" on:click={handleView}
+					><i class="fa-solid fa-envelope" />Direct</button
+				>
 			{/if}
 			<button data-view="global" on:click={handleView}><i class="fa-solid fa-globe" />Global</button
 			>
@@ -751,7 +754,7 @@
 
 	<div class="scrollable" on:scroll={updateScrollPosition} bind:this={scrollable}>
 		{#each Array.from(notes.values()) as note}
-			{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeralAnnounces?.length)) || note.note.id == focusNote)}
+			{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeral?.announces?.length)) || note.note.id == focusNote)}
 				{#await replyToHeader(note.note) then replyTo}
 					{#await announceHeader(note.note) then announce}
 						<Article

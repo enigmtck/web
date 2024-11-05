@@ -45,7 +45,7 @@
 			{#if links[selectedIndex].ogImage?.length}
 				<div class="image">
 					<img
-						src={cachedContent(wasm, window.Buffer, String(links[selectedIndex].ogImage))}
+						src={cachedContent(wasm, String(links[selectedIndex].ogImage))}
 						alt="Link Preview"
 						on:error={imgError}
 					/>

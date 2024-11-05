@@ -10,8 +10,10 @@
 		insertEmojis,
 		getWebFingerFromId,
 		cachedContent,
+		convertMastodonUrlToWebfinger,
+		getFirst,
 
-		convertMastodonUrlToWebfinger
+		abbreviateNumber
 
 	} from '../../common';
 	import Posts from './components/Posts.svelte';
@@ -19,15 +21,11 @@
 	$: wasm = $enigmatickWasm;
 	$: username = $appData.username;
 
-	let actorId: string | undefined;
-	$: actorId;
-
 	import { onDestroy, onMount } from 'svelte';
 	import { beforeNavigate, goto } from '$app/navigation';
+	import Follows from './components/Follows.svelte';
 
-	onMount(async () => {
-
-	});
+	onMount(async () => {});
 
 	async function loadProfile(handle: string) {
 		console.debug(`INSTANCE DOMAIN: ${$appData.domain}`);
@@ -38,7 +36,7 @@
 			local = false;
 
 			// The '@' below is the prepended one; the '@' above is the one in the middle
-			let p = await cachedActor(`@${handle}`);
+			let p = await cachedActor(`@${handle}`, cache);
 			// let p = await wasm?.get_actor_cached(cache, `@${handle}`).catch((e) => {
 			// 	 console.error(`FAILED TO RETRIEVE: ${handle}`);
 			// 	 return null;
@@ -46,8 +44,6 @@
 
 			profile = JSON.parse(p);
 			console.debug(profile);
-
-			actorId = profile?.id;
 
 			if (postsComponent && profile) {
 				postsComponent.local = local;
@@ -77,20 +73,19 @@
 				if (x) {
 					console.log(x);
 					profile = JSON.parse(x);
-					actorId = profile?.id;
 					console.debug(profile);
 					if (postsComponent && profile) {
 						postsComponent.local = local;
 						postsComponent.handle = handle;
 						postsComponent.profile = profile;
 					}
-					summaryMarkdown = profile?.ephemeralSummaryMarkdown || '';
+					summaryMarkdown = profile?.ephemeral?.summaryMarkdown || '';
 				}
 			});
 		}
 	}
 
-	async function cachedActor(id: string) {
+	async function cachedActor(id: string, cache: any) {
 		if (cache) {
 			try {
 				console.debug(`RETRIEVING ${id} FROM CACHE`);
@@ -205,7 +200,9 @@
 			wasm?.send_follow(profile.id).then((x) => {
 				console.debug(`FOLLOW ${x}`);
 				if (x && profile) {
-					profile.ephemeralFollowing = true;
+					let ephemeral = profile.ephemeral || {};
+					ephemeral.following = true;
+					profile.ephemeral = ephemeral;
 				}
 			});
 		} else {
@@ -224,7 +221,9 @@
 
 			wasm?.send_unfollow(profile.id, activity).then((x) => {
 				if (x && profile) {
-					profile.ephemeralFollowing = false;
+					let ephemeral = profile.ephemeral || {};
+					ephemeral.following = false;
+					profile.ephemeral = ephemeral;
 				}
 			});
 		} else {
@@ -256,7 +255,6 @@
 	const Views = {
 		Articles: Symbol('articles'),
 		Posts: Symbol('posts'),
-		Gallery: Symbol('gallery'),
 		Followers: Symbol('followers'),
 		Following: Symbol('following')
 	};
@@ -271,6 +269,8 @@
 	let followerCount = 0;
 	let followingCount = 0;
 
+	let followersComponent: Follows | null;
+	let followingComponent: Follows | null;
 	let postsComponent: Posts | null;
 	let profile: UserProfile | null = null;
 	let local = true;
@@ -282,10 +282,7 @@
 	}
 
 	beforeNavigate(async (navigation) => {
-		// this is currently triggered (and not reset) when opening a link in to a new tab. this is likely a bug
-		// and may be addressed here: https://github.com/sveltejs/kit/issues/8482
-		// UPDATE - ran a 'yarn upgrade' and this seems to be fixed now
-		console.log(navigation);
+		console.debug(navigation);
 		if (navigation.to) {
 			if (navigation.to.route.id === null) {
 				let actor = navigation.to.url.href;
@@ -293,7 +290,7 @@
 				// we want to catch the calls to external profiles so that we can offer actions on them; the
 				// intention of this expression is to match Mastodon-isms like (with grouping notated)
 				// ^https://(ser)(.endipito)(.us)/@justin$ or ^https://(infosec)(.exchange)/@jdt$
-				const re = /^https:\/\/(:?[a-zA-Z0-9\-]+)(:?\.[a-zA-Z0-9\-]+)+?\/@[a-zA-Z0-9_]+$/;
+				const re = /^https:\/\/(:?[a-zA-Z0-9\-]+)(:?\.[a-zA-Z0-9\-]+)+?\/@[a-zA-Z0-9_]+\/?$/;
 
 				if (actor.match(re)) {
 					let webfinger = convertMastodonUrlToWebfinger(actor);
@@ -301,7 +298,10 @@
 					if (webfinger) {
 						console.log(`WEBFINGER: ${webfinger}`);
 						navigation.cancel();
-						goto(`/${webfinger}`);
+
+						goto(`/${webfinger}`).then(() => {
+							currentView = Views.Posts;
+						});
 					}
 				}
 			}
@@ -323,7 +323,7 @@
 					/>
 				{/if}
 				{#if profile.image}
-					<img src={cachedContent(wasm, window.Buffer, String(profile.image.url))} alt="Banner" />
+					<img src={cachedContent(wasm, String(profile.image.url))} alt="Banner" />
 				{/if}
 			</div>
 			<div class="identity">
@@ -338,14 +338,14 @@
 						/>
 					{/if}
 
-					<img src={cachedContent(wasm, window.Buffer, String(profile.icon?.url))} alt="Avatar" />
+					<img src={cachedContent(wasm, String(profile.icon?.url))} alt="Avatar" />
 				</div>
 				<div class="details">
 					{#if profile.name}
 						<h1>{@html insertEmojis(wasm, profile.name, profile)}</h1>
 					{/if}
 
-					<a href={profile.url}>{getWebFingerFromId(profile)}</a>
+					<a href={getFirst(profile.url)}>{getWebFingerFromId(profile)}</a>
 				</div>
 			</div>
 			{#if username}
@@ -353,15 +353,15 @@
 					<!-- This is super convoluted. The goal is to hide this if it's the user's own profile. -->
 					{#if $appData.domain && (!profile.id?.includes($appData.domain) || profile.preferredUsername !== username)}
 						<div>
-							{#if !profile.ephemeralFollowing}
+							{#if !profile.ephemeral?.following}
 								<button title="Follow" on:click|preventDefault={handleFollow}>
 									<i class="fa-solid fa-user-plus" />
 								</button>
 							{/if}
-							{#if profile.ephemeralFollowing !== undefined && profile.ephemeralFollowing}
+							{#if profile.ephemeral?.following !== undefined && profile.ephemeral?.following}
 								<button
 									title="Unfollow"
-									data-activity={profile.ephemeralFollowActivityApId}
+									data-activity={profile.ephemeral?.followActivityAsId}
 									on:click|preventDefault={handleUnfollow}
 								>
 									<i class="fa-solid fa-user-minus" />
@@ -451,20 +451,56 @@
 				{/if}
 			</div>
 			<div class="tabs">
-				<button class={currentView === Views.Articles ? 'selected' : ''}>Articles</button>
-				<button class={currentView === Views.Posts ? 'selected' : ''}>Posts</button>
-				<button class={currentView === Views.Gallery ? 'selected' : ''}>Gallery</button>
-				<button class={currentView === Views.Following ? 'selected' : ''}
-					>Following &bull; {profile.ephemeralLeaders?.length || followingCount}</button
-				>
-				<button class={currentView === Views.Followers ? 'selected' : ''}
-					>Followers &bull; {profile.ephemeralFollowers?.length || followerCount}</button
-				>
+				{#if local}
+					<button class={currentView === Views.Articles ? 'selected' : ''}>Articles</button>
+				{/if}
+
+				{#if local || username}
+					<button
+						class={currentView === Views.Posts ? 'selected' : ''}
+						on:click={() => {
+							currentView = Views.Posts;
+						}}>Posts</button
+					>
+				{/if}
+
+				{#if username}
+					<button
+						class={currentView === Views.Following ? 'selected' : ''}
+						on:click={() => {
+							currentView = Views.Following;
+						}}>Following &bull; {abbreviateNumber(profile.ephemeral?.leaders || followingCount)}</button
+					>
+					<button
+						class={currentView === Views.Followers ? 'selected' : ''}
+						on:click={() => {
+							currentView = Views.Followers;
+						}}>Followers &bull; {abbreviateNumber(profile.ephemeral?.followers || followerCount)}</button
+					>
+				{/if}
 			</div>
 		</div>
 		<section>
 			{#if currentView === Views.Posts}
-				<Posts bind:this={postsComponent} handle={$page.params.handle} {actorId} {local} />
+				<Posts bind:this={postsComponent} handle={$page.params.handle} {local} />
+			{:else if currentView == Views.Followers}
+				<Follows
+					bind:this={followersComponent}
+					handle={$page.params.handle}
+					{local}
+					view="Followers"
+					{cache}
+					{cachedActor}
+				/>
+			{:else if currentView == Views.Following}
+				<Follows
+					bind:this={followingComponent}
+					handle={$page.params.handle}
+					{local}
+					view="Following"
+					{cache}
+					{cachedActor}
+				/>
 			{/if}
 		</section>
 	{/if}

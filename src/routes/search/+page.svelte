@@ -39,7 +39,7 @@
 					ev.type == 'Undo' &&
 					ev.object &&
 					typeof ev.object == 'object' &&
-					ev.object.id == profile?.ephemeralLeaderApId
+					ev.object.id == profile?.ephemeral?.leaderApId
 				) {
 					load_profile().then(() => {
 						console.log('profile loaded');
@@ -147,7 +147,7 @@
 		if (profile && profile.id) {
 			console.log('unfollowing: ' + profile.id);
 
-			wasm?.send_unfollow(profile.id, String(profile.ephemeralFollowActivityApId));
+			wasm?.send_unfollow(profile.id, String(profile.ephemeral?.followActivityApId));
 		} else {
 			console.log('no profile loaded');
 		}
@@ -231,15 +231,15 @@
 					{#if olm_session || one_time_key}
 						<li><button on:click|preventDefault={handleMessage}>Message</button></li>
 					{/if}
-					{#if profile.ephemeralFollowing === undefined}
+					{#if profile.ephemeral?.following === undefined}
 						<li><button on:click|preventDefault={handleFollow}>Follow</button></li>
 					{/if}
 
-					{#if profile.ephemeralFollowing !== undefined && !profile.ephemeralFollowing}
+					{#if profile.ephemeral?.following !== undefined && !profile.ephemeral?.following}
 						<li><button>Pending</button></li>
 					{/if}
 
-					{#if profile.ephemeralFollowing !== undefined && profile.ephemeralFollowing}
+					{#if profile.ephemeral?.following !== undefined && profile.ephemeral?.following}
 						<li><button on:click|preventDefault={handleUnfollow}>Unfollow</button></li>
 					{/if}
 				</ul>
