@@ -21,7 +21,7 @@
 	) => Promise<boolean>;
 
 	async function handleReplyToMessage(message: CustomEvent<ComposeDispatch>) {
-		console.log("IN COMPOSE");
+		console.log('IN COMPOSE');
 		console.log(message);
 
 		replyToRecipient = message.detail.replyToRecipient;
@@ -113,7 +113,7 @@
 		console.log(`reply_note: ${replyToNote}`);
 		console.log(`reply_conversation: ${replyToConversation}`);
 		console.log(`note: ${htmlNote}`);
-		
+
 		senderFunction(
 			replyToRecipient,
 			replyToNote,
@@ -553,13 +553,12 @@
 		position: fixed;
 		right: calc(50% - 100px);
 		bottom: 10px;
-		background: #eee;
+		background: #bbb;
 		width: 60px;
 		height: 60px;
 		border-radius: 10px;
 		opacity: 0.4;
-		border: 1px solid #ccc;
-		color: #444;
+		color: #777;
 		transition-duration: 1s;
 		z-index: 15;
 
@@ -570,7 +569,8 @@
 
 	.compose:hover {
 		cursor: pointer;
-		color: red;
+		color: white;
+		background: maroon;
 		opacity: 1;
 		transition-duration: 1s;
 	}
@@ -578,6 +578,20 @@
 	@media screen and (max-width: 600px) {
 		.compose {
 			bottom: 60px;
+		}
+	}
+
+	:global(body.dark) {
+		.compose {
+			background: #eee;
+		}
+
+		.compose:hover {
+			cursor: pointer;
+			color: white;
+			background: maroon;
+			opacity: 1;
+			transition-duration: 1s;
 		}
 	}
 </style>

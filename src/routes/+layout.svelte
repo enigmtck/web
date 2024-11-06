@@ -207,9 +207,7 @@
 			<div>
 				<span class="title"><a href="/">ENIGMATICK</a></span>
 				{#if avatar}
-					<span class="avatar"
-						><a href="/@{username}"><img src="{avatar}" alt="You" /></a></span
-					>
+					<span class="avatar"><a href="/@{username}"><img src={avatar} alt="You" /></a></span>
 				{/if}
 			</div>
 
@@ -321,6 +319,7 @@
 					font-size: 14px;
 					padding: 10px 5px;
 					color: #222;
+					border-radius: 20px;
 				}
 
 				a:hover {
@@ -332,12 +331,12 @@
 				}
 
 				.selected {
-					background: #333;
+					background: #ddd;
 				}
 				span.title {
 					a {
 						font-size: 24px;
-						color: #fafafafa;
+						color: darkred;
 					}
 
 					a:hover {
@@ -523,7 +522,7 @@
 				}
 
 				.selected {
-					background: #222;
+					background: #eee;
 				}
 			}
 		}
@@ -531,27 +530,34 @@
 
 	:global(body.dark) {
 		.app {
-			> nav {
-				background: #1a1a1a;
+			nav.top {
+				background: #000;
 
-				a {
-					border-radius: 20px;
-					color: #aaa;
-				}
+				div {
+					a {
+						border-radius: 20px;
+						color: #aaa;
+					}
 
-				a:hover {
-					color: red;
-				}
+					a:hover {
+						color: red;
+					}
 
-				.selected {
-					background: #222;
+					.selected {
+						background: #222;
+					}
+
+					span.title {
+						a {
+							color: #fff;
+						}
+					}
 				}
 			}
 
 			.context {
 				color: white;
 				background: #000;
-				border-left: 1px solid #222;
 			}
 
 			footer {

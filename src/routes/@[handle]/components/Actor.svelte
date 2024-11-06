@@ -57,10 +57,11 @@
 			grid-template-columns: 50px 120px;
 			grid-template-rows: auto;
 			grid-template-areas: 'image text';
-			color: white;
-			background: #151515;
+			color: #222;
+			background: #ddd;
 			margin: 5px;
 			border-radius: 5px;
+			border: 1px solid #dadada;
 
 			.image {
 				grid-area: image;
@@ -103,6 +104,16 @@
 					color: #999;
 					font-size: 12px;
 				}
+			}
+		}
+	}
+
+	:global(body.dark) {
+		main {
+			a{
+				border: 1px solid #222;
+				background: #151515;
+				color: white;
 			}
 		}
 	}

@@ -64,7 +64,7 @@
 		}
 	}
 
-	:global(body.dark) {
+	body.dark {
 		h1 {
 			color: whitesmoke;
 		}

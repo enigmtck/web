@@ -390,7 +390,7 @@
 				cache = new wasm.EnigmatickCache();
 			}
 
-			let x = await wasm.get_timeline(maxValue, undefined, pageSize, view);
+			let x = await wasm.get_timeline(maxValue, undefined, pageSize, view, hashtags); 
 
 			try {
 				let collection: Collection = JSON.parse(String(x));
@@ -439,30 +439,37 @@
 	}
 
 	beforeNavigate(async (navigation) => {
-		// this is currently triggered (and not reset) when opening a link in to a new tab. this is likely a bug
-		// and may be addressed here: https://github.com/sveltejs/kit/issues/8482
-		// UPDATE - ran a 'yarn upgrade' and this seems to be fixed now
 		console.log(navigation);
+		
 		if (navigation.to) {
 			if (navigation.to.route.id === null) {
-				let actor = navigation.to.url.href;
+				let url = navigation.to.url.href;
 
 				// we want to catch the calls to external profiles so that we can offer actions on them; the
 				// intention of this expression is to match Mastodon-isms like (with grouping notated)
 				// ^https://(ser)(.endipito)(.us)/@justin$ or ^https://(infosec)(.exchange)/@jdt$
-				const re = /^https:\/\/(:?[a-zA-Z0-9\-]+)(:?\.[a-zA-Z0-9\-]+)+?\/@[a-zA-Z0-9_]+$/;
+				const actor_url = /^https:\/\/(?:[a-zA-Z0-9\-]+)(?:\.[a-zA-Z0-9\-]+)+?\/@[a-zA-Z0-9_]+$/;
+				const mastodon_tag_url = /^https:\/\/(?:[a-zA-Z0-9\-]+)(?:\.[a-zA-Z0-9\-]+)+?\/tags\/([a-zA-Z0-9\-_]+)$/;
+				const friendica_tag_url = /^https:\/\/(?:[a-zA-Z0-9\-]+)(?:\.[a-zA-Z0-9\-]+)+?\/search\?tag=([a-zA-Z0-9\-_]+)$/;
 
-				if (actor.match(re)) {
-					let webfinger = convertMastodonUrlToWebfinger(actor);
+				let matches;
+
+				if (url.match(actor_url)) {
+					let webfinger = convertMastodonUrlToWebfinger(url);
 
 					if (webfinger) {
 						console.log(`WEBFINGER: ${webfinger}`);
 						navigation.cancel();
 						goto(`/${webfinger}`);
 					}
+				} else if ((matches = url.match(mastodon_tag_url)) || (matches = url.match(friendica_tag_url))) {
+					hashtags.push(matches[1].toLowerCase());
+					navigation.cancel();
 				}
 			}
 		}
+
+		console.log(hashtags);
 	});
 
 	async function handleView(event: Event) {
@@ -640,6 +647,8 @@
 
 	let cache: any = null;
 
+	let hashtags: string[] = [];
+
 	// controls whether messages from EventSource are immediately displayed or queued
 	let liveLoading = true;
 	let infiniteScrollDisabled = false;
@@ -740,14 +749,14 @@
 		<nav>
 			{#if username}
 				<button class="selected" data-view="home" on:click={handleView}
-					><i class="fa-solid fa-house" />Home</button
+					><i class="fa-solid fa-house" /></button
 				>
-				<button data-view="local" on:click={handleView}><i class="fa-solid fa-city" />Local</button>
+				<button data-view="local" on:click={handleView}><i class="fa-solid fa-city" /></button>
 				<button data-view="direct" on:click={handleView}
-					><i class="fa-solid fa-envelope" />Direct</button
+					><i class="fa-solid fa-envelope" /></button
 				>
 			{/if}
-			<button data-view="global" on:click={handleView}><i class="fa-solid fa-globe" />Global</button
+			<button data-view="global" on:click={handleView}><i class="fa-solid fa-globe" /></button
 			>
 		</nav>
 	</header>
@@ -794,10 +803,10 @@
 	</div>
 
 	{#if focusNote || focusConversation}
-		<div class="back">
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<i class="fa-solid fa-angles-left" on:click|preventDefault={clearNoteSelect} />
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div class="back" on:click|preventDefault={clearNoteSelect}>
+			<i class="fa-solid fa-angles-left" />
 		</div>
 	{/if}
 </main>
@@ -851,14 +860,14 @@
 					font-size: 14px;
 					padding: 5px;
 					margin: 0 5px;
-					color: #eee;
+					color: #222;
 					background: none;
 					border: 0;
 					border-radius: 20px;
 				}
 
-				:global(.selected) {
-					background: #222 !important;
+				button.selected {
+					background: #ddd !important;
 				}
 
 				button:hover {
@@ -892,21 +901,26 @@
 
 		.back {
 			position: absolute;
-			left: 10px;
-			top: 5px;
-			width: 50px;
+			left: 25px;
+			top: calc(50% - 80px);
+			width: 34px;
+			height: 160px;
+			align-content: center;
 			text-align: center;
-			border-radius: 10px;
+			border-radius: 15px;
 			font-size: 28px;
-			color: #777;
+			color: white;
 			opacity: 0.6;
 			transition-duration: 1s;
 			z-index: 31;
+			background: maroon;
+			padding: 8px 0 0 0;
 		}
 
 		.back:hover {
 			opacity: 1;
-			color: red;
+			color: white;
+			background: maroon;
 			transition-duration: 1s;
 			cursor: pointer;
 		}
@@ -945,7 +959,16 @@
 			background: #000;
 			header {
 				background: #000;
-				border-bottom: 1px solid #222;
+
+				nav {
+					button {
+						color: #eee;
+					}
+
+					button.selected {
+						background: #333 !important;
+					}
+				}
 			}
 		}
 	}

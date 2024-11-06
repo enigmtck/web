@@ -7,9 +7,7 @@
 		Attachment,
 		DisplayNote,
 		AnnounceParams,
-
 		Ephemeral
-
 	} from '../../../common';
 	import { onDestroy, onMount, getContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
@@ -179,18 +177,12 @@
 	<header>
 		<div>
 			{#if actorIcon}
-				<img src={cachedContent(wasm, actorIcon)} alt="Sender" on:error={(e) => console.log(e)}/>
+				<img src={cachedContent(wasm, actorIcon)} alt="Sender" on:error={(e) => console.log(e)} />
 			{/if}
 		</div>
 		<address>
 			{#if actorName && actorTerseProfile}
-				<span
-					>{@html insertEmojis(
-						wasm,
-						actorName,
-						actorTerseProfile
-					)}</span
-				>
+				<span>{@html insertEmojis(wasm, actorName, actorTerseProfile)}</span>
 				<a href="/{getWebFingerFromId(actorTerseProfile)}">
 					{getWebFingerFromId(actorTerseProfile)}
 				</a>
@@ -332,6 +324,12 @@
 		@media screen and (max-width: 600px) {
 			margin: 2px auto;
 			border-radius: 0;
+		}
+
+		:global(code) {
+			background: darkgoldenrod;
+			color: #fff;
+			padding: 0 5px;
 		}
 
 		a {

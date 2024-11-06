@@ -529,6 +529,8 @@
 			width: 100%;
 			display: flex;
 			flex-direction: column;
+			max-width: 800px;
+			margin: 0 auto;
 
 			button {
 				display: inline-block;
@@ -556,6 +558,7 @@
 					font-size: 2.2cqi;
 					padding: 10px 20px;
 					white-space: nowrap;
+					border-radius: 10px 10px 0 0;
 				}
 
 				button:hover {
@@ -722,14 +725,11 @@
 	}
 
 	:global(body.dark) {
-		background: #000;
-
 		main {
+			background: #000;
+			
 			.profile {
-				border: 0;
 				background: #222;
-				max-width: 800px;
-				margin: 0 auto;
 
 				.banner {
 					background: inherit;
