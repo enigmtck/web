@@ -31,7 +31,7 @@
 	$: wasm = $enigmatickWasm;
 </script>
 
-<main>
+<div>
 	<a href={getFirst(profile.url)} title={convertMastodonUrlToWebfinger(getFirst(profile.url) || '')}>
 		<div class="image">
 			{#if profile.icon}
@@ -47,10 +47,10 @@
 			<span class="handle">{convertMastodonUrlToWebfinger(getFirst(profile.url) || '', true) || getFirst(profile.url)}</span>
 		</div>
 	</a>
-</main>
+</div>
 
 <style lang="scss">
-	main {
+	div {
 		a {
 			display: inline-block;
 			display: grid;
@@ -109,7 +109,7 @@
 	}
 
 	:global(body.dark) {
-		main {
+		div {
 			a{
 				border: 1px solid #222;
 				background: #151515;

@@ -120,7 +120,7 @@
 	onMount(async () => {});
 </script>
 
-<main>
+<div>
 	{#each profiles as profile}
 		<Actor {profile} />
 	{/each}
@@ -130,10 +130,10 @@
 			><i class="fa-solid fa-ellipsis" /></button
 		>
 	{/if}
-</main>
+</div>
 
 <style lang="scss">
-	main {
+	div {
 		width: 100%;
 		max-width: 800px;
 		margin: 0 auto;

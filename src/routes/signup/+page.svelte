@@ -33,31 +33,16 @@
 
 			console.log(data);
 
-			let olm_account = wasm?.create_olm_account();
-
-			if (olm_account) {
-				let olm_identity_public_key = wasm?.get_identity_public_key(olm_account);
-				let olm_one_time_keys = wasm?.get_one_time_keys(olm_account);
-
-				if (
-					data.get('username') &&
-					data.get('display_name') &&
-					data.get('password') &&
-					olm_identity_public_key &&
-					olm_one_time_keys
-				) {
-					wasm
-						?.create_user(
-							String(data.get('username')),
-							String(data.get('display_name')),
-							String(data.get('password')),
-							String(olm_identity_public_key),
-							String(olm_one_time_keys.pickled_account)
-						)
-						.then((profile: any) => {
-							goto('/login');
-						});
-				}
+			if (data.get('username') && data.get('display_name') && data.get('password')) {
+				wasm
+					?.create_user(
+						String(data.get('username')),
+						String(data.get('display_name')),
+						String(data.get('password'))
+					)
+					.then((profile: any) => {
+						goto('/login');
+					});
 			}
 		} else {
 			console.error('FORM INVALID');

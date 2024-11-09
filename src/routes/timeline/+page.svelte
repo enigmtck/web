@@ -31,6 +31,7 @@
 
 	import { goto } from '$app/navigation';
 	import type { ComposeDispatch } from './components/common';
+	import Filters from './components/Filters.svelte';
 
 	let composeComponent: Compose;
 	$: view = '';
@@ -41,6 +42,7 @@
 	let observer: IntersectionObserver | null = null;
 	let retrievedConversations: Set<string> = new Set();
 	let currentIds: Array<string> = new Array();
+	let context: any;
 
 	function onIntersection(entries: IntersectionObserverEntry[]) {
 		for (let entry of entries) {
@@ -113,103 +115,10 @@
 
 		if (username) {
 			view = 'home';
-
-			source('/api/user/' + username + '/events', {
-				close({ connect }) {
-					console.log('event stream closed');
-					sleep(500).then(() => {
-						connect();
-					});
-				}
-			})
-				.select('message')
-				.subscribe((message) => {
-					if (message) {
-						try {
-							let e: Note | StreamConnect | Announce = JSON.parse(message);
-							console.log(e);
-
-							if ((<Note>e).type === 'Note') {
-								let note = <Note>e;
-								if (liveLoading || note.inReplyTo) {
-									// display the note immediately
-									addNote(note);
-								} else {
-									// place the note in the queue to be added when scrolled to the top
-									noteQueue.push(note);
-								}
-
-								offset += 1;
-							} else if (wasm && (<StreamConnect>e).uuid) {
-								streamUuid = (<StreamConnect>e).uuid;
-								wasm.send_authorization(streamUuid).then((x: any) => {
-									console.info(`AUTHORIZATION SENT FOR ${streamUuid}`);
-								});
-							} else if (wasm && (<Announce>e).type == 'Announce') {
-								let announce = <Announce>e;
-								wasm.get_note(announce.object).then((x: any) => {
-									try {
-										let note: Note = JSON.parse(String(x));
-										//note.ephemeralAnnounces = [announce.actor];
-										note.id = announce.id;
-										note.published = announce.published;
-										let ephemeral: Ephemeral = note.ephemeral || {};
-										ephemeral.timestamp = announce.published;
-										note.ephemeral = ephemeral;
-
-										if (liveLoading) {
-											addNote(note);
-										} else {
-											noteQueue.push(note);
-										}
-
-										offset += 1;
-									} catch (e) {
-										console.error('FAILED TO ADD NOTE');
-										console.error(x);
-									}
-								});
-							}
-						} catch (e) {
-							console.error('FAILED TO PARSE SSE MESSAGE');
-							console.error(message);
-						}
-					}
-				});
 		} else {
 			view = 'global';
 		}
 	});
-
-	function parseTerseProfile(text: string | null | undefined): UserProfileTerse | null {
-		if (text) {
-			try {
-				return JSON.parse(text);
-			} catch (e) {
-				console.error('UNABLE TO PARSE TERSE PROFILE');
-				console.debug(text);
-				return null;
-			}
-		} else {
-			console.error('UNABLE TO PARSE NULL OR UNDEFINED');
-			return null;
-		}
-	}
-
-	function parseProfile(text: string | null | undefined): UserProfile | null {
-		if (text) {
-			try {
-				return JSON.parse(text);
-			} catch (e) {
-				console.error('UNABLE TO PARSE PROFILE');
-				console.debug(text);
-				return null;
-			}
-		} else {
-			console.error('UNABLE TO PARSE NULL OR UNDEFINED');
-			return null;
-		}
-	}
 
 	async function replyToHeader(note: Note): Promise<string | null> {
 		if (note.inReplyTo) {
@@ -390,7 +299,7 @@
 				cache = new wasm.EnigmatickCache();
 			}
 
-			let x = await wasm.get_timeline(maxValue, undefined, pageSize, view, hashtags); 
+			let x = await wasm.get_timeline(maxValue, undefined, pageSize, view, hashtags);
 
 			try {
 				let collection: Collection = JSON.parse(String(x));
@@ -440,7 +349,7 @@
 
 	beforeNavigate(async (navigation) => {
 		console.log(navigation);
-		
+
 		if (navigation.to) {
 			if (navigation.to.route.id === null) {
 				let url = navigation.to.url.href;
@@ -449,8 +358,10 @@
 				// intention of this expression is to match Mastodon-isms like (with grouping notated)
 				// ^https://(ser)(.endipito)(.us)/@justin$ or ^https://(infosec)(.exchange)/@jdt$
 				const actor_url = /^https:\/\/(?:[a-zA-Z0-9\-]+)(?:\.[a-zA-Z0-9\-]+)+?\/@[a-zA-Z0-9_]+$/;
-				const mastodon_tag_url = /^https:\/\/(?:[a-zA-Z0-9\-]+)(?:\.[a-zA-Z0-9\-]+)+?\/tags\/([a-zA-Z0-9\-_]+)$/;
-				const friendica_tag_url = /^https:\/\/(?:[a-zA-Z0-9\-]+)(?:\.[a-zA-Z0-9\-]+)+?\/search\?tag=([a-zA-Z0-9\-_]+)$/;
+				const mastodon_tag_url =
+					/^https:\/\/(?:[a-zA-Z0-9\-]+)(?:\.[a-zA-Z0-9\-]+)+?\/tags\/([a-zA-Z0-9\-_]+)$/;
+				const friendica_tag_url =
+					/^https:\/\/(?:[a-zA-Z0-9\-]+)(?:\.[a-zA-Z0-9\-]+)+?\/search\?tag=([a-zA-Z0-9\-_]+)$/;
 
 				let matches;
 
@@ -462,9 +373,14 @@
 						navigation.cancel();
 						goto(`/${webfinger}`);
 					}
-				} else if ((matches = url.match(mastodon_tag_url)) || (matches = url.match(friendica_tag_url))) {
-					hashtags.push(matches[1].toLowerCase());
+				} else if (
+					(matches = url.match(mastodon_tag_url)) ||
+					(matches = url.match(friendica_tag_url))
+				) {
+					hashtags.add(matches[1].toLowerCase());
 					navigation.cancel();
+					hashtags = hashtags;
+					resetData();
 				}
 			}
 		}
@@ -488,7 +404,6 @@
 
 				view = selected;
 				await resetData();
-				await loadMinimum();
 			}
 		}
 	}
@@ -632,9 +547,7 @@
 
 	async function resetData() {
 		noteQueue = [];
-		locator = new Map<string, string[]>();
 		orphans = new Map<string, DisplayNote>();
-		offset = 0;
 		notes = new Map<string, DisplayNote>();
 		retrievedConversations = new Set();
 		await scrollToTop();
@@ -643,11 +556,22 @@
 
 		const scroll = document.getElementsByClassName('scroll')[0] as HTMLElement;
 		scroll.style.display = 'none';
+		loadMinimum();
 	}
+
+	const handleMinimizeContext = (event: any) => {
+		console.log(event);
+		if (context.style.display === 'none') {
+			context.style.display = 'flex';
+		} else {
+			context.style.display = 'none';
+		}
+	};
 
 	let cache: any = null;
 
-	let hashtags: string[] = [];
+	let hashtags: Set<string> = new Set();
+	//let hashtags: string[] = [];
 
 	// controls whether messages from EventSource are immediately displayed or queued
 	let liveLoading = true;
@@ -661,17 +585,12 @@
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
 	$: notes = new Map<string, DisplayNote>();
 
-	// this is a map to locate a note within the nested notes structure;
-	// the list is an ordered set of steps to access a note's location
-	let locator = new Map<string, string[]>();
 	//let orphans: Map<string, DisplayNote> = new Map<string, DisplayNote>();
 	let orphans: Map<string, DisplayNote> = new Map<string, DisplayNote>();
 
 	// used very temporarily to control requests to the API for new data
 	let loading = false;
 
-	// the offset sent to the API for new data; adjusted when Notes are added by EventSource
-	let offset = 0;
 	let maxValue: string | undefined = undefined;
 	let minValue: string | undefined = undefined;
 
@@ -742,73 +661,82 @@
 	};
 </script>
 
-<Compose {senderFunction} bind:this={composeComponent} />
+<Compose {senderFunction} bind:this={composeComponent} direct={view === "direct"}/>
 
 <main>
-	<header>
-		<nav>
-			{#if username}
-				<button class="selected" data-view="home" on:click={handleView}
-					><i class="fa-solid fa-house" /></button
-				>
-				<button data-view="local" on:click={handleView}><i class="fa-solid fa-city" /></button>
-				<button data-view="direct" on:click={handleView}
-					><i class="fa-solid fa-envelope" /></button
-				>
-			{/if}
-			<button data-view="global" on:click={handleView}><i class="fa-solid fa-globe" /></button
-			>
-		</nav>
-	</header>
+	<div class="content">
+		<header>
+			<nav>
+				{#if username}
+					<button class="selected" data-view="home" on:click={handleView}
+						><i class="fa-solid fa-house" /></button
+					>
+					<button data-view="local" on:click={handleView}><i class="fa-solid fa-city" /></button>
+					<button data-view="direct" on:click={handleView}
+						><i class="fa-solid fa-envelope" /></button
+					>
+				{/if}
+				<button data-view="global" on:click={handleView}><i class="fa-solid fa-globe" /></button>
+			</nav>
 
-	<div class="scrollable" on:scroll={updateScrollPosition} bind:this={scrollable}>
-		{#each Array.from(notes.values()) as note}
-			{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeral?.announces?.length)) || note.note.id == focusNote)}
-				{#await replyToHeader(note.note) then replyTo}
-					{#await announceHeader(note.note) then announce}
-						<Article
-							{remove}
-							{refresh}
-							{note}
-							{username}
-							replyToHeader={replyTo}
-							announceHeader={announce}
-							on:replyTo={composeComponent.handleReplyToMessage}
-							on:noteSelect={handleNoteSelect}
-							renderAction={observeNote}
-						/>
-					{/await}
-				{/await}
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<div class="scroll" on:click={scrollToTop}>
+				<i class="fa-solid fa-chevron-up" />
+			</div>
+		</header>
 
-				{#if note.note.id == focusNote && note.replies?.size}
-					<div class="replies">
-						{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
-							<Reply
-								note={reply}
+		<div class="scrollable" on:scroll={updateScrollPosition} bind:this={scrollable}>
+			{#each Array.from(notes.values()) as note}
+				{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeral?.announces?.length)) || note.note.id == focusNote)}
+					{#await replyToHeader(note.note) then replyTo}
+						{#await announceHeader(note.note) then announce}
+							<Article
+								{remove}
+								{refresh}
+								{note}
 								{username}
+								replyToHeader={replyTo}
+								announceHeader={announce}
 								on:replyTo={composeComponent.handleReplyToMessage}
 								on:noteSelect={handleNoteSelect}
+								renderAction={observeNote}
 							/>
-						{/each}
-					</div>
+						{/await}
+					{/await}
+
+					{#if note.note.id == focusNote && note.replies?.size}
+						<div class="replies">
+							{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
+								<Reply
+									note={reply}
+									{username}
+									on:replyTo={composeComponent.handleReplyToMessage}
+									on:noteSelect={handleNoteSelect}
+								/>
+							{/each}
+						</div>
+					{/if}
 				{/if}
-			{/if}
-		{/each}
-	</div>
-
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
-	<div class="scroll" on:click={scrollToTop}>
-		<i class="fa-solid fa-chevron-up" />
-	</div>
-
-	{#if focusNote || focusConversation}
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div class="back" on:click|preventDefault={clearNoteSelect}>
-			<i class="fa-solid fa-angles-left" />
+			{/each}
 		</div>
-	{/if}
+
+		{#if focusNote || focusConversation}
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<div class="back" on:click|preventDefault={clearNoteSelect}>
+				<i class="fa-solid fa-angles-left" />
+			</div>
+		{/if}
+	</div>
+
+	<div class="context">
+		<div bind:this={context}>
+			<h1>Filters</h1>
+			<Filters {hashtags} {resetData} />
+		</div>
+		<div class="handle"><a href="#filters" on:click={handleMinimizeContext}>&nbsp;</a></div>
+	</div>
 </main>
 
 <style lang="scss">
@@ -817,140 +745,233 @@
 		position: relative;
 		overflow-y: hidden;
 		grid-area: content;
+		display: grid;
 		min-width: 400px;
+		grid-template:
+			[row1-start] 'content context' auto [row2-end]
+			/ auto 350px;
 
-		@media screen and (max-width: 700px) {
+		@media screen and (max-width: 1000px) {
 			min-width: unset;
 			max-width: unset;
-			width: 100vw;
+			width: 100%;
 			padding: 0;
+			grid-template:
+				[row1-start] 'content' auto [row2-end]
+				/ auto;
 		}
 
-		header {
-			z-index: 25;
-			padding: 0;
-			position: relative;
+		.content {
 			width: 100%;
-			height: 41px;
-			background: #eee;
-			color: darkred;
-			text-align: center;
-			font-family: 'Open Sans';
-			font-size: 22px;
-			font-weight: 600;
-			grid-area: header;
-			display: grid;
-			grid-template-columns: auto auto auto;
-			grid-template-areas: 'left center right';
-			align-items: center;
+			overflow-y: hidden;
 
-			nav {
-				grid-area: center;
-				display: flex;
-				flex-direction: row;
-				align-items: center;
-				margin: 0;
+			header {
+				z-index: 25;
+				padding: 0;
+				position: relative;
 				width: 100%;
+				height: 41px;
+				background: #eee;
+				color: darkred;
+				text-align: center;
+				font-family: 'Open Sans';
+				font-size: 22px;
+				font-weight: 600;
+				grid-area: header;
+				display: grid;
+				grid-template-columns: auto auto auto;
+				grid-template-areas: 'left center right';
+				align-items: center;
 
-				button {
-					display: inline-block;
+				nav {
+					grid-area: center;
+					display: flex;
+					flex-direction: row;
+					align-items: center;
+					margin: 0;
 					width: 100%;
-					text-decoration: none;
-					font-family: 'Open Sans';
-					font-size: 14px;
-					padding: 5px;
-					margin: 0 5px;
-					color: #222;
-					background: none;
-					border: 0;
-					border-radius: 20px;
+
+					button {
+						display: inline-block;
+						width: 100%;
+						text-decoration: none;
+						font-family: 'Open Sans';
+						font-size: 14px;
+						padding: 5px;
+						margin: 0 5px;
+						color: #222;
+						background: none;
+						border: 0;
+						border-radius: 20px;
+					}
+
+					button.selected {
+						background: #ddd !important;
+					}
+
+					button:hover {
+						cursor: pointer;
+					}
+
+					button > i {
+						padding: 0 5px;
+						pointer-events: none;
+					}
+				}
+			}
+
+			div.scrollable {
+				overflow-y: auto;
+				height: calc(100% - 41px);
+				scroll-behavior: smooth;
+				padding: 0 10px;
+
+				.replies {
+					padding-bottom: 60px;
+					display: flex;
+					flex-direction: column;
+					align-items: center;
 				}
 
-				button.selected {
-					background: #ddd !important;
+				@media screen and (max-width: 700px) {
+					height: calc(100% - 91px);
+					padding: 0;
 				}
+			}
 
-				button:hover {
-					cursor: pointer;
-				}
+			.back {
+				position: absolute;
+				left: 25px;
+				top: calc(50% - 80px);
+				width: 34px;
+				height: 160px;
+				align-content: center;
+				text-align: center;
+				border-radius: 15px;
+				font-size: 28px;
+				color: white;
+				opacity: 0.6;
+				transition-duration: 1s;
+				z-index: 31;
+				background: maroon;
+				padding: 8px 0 0 0;
+			}
 
-				button > i {
-					padding: 0 5px;
+			.back:hover {
+				opacity: 1;
+				color: white;
+				background: maroon;
+				transition-duration: 1s;
+				cursor: pointer;
+			}
+
+			.scroll {
+				display: none;
+				position: absolute;
+				left: calc(50% - 80px);
+				width: 160px;
+				top: 50px;
+				padding-top: 2px;
+				opacity: 0.5;
+				background: darkred;
+				text-align: center;
+				border-radius: 15px;
+				font-size: 26px;
+				color: white;
+				border: 0;
+				transition-duration: 1s;
+				z-index: 40;
+
+				i {
 					pointer-events: none;
 				}
 			}
+
+			.scroll:hover {
+				opacity: 1;
+				cursor: pointer;
+				transition-duration: 1s;
+			}
 		}
 
-		div.scrollable {
-			overflow-y: auto;
-			height: calc(100% - 41px);
-			scroll-behavior: smooth;
-			padding: 0 10px;
+		.context {
+			width: 100%;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			padding: 20px;
 
-			.replies {
-				padding-bottom: 60px;
+			div {
+				width: 100%;
+				background: #fafafa;
+				padding: 0 0 5px 0;
+				margin: 0;
+				border: 0;
+				border-radius: 10px;
 				display: flex;
 				flex-direction: column;
 				align-items: center;
+
+				h1 {
+					font-family: 'Open Sans';
+					font-size: 14px;
+					padding: 5px 10px;
+					margin: 0;
+					color: #777;
+					background: #fafafa;
+					width: 100%;
+					border-radius: 10px 10px 0 0;
+				}
 			}
 
-			@media screen and (max-width: 700px) {
+			.handle {
+				display: none;
+			}
+		}
+
+		@media screen and (max-width: 1000px) {
+			.context {
+				position: absolute;
+				top: 41px;
+				left: 0;
+				width: 100%;
 				padding: 0;
+				z-index: 30;
+				background: #eee;
+
+				div {
+					padding: 0;
+					margin: 0;
+					border-radius: 0;
+					background: #eee;
+
+					h1 {
+						display: none;
+					}
+				}
+
+				.handle {
+					height: 5px;
+					display: unset;
+
+					a {
+						width: 100%;
+						height: 5px;
+						display: inline-block;
+						text-align: center;
+						background: maroon;
+						color: white;
+					}
+				}
+
+				:global(div.filters) {
+					background: #eee;
+				}
+
+				:global(div.filters > div) {
+					background: #eee;
+				}
 			}
-		}
-
-		.back {
-			position: absolute;
-			left: 25px;
-			top: calc(50% - 80px);
-			width: 34px;
-			height: 160px;
-			align-content: center;
-			text-align: center;
-			border-radius: 15px;
-			font-size: 28px;
-			color: white;
-			opacity: 0.6;
-			transition-duration: 1s;
-			z-index: 31;
-			background: maroon;
-			padding: 8px 0 0 0;
-		}
-
-		.back:hover {
-			opacity: 1;
-			color: white;
-			background: maroon;
-			transition-duration: 1s;
-			cursor: pointer;
-		}
-
-		.scroll {
-			display: none;
-			position: absolute;
-			left: calc(50% - 80px);
-			width: 160px;
-			top: 44px;
-			padding-top: 2px;
-			opacity: 0.5;
-			background: darkred;
-			text-align: center;
-			border-radius: 15px;
-			font-size: 26px;
-			color: white;
-			border: 0;
-			transition-duration: 1s;
-			z-index: 25;
-
-			i {
-				pointer-events: none;
-			}
-		}
-
-		.scroll:hover {
-			opacity: 1;
-			cursor: pointer;
-			transition-duration: 1s;
 		}
 	}
 
@@ -967,6 +988,34 @@
 
 					button.selected {
 						background: #333 !important;
+					}
+				}
+			}
+
+			.context {
+				div {
+					background: #222;
+
+					h1 {
+						background: #222;
+					}
+
+					:global(div.filters) {
+						background: #222;
+					}
+				}
+
+				@media screen and (max-width: 1000px) {
+					div {
+						background: #000;
+
+						:global(div.filters) {
+							background: #000;
+						}
+
+						:global(div.filters > div) {
+							background: #000;
+						}
 					}
 				}
 			}

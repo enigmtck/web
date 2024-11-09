@@ -120,7 +120,7 @@
 							let actor = parseProfile(await cachedActor(item.actor));
 							if (actor) {
 								let ephemeral = n.ephemeral || {};
-								ephemeral.announces = [actor];	
+								ephemeral.announces = [actor];
 								n.ephemeral = ephemeral;
 							}
 						}
@@ -135,7 +135,7 @@
 	}
 
 	async function loadPosts(handle: string, local: boolean) {
-		console.debug("RESETTING NOTES MAP");
+		console.debug('RESETTING NOTES MAP');
 		notes = new Map<string, DisplayNote>();
 
 		if (!cache && wasm) {
@@ -520,10 +520,10 @@
 </script>
 
 {#if wasm}
-	<Compose {senderFunction} bind:this={composeComponent} />
+	<Compose {senderFunction} bind:this={composeComponent} direct={false} />
 {/if}
 
-<main>
+<div>
 	{#if wasm}
 		{#each Array.from(notes.values()) as note}
 			{#if note.note}
@@ -563,10 +563,10 @@
 			>
 		{/if}
 	{/if}
-</main>
+</div>
 
 <style lang="scss">
-	main {
+	div {
 		padding: 10px 10px 60px 10px;
 
 		button {
@@ -592,7 +592,7 @@
 	}
 
 	:global(body.dark) {
-		main {
+		div {
 			button {
 				color: #777;
 			}

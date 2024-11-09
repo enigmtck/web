@@ -20,6 +20,8 @@
 		attachments: Attachment[]
 	) => Promise<boolean>;
 
+	export let direct: boolean;
+
 	async function handleReplyToMessage(message: CustomEvent<ComposeDispatch>) {
 		console.log('IN COMPOSE');
 		console.log(message);
@@ -188,7 +190,7 @@
 <div class="mask closed" />
 <dialog>
 	{#if username}
-		<div>
+		<div class={direct ? 'direct' : ''}>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
 			<i class="fa-solid fa-xmark" on:click={closeAside} />
@@ -199,6 +201,11 @@
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i class="fa-solid fa-xmark" on:click={cancelReplyTo} /></span
 				>
+			{/if}
+			{#if direct}
+				<i class="fa-solid fa-lock" />
+				<label for="recipient">Recipient</label>
+				<input id="recipient" name="recipient" type="text" placeholder="@joe@enigmatick.social" />
 			{/if}
 			{#if !preview}
 				<pre id="compose" contenteditable="true">{markdownNote}</pre>
@@ -308,10 +315,11 @@
 			border-radius: 10px;
 			background: #ddd;
 
-			> i {
+			> i.fa-xmark {
 				position: absolute;
 				right: 10px;
 				top: 5px;
+				cursor: pointer;
 			}
 
 			> span {
@@ -327,6 +335,30 @@
 				left: 10px;
 				z-index: 30;
 				opacity: 0.9;
+			}
+
+			> i.fa-lock {
+				position: absolute;
+				left: 10px;
+				top: 5px;
+				font-size: 14px;
+				pointer-events: none;
+				color: red;
+			}
+
+			label {
+				color: #777;
+				font-family: 'Open Sans';
+				font-size: 14px;
+				font-weight: bold;
+			}
+
+			input[type='text'] {
+				background: white;
+				border-radius: 10px;
+				padding: 10px;
+				margin: 0 0 5px 0;
+				border: 0;
 			}
 
 			pre,
@@ -345,6 +377,12 @@
 				word-wrap: break-word;
 				white-space: pre-wrap;
 				overflow: scroll;
+			}
+
+			pre:focus,
+			div:focus,
+			input[type='text']:focus {
+				outline: 1px solid darkgoldenrod;
 			}
 
 			::-webkit-scrollbar {
@@ -441,12 +479,12 @@
 				max-width: unset;
 				min-width: unset;
 
-				> i {
+				> i.fa-xmark {
 					font-size: 28px;
 					color: #222;
 				}
 
-				> i:hover {
+				> i.fa-xmark:hover {
 					color: red;
 				}
 
@@ -456,6 +494,19 @@
 					left: 10px;
 					z-index: 30;
 					opacity: 0.7;
+				}
+
+				label {
+					margin: 5px;
+					font-size: 14px;
+				}
+
+				input[type='text'] {
+					width: calc(100vw - 12px);
+					margin: 5px;
+					border-radius: 0;
+					padding: 10px;
+					font-size: 14px;
 				}
 
 				pre,
@@ -490,6 +541,13 @@
 					background: #ddd;
 				}
 			}
+
+			div.direct {
+				pre,
+				div {
+					height: calc(100% - 128px);
+				}
+			}
 		}
 	}
 
@@ -516,18 +574,29 @@
 					border: 1px solid #333;
 				}
 
+				label {
+					color: #ccc;
+				}
+
 				pre,
-				div {
+				div,
+				input[type='text'] {
 					background: #333;
 					color: white;
 					border: 1px solid #777;
 				}
 
-				> i {
+				pre:focus,
+				div:focus,
+				input[type='text']:focus {
+					outline-color: maroon;
+				}
+
+				> i.fa-xmark {
 					color: #ccc;
 				}
 
-				> i:hover {
+				> i.fa-xmark:hover {
 					color: red;
 				}
 			}

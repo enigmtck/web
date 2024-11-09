@@ -521,7 +521,7 @@
 		grid-area: content;
 		width: 100%;
 		height: 100%;
-		margin: 0 auto;
+		margin: 0;
 		font-family: 'Open Sans';
 		overflow: scroll;
 
@@ -530,7 +530,7 @@
 			display: flex;
 			flex-direction: column;
 			max-width: 800px;
-			margin: 0 auto;
+			margin: 0;
 
 			button {
 				display: inline-block;
@@ -555,7 +555,7 @@
 
 				button {
 					color: unset;
-					font-size: 2.2cqi;
+					font-size: 1.8cqi;
 					padding: 10px 20px;
 					white-space: nowrap;
 					border-radius: 10px 10px 0 0;
@@ -569,7 +569,14 @@
 					background: #eee;
 				}
 
-				@media screen and (max-width: 700px) {
+				@media screen and (max-width: 1000px) {
+					button {
+						padding: 10px;
+						font-size: 2.2cqi;
+					}
+				}
+
+				@media screen and (max-width: 800px) {
 					button {
 						padding: 10px;
 						font-size: 3cqi;
@@ -721,6 +728,10 @@
 				height: 20vh;
 				display: block;
 			}
+		}
+
+		section {
+			max-width: 800px;
 		}
 	}
 

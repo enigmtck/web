@@ -2,6 +2,7 @@
 	import { get } from 'svelte/store';
 	import { wasmState, appData, enigmatickWasm } from '../../stores';
 	import { goto } from '$app/navigation';
+	import type { Collection } from '../../common';
 
 	$: wasm = $enigmatickWasm;
 
@@ -13,40 +14,49 @@
 		});
 	}
 
-	function handleLogin(event: any) {
+	async function handleLogin(event: any) {
 		let data = new FormData(event.target);
 		console.log('clicked');
 
-		wasm
-			?.authenticate(String(data.get('username')), String(data.get('password')))
-			.then((profile: any) => {
-				if (profile) {
-					const instanceData = wasm?.load_instance_information().then((instance) => {
-						appData.set({
-							username: String(profile?.username),
-							display_name: String(profile?.display_name),
-							avatar: String(profile?.avatar_filename),
-							domain: instance?.domain || null,
-							url: instance?.url || null
-						});
-						username = get(appData).username;
+		let profile: any = await wasm?.authenticate(
+			String(data.get('username')),
+			String(data.get('password'))
+		);
 
-						wasmState.set(String(wasm?.get_state().export()));
-						/* 						let data = JSON.stringify({
+		if (profile) {
+			let instance = await wasm?.load_instance_information();
+
+			appData.set({
+				username: String(profile?.username),
+				display_name: String(profile?.display_name),
+				avatar: String(profile?.avatar_filename),
+				domain: instance?.domain || null,
+				url: instance?.url || null
+			});
+			username = get(appData).username;
+
+			let state = wasm?.get_state();
+			console.debug(state);
+
+			if (state) {
+				wasmState.set(state.export());
+				/* 						let data = JSON.stringify({
 							pickled_account: x.get_olm_pickled_account(),
 							olm_sessions: JSON.parse(x.get_olm_sessions())
 						});
 						console.log(get(wasmState)); */
 
-						goto('/@' + username).then(() => {
-							console.log('logged in');
-						});
-					});
-				} else {
-					console.debug('authentication failed');
-					failure.showModal();
-				}
+				let result = await wasm?.replenish_otk();
+				console.debug(`REPLENISH RESULT: ${result}`);
+			}
+
+			goto('/@' + username).then(() => {
+				console.log('logged in');
 			});
+		} else {
+			console.debug('authentication failed');
+			failure.showModal();
+		}
 	}
 
 	let failure: HTMLDialogElement;
@@ -98,34 +108,36 @@
 
 <style lang="scss">
 	main {
+		position: absolute;
+		top: calc(50% - 150px);
+		left: calc(50% - 200px);
+		padding: 0;
+		width: 400px;
+		height: 300px;
+		max-width: unset;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		margin: 0;
-		padding: 0;
-		width: 100%;
-		height: 100%;
-		max-width: unset;
-		grid-area: content;
 
 		@media screen and (max-width: 700px) {
 			height: unset;
+			width: 80%;
+			left: 10%;
 		}
 
 		h1 {
 			font-family: 'Open Sans';
-			font-size: 5vw;
+			font-size: 7vw;
 			text-align: center;
 			font-weight: 300;
 			color: darkred;
 			padding: 0;
 			margin: 0;
-			width: 100%;
 			background: inherit;
 
 			@media screen and (max-width: 700px) {
-				font-size: 13vw;
+				font-size: 12vw;
 				background: #fafafa;
 			}
 		}
@@ -207,7 +219,7 @@
 	}
 
 	:global(body.dark) {
-			background: #222;
+		background: #222;
 
 		main {
 			h1 {

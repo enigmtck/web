@@ -5,7 +5,7 @@ import type { error, RequestEvent } from '@sveltejs/kit';
 
 /** @type {import('./$types').RequestHandler} */
 export async function GET(p: RequestEvent) {
-  const resp = await fetch(`http://127.0.0.1:8010/objects/${p.params.uuid}`)
+  const resp = await fetch(`https://enigmatick.social/objects/${p.params.uuid}`)
 
   return new Response(await resp.text());
 }

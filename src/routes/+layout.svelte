@@ -145,7 +145,7 @@
 	{#if $page.url.pathname !== '/' && $page.url.pathname !== '/login' && $page.url.pathname !== '/signup'}
 		<slot />
 
-		<div class="context">
+		<!-- <div class="context">
 			<ul>
 				<li>
 					<div class="toggle">
@@ -156,22 +156,7 @@
 					</div>
 				</li>
 			</ul>
-
-			<!-- {#if username}
-				<div class="notifications">
-					<h1><i class="fa-solid fa-bell" />Notifications</h1>
-					<ul>
-						<li>No notifications</li>
-					</ul>
-				</div>
-			{/if}
-			<div class="trending">
-				<h1><i class="fa-solid fa-hashtag" />Trending</h1>
-				<ul>
-					<li>Nothing trending</li>
-				</ul>
-			</div> -->
-		</div>
+		</div> -->
 
 		<footer>
 			{#if username}
@@ -238,6 +223,13 @@
 					><i class="fa-solid fa-gear" />TEST</a
 				> -->
 			</div>
+
+			<div class="toggle">
+				<label>
+					<input type="checkbox" id="theme" on:change|preventDefault={darkMode} />
+					<span class="slider" />
+				</label>
+			</div>
 		</nav>
 	{:else}
 		<slot />
@@ -283,19 +275,19 @@
 		position: relative;
 		display: grid;
 		grid-template:
-			[row1-start] 'left-aside content right-aside' auto [row2-end]
-			/ 250px auto 350px;
+			[row1-start] 'left-aside content' auto [row2-end]
+			/ 250px auto;
 
 		@media screen and (max-width: 1000px) {
 			grid-template:
-				[row1-start] 'left-aside content right-aside' auto [row2-end]
-				/ 250px auto 0;
+				[row1-start] 'left-aside content' auto [row2-end]
+				/ 250px auto;
 		}
 
 		@media screen and (max-width: 700px) {
 			grid-template:
-				[row1-start] 'left-aside content right-aside' auto [row2-end]
-				/ 0 auto 0;
+				[row1-start] 'left-aside content' auto [row2-end]
+				/ 0 auto;
 		}
 
 		nav.top {
@@ -365,6 +357,62 @@
 					}
 				}
 			}
+
+			.toggle {
+				position: relative;
+				margin: 20px auto;
+				padding: 0;
+				width: 50px;
+				height: 24px;
+
+				label {
+					position: relative;
+					display: inline-block;
+					width: 100%;
+					height: 25px;
+					background-color: #555;
+					outline: 1px solid #ccc;
+					border-radius: 50px;
+					cursor: pointer;
+				}
+
+				input {
+					position: absolute;
+					display: none;
+				}
+
+				.slider {
+					position: absolute;
+					left: 0px;
+					width: 100%;
+					height: 100%;
+					border-radius: 50px;
+					transition: 0.3s;
+				}
+
+				input:checked ~ .slider {
+					background-color: var(--light);
+				}
+
+				.slider::before {
+					content: '';
+					position: absolute;
+					top: 3px;
+					left: 4px;
+					width: 18px;
+					height: 18px;
+					border-radius: 50%;
+					box-shadow: inset 7px -4px 0px 0px var(--light);
+					background-color: #555;
+					transition: 0.3s;
+				}
+
+				input:checked ~ .slider::before {
+					transform: translateX(25px);
+					background-color: var(--dark);
+					box-shadow: none;
+				}
+			}
 		}
 
 		slot {
@@ -391,62 +439,6 @@
 
 			img:hover {
 				opacity: 0.8;
-			}
-
-			.toggle {
-				position: relative;
-				margin: 8px;
-				padding: 0;
-				width: 50px;
-				height: 24px;
-			}
-
-			label {
-				position: relative;
-				display: inline-block;
-				width: 100%;
-				height: 25px;
-				background-color: var(--dark);
-				outline: 1px solid #ccc;
-				border-radius: 50px;
-				cursor: pointer;
-			}
-
-			input {
-				position: absolute;
-				display: none;
-			}
-
-			.slider {
-				position: absolute;
-				left: 0px;
-				width: 100%;
-				height: 100%;
-				border-radius: 50px;
-				transition: 0.3s;
-			}
-
-			input:checked ~ .slider {
-				background-color: var(--light);
-			}
-
-			.slider::before {
-				content: '';
-				position: absolute;
-				top: 3px;
-				left: 4px;
-				width: 18px;
-				height: 18px;
-				border-radius: 50%;
-				box-shadow: inset 7px -4px 0px 0px var(--light);
-				background-color: var(--dark);
-				transition: 0.3s;
-			}
-
-			input:checked ~ .slider::before {
-				transform: translateX(25px);
-				background-color: var(--dark);
-				box-shadow: none;
 			}
 
 			div {
@@ -551,6 +543,12 @@
 						a {
 							color: #fff;
 						}
+					}
+				}
+
+				.toggle {
+					label {
+						outline: 1px solid #777;
 					}
 				}
 			}
