@@ -6,7 +6,8 @@
 	import { onDestroy, onMount, tick, afterUpdate } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { appData, enigmatickWasm, wasmState } from '../../stores';
-	import { source } from 'sveltekit-sse';
+	import { useMediaQuery } from 'svelte-breakpoints';
+
 	import type {
 		UserProfile,
 		UserProfileTerse,
@@ -44,6 +45,8 @@
 	let currentIds: Array<string> = new Array();
 	let context: any;
 
+	const isSmallScreen = useMediaQuery('(max-width: 1000px)');
+
 	function onIntersection(entries: IntersectionObserverEntry[]) {
 		for (let entry of entries) {
 			if (entry.target) {
@@ -61,7 +64,7 @@
 								retrievedConversations.add(conversation);
 								wasm
 									.get_conversation(encodeURIComponent(dataset.conversation), 50)
-									.then((conversation) => {
+									.then((conversation: any) => {
 										if (conversation) {
 											let collection: Collection = JSON.parse(conversation);
 
@@ -101,9 +104,6 @@
 	}
 
 	onMount(async () => {
-		const { Buffer } = await import('buffer');
-		window.Buffer = Buffer;
-
 		observer = new IntersectionObserver(onIntersection, {
 			root: null, // default is the viewport
 			threshold: 0.3 // percentage of target's visible area. Triggers "onIntersection"
@@ -514,19 +514,27 @@
 	}
 
 	async function senderFunction(
-		recipientAddress: string | null,
+		// directRecipient is a webfinger (@user@domain.tld)
+		directRecipient: string | null,
+		replyToRecipient: string | null,
 		replyToMessageId: string | null,
 		conversationId: string | null,
 		content: string,
 		attachments: Attachment[]
 	): Promise<boolean> {
 		if (wasm) {
-			let params = (await wasm.SendParams.new()).set_content(content).set_public();
+			let params = (await wasm.SendParams.new()).set_content(content);
+			
+			if (directRecipient) {
+				await params.add_address(directRecipient);
+			} else {
+				params.set_public();
+			}
 
 			params = params.set_attachments(JSON.stringify(attachments));
 
 			if (replyToMessageId) {
-				params = await params.add_recipient_id(String(recipientAddress), true);
+				params = await params.add_recipient_id(String(replyToRecipient), true);
 				params = params.set_in_reply_to(String(replyToMessageId));
 				params = params.set_conversation(String(conversationId));
 			}
@@ -559,8 +567,12 @@
 		loadMinimum();
 	}
 
-	const handleMinimizeContext = (event: any) => {
-		console.log(event);
+	const handleMinimizeContext = (event?: any) => {
+		if (event) {
+			event.preventDefault();
+		}
+
+		console.debug("Toggling Filters");
 		if (context.style.display === 'none') {
 			context.style.display = 'flex';
 		} else {
@@ -603,6 +615,7 @@
 	let focusConversation: string | null = null;
 
 	let yPosition: number = 0;
+	let filterHandle: HTMLDivElement;
 
 	$: if (wasm) {
 		loadMinimum();
@@ -731,11 +744,11 @@
 	</div>
 
 	<div class="context">
-		<div bind:this={context}>
+		<div bind:this={context} style="display: {$isSmallScreen ? 'none' : 'flex'};">
 			<h1>Filters</h1>
 			<Filters {hashtags} {resetData} />
 		</div>
-		<div class="handle"><a href="#filters" on:click={handleMinimizeContext}>&nbsp;</a></div>
+		<div class="handle" bind:this={filterHandle}><a href="#filters" on:click={handleMinimizeContext}>&nbsp;</a></div>
 	</div>
 </main>
 

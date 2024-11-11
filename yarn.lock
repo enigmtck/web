@@ -1929,6 +1929,11 @@ supports-preserve-symlinks-flag@^1.0.0:
   resolved "https://registry.yarnpkg.com/supports-preserve-symlinks-flag/-/supports-preserve-symlinks-flag-1.0.0.tgz#6eda4bd344a3c94aea376d4cc31bc77311039e09"
   integrity sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==
 
+svelte-breakpoints@^0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/svelte-breakpoints/-/svelte-breakpoints-0.3.0.tgz#cefa07726f3b6ae03da4fd241ee6518fbf389638"
+  integrity sha512-CvO3qG1dAaorYDNYJyakYXrX+2KMLFl9Tw+JiLQsIPWkr/+d9psWzW09z5X2RwtMtG69EpKP+TUOnjUXIM1oNg==
+
 svelte-check@^3.4.3:
   version "3.6.2"
   resolved "https://registry.yarnpkg.com/svelte-check/-/svelte-check-3.6.2.tgz#a6922160e17e93c6f5fa2b18ec342cc4c70d60ab"

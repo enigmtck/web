@@ -13,7 +13,8 @@
 	// different contexts, like for both Notes and EncryptedNotes. The implementation
 	// of the sending function is left up to the container component.
 	export let senderFunction: (
-		recipientAddress: string | null,
+		directRecipient: string | null,
+		replyToRecipient: string | null,
 		replyToMessageId: string | null,
 		conversationId: string | null,
 		content: string,
@@ -111,12 +112,14 @@
 	async function handlePublish() {
 		captureChanges();
 
-		console.log(`recipient: ${replyToRecipient}`);
-		console.log(`reply_note: ${replyToNote}`);
-		console.log(`reply_conversation: ${replyToConversation}`);
+		console.log(`directRecipient: ${directRecipient}`);
+		console.log(`replyToRecipient: ${replyToRecipient}`);
+		console.log(`replyToNote: ${replyToNote}`);
+		console.log(`replyToConversation: ${replyToConversation}`);
 		console.log(`note: ${htmlNote}`);
 
 		senderFunction(
+			directRecipient,
 			replyToRecipient,
 			replyToNote,
 			replyToConversation,
@@ -171,10 +174,20 @@
 		}
 	};
 
+	// const getRecipientKeys = async (event: FocusEvent) => {
+	// 	let input = <HTMLInputElement>event.target;
+
+	// 	if (input.value) {
+	// 		//let actor = await wasm?.get_actor_from_webfinger(input.value);
+	// 		console.log(actor);
+	// 	}
+	// };
+
 	$: markdownNote = '';
 	$: htmlNote = '';
 	let preview = false;
 
+	let directRecipient: string | null = null;
 	let replyToRecipient: string | null = null;
 	let replyToNote: string | null = null;
 	let replyToDisplay: string | null = null;
@@ -205,7 +218,13 @@
 			{#if direct}
 				<i class="fa-solid fa-lock" />
 				<label for="recipient">Recipient</label>
-				<input id="recipient" name="recipient" type="text" placeholder="@joe@enigmatick.social" />
+				<input
+					id="recipient"
+					name="recipient"
+					type="text"
+					placeholder="@joe@enigmatick.social"
+					bind:value={directRecipient}
+				/>
 			{/if}
 			{#if !preview}
 				<pre id="compose" contenteditable="true">{markdownNote}</pre>

@@ -316,6 +316,7 @@ checksum = "a26ae43d7bcc3b814de94796a5e736d4029efb0ee900c12e2d54c993ad1a1e07"
 name = "enigmatick-wasm"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "base64",
  "chrono",
  "futures",
