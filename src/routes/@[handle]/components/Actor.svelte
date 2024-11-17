@@ -58,7 +58,7 @@
 			grid-template-rows: auto;
 			grid-template-areas: 'image text';
 			color: #222;
-			background: #ddd;
+			background: #fafafa;
 			margin: 5px;
 			border-radius: 5px;
 			border: 1px solid #dadada;

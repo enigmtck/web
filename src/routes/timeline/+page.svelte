@@ -621,49 +621,6 @@
 		loadMinimum();
 	}
 
-	function isDark() {
-		let body = document.getElementsByTagName('body')[0];
-		if (body && body.classList.contains('dark')) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	function setDark() {
-		let body = document.getElementsByTagName('body')[0];
-		let control = document.getElementById('theme') as HTMLInputElement | null;
-		if (body && !body.classList.contains('dark')) {
-			body.classList.add('dark');
-			localStorage.setItem('theme', 'dark');
-		}
-
-		if (control) {
-			control.checked = false;
-		}
-	}
-
-	function setLight() {
-		let body = document.getElementsByTagName('body')[0];
-		let control = document.getElementById('theme') as HTMLInputElement | null;
-		if (body && body.classList.contains('dark')) {
-			body.classList.remove('dark');
-			localStorage.setItem('theme', 'light');
-		}
-
-		if (control) {
-			control.checked = true;
-		}
-	}
-
-	function darkMode(event: any) {
-		if (isDark()) {
-			setLight();
-		} else {
-			setDark();
-		}
-	}
-
 	let scrollable: HTMLDivElement;
 	let scrollPosition = 0;
 

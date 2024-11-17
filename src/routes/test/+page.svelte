@@ -18,7 +18,6 @@
 		import_state as import_wasm_state,
 		create_olm_message,
 		decrypt_olm_message,
-		get_one_time_keys
 	} from 'enigmatick_wasm';
 
 	function load_enigmatick() {
@@ -280,7 +279,7 @@
 		console.info('HASH');
 		console.log(hash);
 
-		let otk = get_one_time_keys(String(a));
+		/* let otk = get_one_time_keys(String(a));
 		console.info('KEYS');
 		console.log(otk.one_time_keys);
 		console.info('PICKLED ACCOUNT');
@@ -295,7 +294,7 @@
 			.set_mutation(String(hash))
 			.set_keys(otk.one_time_keys);
 
-		add_one_time_keys(params);
+		add_one_time_keys(params); */
 	}
 </script>
 

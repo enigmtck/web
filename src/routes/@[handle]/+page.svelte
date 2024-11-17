@@ -12,9 +12,7 @@
 		cachedContent,
 		convertMastodonUrlToWebfinger,
 		getFirst,
-
 		abbreviateNumber
-
 	} from '../../common';
 	import Posts from './components/Posts.svelte';
 
@@ -469,13 +467,19 @@
 						class={currentView === Views.Following ? 'selected' : ''}
 						on:click={() => {
 							currentView = Views.Following;
-						}}>Following &bull; {abbreviateNumber(profile.ephemeral?.leaders || followingCount)}</button
+						}}
+						>Following &bull; {abbreviateNumber(
+							profile.ephemeral?.leaders || followingCount
+						)}</button
 					>
 					<button
 						class={currentView === Views.Followers ? 'selected' : ''}
 						on:click={() => {
 							currentView = Views.Followers;
-						}}>Followers &bull; {abbreviateNumber(profile.ephemeral?.followers || followerCount)}</button
+						}}
+						>Followers &bull; {abbreviateNumber(
+							profile.ephemeral?.followers || followerCount
+						)}</button
 					>
 				{/if}
 			</div>
@@ -523,14 +527,24 @@
 		height: 100%;
 		margin: 0;
 		font-family: 'Open Sans';
-		overflow: scroll;
+		overflow-y: scroll;
+		overflow-x: hidden;
 
 		.profile {
 			width: 100%;
 			display: flex;
 			flex-direction: column;
 			max-width: 800px;
-			margin: 0;
+			margin: 0 auto;
+			background: #fafafa;
+
+			:global(a) {
+				color: #777;
+			}
+
+			:global(a:hover) {
+				color: red;
+			}
 
 			button {
 				display: inline-block;
@@ -548,7 +562,7 @@
 			.tabs {
 				display: flex;
 				justify-content: center;
-				background: #ddd;
+				background: inherit;
 				container-name: tabs;
 				container-type: inline-size;
 				overflow-x: auto;
@@ -562,7 +576,7 @@
 				}
 
 				button:hover {
-					background: #ccc;
+					background: #dadada;
 				}
 
 				button.selected {
@@ -603,7 +617,7 @@
 				display: flex;
 				flex-direction: row;
 				width: 100%;
-				background: #ddd;
+				background: inherit;
 
 				/* percentage margins here are weird because they are relative 
 				   to width only, but make sense for this use-case; the square 
@@ -663,7 +677,7 @@
 			.controls {
 				width: 100%;
 				text-align: center;
-				background: #ddd;
+				background: inherit;
 
 				> div {
 					display: inline-block;
@@ -694,7 +708,7 @@
 			.summary {
 				position: relative;
 				width: 100%;
-				background: #ddd;
+				background: inherit;
 				padding: 5px 20px;
 
 				> pre {
@@ -732,15 +746,16 @@
 
 		section {
 			max-width: 800px;
+			margin: 0 auto;
 		}
 	}
 
 	:global(body.dark) {
 		main {
 			background: #000;
-			
+
 			.profile {
-				background: #222;
+				background: #1a1a1a;
 
 				.banner {
 					background: inherit;
@@ -765,7 +780,7 @@
 				}
 
 				.controls {
-					background: #222;
+					background: inherit;
 
 					div {
 						background: #333;
@@ -781,7 +796,7 @@
 				}
 
 				.tabs {
-					background: #222;
+					background: inherit;
 
 					button {
 						color: #aaa;
@@ -798,7 +813,7 @@
 
 				.summary {
 					color: #fff;
-					background: #222;
+					background: inherit;
 
 					:global(p) {
 						color: inherit;

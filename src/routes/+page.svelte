@@ -9,7 +9,7 @@
 
 		<ul>
 			<li><a href="/login">Login</a></li>
-			<li><a href="/signup">Sign up</a></li>
+			<li><a href="/signup">Sign Up</a></li>
 		</ul>
 	</div>
 </main>
@@ -64,13 +64,15 @@
 		}
 	}
 
-	body.dark {
+	:global(body.dark) {
 		h1 {
-			color: whitesmoke;
+			color: #444;
 		}
 
 		ul {
 			li {
+				border-right: 1px solid #fff;
+
 				a {
 					color: #ddd;
 				}
@@ -78,6 +80,10 @@
 				a:hover {
 					color: red;
 				}
+			}
+
+			li:last-child {
+				border-right: 0;
 			}
 		}
 	}

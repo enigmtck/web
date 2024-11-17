@@ -349,6 +349,7 @@
 	}
 
 	async function senderFunction(
+		directRecipient: string | null,
 		recipientAddress: string | null,
 		replyToMessageId: string | null,
 		conversationId: string | null,

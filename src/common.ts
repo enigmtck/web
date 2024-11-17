@@ -219,7 +219,7 @@ interface Metadata {
 
 interface Note {
 	'@context': string;
-	type: 'Note';
+	type: 'Note' | 'EncryptedNote';
 	tag?: Tag[];
 	id?: string;
 	actor?: string | null;
@@ -258,10 +258,12 @@ interface OlmSessionResponse {
 }
 
 interface Instrument {
-	type: 'IdentityKey' | 'SessionKey' | 'OlmSession';
+	type: 'OlmIdentityKey' | 'OlmOneTimeKey' | 'OlmSession' | 'VaultItem' | 'OlmAccount';
 	content: string;
 	hash?: string;
 	uuid?: string;
+	url?: string;
+	mutation_of?: string;
 }
 
 interface QueueItem {

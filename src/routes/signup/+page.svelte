@@ -113,19 +113,25 @@
 
 <style lang="scss">
 	main {
+		position: fixed;
+		top: calc(50% - 300px);
+		left: calc(50% - 200px);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
 		margin: 0;
 		padding: 0;
-		width: 100%;
-		height: 100%;
+		width: 400px;
+		height: 600px;
+		//width: 100%;
+		//height: 100%;
 		max-width: unset;
 		grid-area: content;
 
 		@media screen and (max-width: 700px) {
-			height: unset;
+			height: 100%;
+			top: 0;
 		}
 
 		h1 {
@@ -136,7 +142,6 @@
 			color: darkred;
 			padding: 0;
 			margin: 0;
-			width: 100%;
 			background: #eee;
 
 			@media screen and (max-width: 600px) {
@@ -217,8 +222,6 @@
 	}
 
 	:global(body.dark) {
-		background: #222;
-
 		main {
 			h1,
 			h2 {
@@ -232,10 +235,14 @@
 				label {
 					color: #ddd;
 				}
+			}
+		}
 
-				@media screen and (max-width: 700px) {
-					background: #222;
-				}
+		@media screen and (max-width: 700px) {
+			main {
+				background: #222;
+
+				h1, h2, form { background: #222; }
 			}
 		}
 	}

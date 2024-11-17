@@ -447,7 +447,7 @@
 		address > a {
 			display: inline-block;
 			font-style: normal;
-			font-size: 12px;
+			font-size: 16px;
 			text-decoration: none;
 		}
 
@@ -457,7 +457,7 @@
 		}
 
 		address > a {
-			color: inherit;
+			color: #777;
 			font-weight: 400;
 		}
 

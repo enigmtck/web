@@ -104,12 +104,14 @@
 					font-size: 16px;
 					margin-bottom: 10px;
 					mask: unset;
+					color: maroon;
 				}
 
 				span:last-child {
 					font-weight: 600;
 					font-size: 16px;
 					margin-top: 10px;
+					color: #999;
 				}
 			}
 

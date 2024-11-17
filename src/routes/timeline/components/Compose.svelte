@@ -374,7 +374,7 @@
 
 			input[type='text'] {
 				background: white;
-				border-radius: 10px;
+				border-radius: 0;
 				padding: 10px;
 				margin: 0 0 5px 0;
 				border: 0;
@@ -392,7 +392,7 @@
 				max-height: 80vh;
 				border: 1px solid #eee;
 				font-family: 'Open Sans';
-				border-radius: 10px;
+				border-radius: 0;
 				word-wrap: break-word;
 				white-space: pre-wrap;
 				overflow: scroll;
