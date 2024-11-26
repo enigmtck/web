@@ -174,15 +174,6 @@
 		}
 	};
 
-	// const getRecipientKeys = async (event: FocusEvent) => {
-	// 	let input = <HTMLInputElement>event.target;
-
-	// 	if (input.value) {
-	// 		//let actor = await wasm?.get_actor_from_webfinger(input.value);
-	// 		console.log(actor);
-	// 	}
-	// };
-
 	$: markdownNote = '';
 	$: htmlNote = '';
 	let preview = false;

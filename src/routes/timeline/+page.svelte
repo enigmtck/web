@@ -18,7 +18,10 @@
 		Attachment,
 		Activity,
 		Collection,
-		Ephemeral
+		Ephemeral,
+
+		Instrument
+
 	} from '../../common';
 	import {
 		insertEmojis,
@@ -71,7 +74,7 @@
 											collection.orderedItems?.forEach((a: Activity) => {
 												console.debug(a);
 												if (a.object.inReplyTo) {
-													addNote(a.object);
+													addNote(a);
 												}
 											});
 
@@ -218,17 +221,21 @@
 		} else if (displayNote.note.id && displayNote.note.inReplyTo) {
 			orphans.set(displayNote.note.id, displayNote);
 
-			if (!orphans.has(displayNote.note.id)) {
-				let noteString = await cachedNote(displayNote.note.inReplyTo);
-				if (noteString) {
-					let note: Note = JSON.parse(noteString);
-					let profile: UserProfile = await cachedActor(note.attributedTo);
+			// It doesn't seem like the below would ever be called based on the line directly above.
+			// I'm commenting it out because DisplayNote now requires an Activity and that can't happen with
+			// the structure below.
+			
+			// if (!orphans.has(displayNote.note.id)) {
+			// 	let noteString = await cachedNote(displayNote.note.inReplyTo);
+			// 	if (noteString) {
+			// 		let note: Note = JSON.parse(noteString);
+			// 		let profile: UserProfile = await cachedActor(note.attributedTo);
 
-					if (note.id) {
-						orphans.set(note.id, new DisplayNote(profile, note));
-					}
-				}
-			}
+			// 		if (note.id) {
+			// 			orphans.set(note.id, new DisplayNote(profile, note));
+			// 		}
+			// 	}
+			// }
 		}
 
 		await updateDOM(false);
@@ -254,12 +261,12 @@
 		}
 	};
 
-	async function addNote(note: Note) {
-		if (note.attributedTo) {
-			const actor = note.ephemeral?.attributedTo?.at(0);
+	async function addNote(activity: Activity) {
+		if (activity.object.attributedTo) {
+			const actor = activity.object.ephemeral?.attributedTo?.at(0);
 
 			if (actor) {
-				const displayNote = new DisplayNote(actor, note);
+				const displayNote = new DisplayNote(actor, activity.object, activity);
 				await placeNote(displayNote);
 			}
 		}
@@ -316,7 +323,7 @@
 
 				try {
 					collection.orderedItems?.forEach((a: Activity) => {
-						addNote(a.object);
+						addNote(a);
 					});
 				} catch (e) {
 					console.error(e);
@@ -479,10 +486,10 @@
 		if (scrollable.scrollTop < 50) {
 			liveLoading = true;
 
-			let note;
-			while ((note = noteQueue.shift()) !== undefined) {
-				addNote(note);
-			}
+			// let note;
+			// while ((note = noteQueue.shift()) !== undefined) {
+			// 	addNote(note);
+			// }
 
 			scroll.style.display = 'none';
 		} else {

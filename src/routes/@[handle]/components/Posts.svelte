@@ -55,7 +55,7 @@
 											collection.orderedItems?.forEach((a: Activity) => {
 												console.debug(a);
 												if (a.object.inReplyTo) {
-													addNote(a.object);
+													addNote(a);
 												}
 											});
 
@@ -106,7 +106,7 @@
 		if (items) {
 			for (const item of items) {
 				if (item.type === 'Create') {
-					addNote(<Note>item.object);
+					addNote(<Activity>item);
 				} else if (item.type === 'Announce') {
 					console.debug('PROCESSING ANNOUNCE');
 					let note = await wasm?.get_note(String(item.object));
@@ -124,7 +124,8 @@
 								n.ephemeral = ephemeral;
 							}
 						}
-						addNote(n);
+						(<Activity>item).object = n;
+						addNote(<Activity>item);
 					}
 				}
 			}
@@ -292,9 +293,11 @@
 		//}
 	}
 
-	async function addNote(note: Note) {
-		console.log('ADDING NOTE');
-		console.debug(note);
+	async function addNote(activity: Activity) {
+		console.log('ADDING ACTIVITY');
+		console.debug(activity);
+
+		let note = activity.object;
 
 		if (note.ephemeral?.actors) {
 			note.ephemeral.actors.forEach((actor) => {
@@ -323,7 +326,7 @@
 		if (actor) {
 			console.debug('PARSED PROFILE');
 			console.debug(actor);
-			const displayNote = new DisplayNote(actor, note);
+			const displayNote = new DisplayNote(actor, note, activity);
 
 			console.debug('DISPLAY_NOTE');
 			console.debug(displayNote);

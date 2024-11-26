@@ -38,6 +38,7 @@ export {
 
 interface DisplayNote {
 	note: Note;
+	activity: Activity;
 	actor: UserProfile | UserProfileTerse;
 	published: string;
 	created_at: string;
@@ -46,6 +47,7 @@ interface DisplayNote {
 
 class DisplayNote {
 	note: Note;
+	activity: Activity;
 	actor: UserProfile | UserProfileTerse;
 	published: string;
 	created_at: string;
@@ -54,9 +56,11 @@ class DisplayNote {
 	constructor(
 		profile: UserProfile | UserProfileTerse,
 		note: Note,
-		replies?: Map<string, DisplayNote>
+		activity: Activity,
+		replies?: Map<string, DisplayNote>,
 	) {
 		this.note = note;
+		this.activity = activity;
 		this.actor = profile;
 
 		if (note.published) {
@@ -245,6 +249,7 @@ interface Activity {
 	id: string;
 	object: Note;
 	published: string | null;
+	instrument?: Instrument[] | null;
 	ephemeral?: Ephemeral;
 }
 
