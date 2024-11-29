@@ -3,7 +3,8 @@
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
-		"wasm": "wasm-pack build wasm/enigmatick_wasm --target web",
+		"modulize-wasm": "node ./wasm/enigmatick_wasm/modulize.js",
+		"wasm": "wasm-pack build wasm/enigmatick_wasm --target web && yarn modulize-wasm",
 		"dev": "yarn wasm && vite",
 		"build": "yarn wasm && vite build",
 		"static": "cross-env ADAPTER=static yarn build",
@@ -37,6 +38,8 @@
 		"tslib": "^2.4.1",
 		"typescript": "^5.0.0",
 		"vite": "^5.0.0",
+		"vite-plugin-top-level-await": "^1.4.4",
+		"vite-plugin-wasm": "^3.3.0",
 		"vite-plugin-wasm-pack": "^0.1.12"
 	},
 	"type": "module",

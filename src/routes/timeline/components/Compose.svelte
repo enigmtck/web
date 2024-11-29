@@ -4,8 +4,9 @@
 	const { Converter } = showdown;
 	import showdownHighlight from 'showdown-highlight';
 	import { appData, enigmatickWasm } from '../../../stores';
-	import type { Attachment } from '../../../common';
+	import type { Attachment, UserProfile } from '../../../common';
 	import type { ComposeDispatch } from './common';
+	import Reply from './Reply.svelte';
 
 	$: wasm = $enigmatickWasm;
 
@@ -18,7 +19,8 @@
 		replyToMessageId: string | null,
 		conversationId: string | null,
 		content: string,
-		attachments: Attachment[]
+		attachments: Attachment[],
+		encrypted: boolean
 	) => Promise<boolean>;
 
 	export let direct: boolean;
@@ -31,6 +33,7 @@
 		replyToNote = message.detail.replyToNote;
 		replyToDisplay = message.detail.replyToDisplay;
 		replyToConversation = message.detail.replyToConversation;
+		encrypted = message.detail.encrypted;
 
 		const replyToUrl = message.detail.replyToUrl;
 		const replyToUsername = message.detail.replyToUsername;
@@ -53,7 +56,7 @@
 	}
 
 	function closeAside() {
-		//cancelReplyTo();
+		resetCompose();
 		const dialog = document.getElementsByTagName('dialog')[0];
 		dialog.close();
 
@@ -100,6 +103,7 @@
 		preview = false;
 		markdownNote = '';
 		htmlNote = '';
+		webfingerRecipient = '';
 	}
 
 	function cancelReplyTo() {
@@ -112,11 +116,26 @@
 	async function handlePublish() {
 		captureChanges();
 
-		console.log(`directRecipient: ${directRecipient}`);
+		console.log(`directRecipient: ${webfingerRecipient}`);
 		console.log(`replyToRecipient: ${replyToRecipient}`);
 		console.log(`replyToNote: ${replyToNote}`);
 		console.log(`replyToConversation: ${replyToConversation}`);
+		console.log(`encrypted: ${encrypted}`);
 		console.log(`note: ${htmlNote}`);
+
+		let directRecipient: string | null = null;
+
+		if (webfingerRecipient) {
+			let actor: UserProfile = JSON.parse(
+				await wasm?.get_actor_from_webfinger_promise(webfingerRecipient)
+			);
+
+			directRecipient = actor.id || null;
+
+			if (actor.capabilities?.enigmatickEncryption) {
+				encrypted = true;
+			}
+		}
 
 		senderFunction(
 			directRecipient,
@@ -124,7 +143,8 @@
 			replyToNote,
 			replyToConversation,
 			htmlNote,
-			Array.from(attachments.values())
+			Array.from(attachments.values()),
+			encrypted
 		).then((x: any) => {
 			if (x) {
 				resetCompose();
@@ -178,11 +198,12 @@
 	$: htmlNote = '';
 	let preview = false;
 
-	let directRecipient: string | null = null;
+	let webfingerRecipient: string | null = null;
 	let replyToRecipient: string | null = null;
 	let replyToNote: string | null = null;
 	let replyToDisplay: string | null = null;
 	let replyToConversation: string | null = null;
+	let encrypted: boolean = false;
 
 	let imageBuffer: string | ArrayBuffer | null;
 	let imageFileInput: HTMLInputElement;
@@ -194,7 +215,7 @@
 <div class="mask closed" />
 <dialog>
 	{#if username}
-		<div class={direct ? 'direct' : ''}>
+		<div class={direct && !replyToConversation ? 'direct' : ''}>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
 			<i class="fa-solid fa-xmark" on:click={closeAside} />
@@ -206,7 +227,7 @@
 					<i class="fa-solid fa-xmark" on:click={cancelReplyTo} /></span
 				>
 			{/if}
-			{#if direct}
+			{#if direct && !replyToConversation}
 				<i class="fa-solid fa-lock" />
 				<label for="recipient">Recipient</label>
 				<input
@@ -214,7 +235,7 @@
 					name="recipient"
 					type="text"
 					placeholder="@joe@enigmatick.social"
-					bind:value={directRecipient}
+					bind:value={webfingerRecipient}
 				/>
 			{/if}
 			{#if !preview}

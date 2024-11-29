@@ -6,7 +6,9 @@
 	import { onDestroy, onMount, tick, afterUpdate } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { appData, enigmatickWasm, wasmState } from '../../stores';
+	//import { appData, wasmState } from '../../stores';
 	import { useMediaQuery } from 'svelte-breakpoints';
+	//import init from 'wasm/enigmatick_wasm_bg.wasm?init';
 
 	import type {
 		UserProfile,
@@ -19,9 +21,7 @@
 		Activity,
 		Collection,
 		Ephemeral,
-
 		Instrument
-
 	} from '../../common';
 	import {
 		insertEmojis,
@@ -41,6 +41,7 @@
 	$: view = '';
 
 	$: wasm = $enigmatickWasm;
+	//let wasm: any = null;
 
 	let streamUuid: string | null = null;
 	let observer: IntersectionObserver | null = null;
@@ -121,6 +122,8 @@
 		} else {
 			view = 'global';
 		}
+
+		await loadMinimum();
 	});
 
 	async function replyToHeader(note: Note): Promise<string | null> {
@@ -224,7 +227,7 @@
 			// It doesn't seem like the below would ever be called based on the line directly above.
 			// I'm commenting it out because DisplayNote now requires an Activity and that can't happen with
 			// the structure below.
-			
+
 			// if (!orphans.has(displayNote.note.id)) {
 			// 	let noteString = await cachedNote(displayNote.note.inReplyTo);
 			// 	if (noteString) {
@@ -272,7 +275,7 @@
 		}
 	}
 
-	function loadMinimum() {
+	async function loadMinimum() {
 		let topLevel = 0;
 
 		notes.forEach((note) => {
@@ -285,12 +288,11 @@
 			try {
 				// if loadTimelineData returns 0, that means it's reached the end
 				// of what is available and we should stop
-				loadTimelineData().then((results) => {
-					console.debug('TIMELINE LENGTH: ' + results);
-					if (results && results > 0) {
-						loadMinimum();
-					}
-				});
+				let results = await loadTimelineData();
+				console.debug('TIMELINE LENGTH: ' + results);
+				if (results && results > 0) {
+					await loadMinimum();
+				}
 			} catch (e) {
 				console.error(e);
 			}
@@ -303,11 +305,15 @@
 
 		if (wasm && view && scrollable) {
 			if (!cache) {
+				console.debug("INSTANTIATING CACHE");
 				cache = new wasm.EnigmatickCache();
+				console.debug("Cache instantiated");
 			}
 
 			let x = await wasm.get_timeline(maxValue, undefined, pageSize, view, hashtags);
 
+			console.debug('X!');
+			console.debug(x);
 			try {
 				let collection: Collection = JSON.parse(String(x));
 				console.debug('RETRIEVED TIMELINE DATA');
@@ -521,29 +527,36 @@
 	}
 
 	async function senderFunction(
-		// directRecipient is a webfinger (@user@domain.tld)
+		// directRecipient is a normal ID (e.g., https://enigmatick.social/user/jdt)
+		// Conversion from a webfinger is handled in Compose.svelte.
 		directRecipient: string | null,
 		replyToRecipient: string | null,
 		replyToMessageId: string | null,
 		conversationId: string | null,
 		content: string,
-		attachments: Attachment[]
+		attachments: Attachment[],
+		encrypted: boolean
 	): Promise<boolean> {
 		if (wasm) {
 			let params = (await wasm.SendParams.new()).set_content(content);
-			
+
+			// Compose.svelte determines if this should be encrypted
+			if (encrypted) {
+				params.set_encrypted();
+			}
+
 			if (directRecipient) {
-				await params.add_address(directRecipient);
+				await params.add_recipient_id(directRecipient, true);
 			} else {
 				params.set_public();
 			}
 
-			params = params.set_attachments(JSON.stringify(attachments));
+			params.set_attachments(JSON.stringify(attachments));
 
 			if (replyToMessageId) {
-				params = await params.add_recipient_id(String(replyToRecipient), true);
-				params = params.set_in_reply_to(String(replyToMessageId));
-				params = params.set_conversation(String(conversationId));
+				params = (await params.add_recipient_id(String(replyToRecipient), true))
+					.set_in_reply_to(String(replyToMessageId))
+					.set_conversation(String(conversationId));
 			}
 
 			return await wasm.send_note(params);
@@ -571,7 +584,7 @@
 
 		const scroll = document.getElementsByClassName('scroll')[0] as HTMLElement;
 		scroll.style.display = 'none';
-		loadMinimum();
+		await loadMinimum();
 	}
 
 	const handleMinimizeContext = (event?: any) => {
@@ -579,7 +592,7 @@
 			event.preventDefault();
 		}
 
-		console.debug("Toggling Filters");
+		console.debug('Toggling Filters');
 		if (context.style.display === 'none') {
 			context.style.display = 'flex';
 		} else {
@@ -624,9 +637,9 @@
 	let yPosition: number = 0;
 	let filterHandle: HTMLDivElement;
 
-	$: if (wasm) {
-		loadMinimum();
-	}
+	// $: if (wasm) {
+	// 	loadMinimum();
+	// }
 
 	let scrollable: HTMLDivElement;
 	let scrollPosition = 0;
@@ -638,7 +651,7 @@
 	};
 </script>
 
-<Compose {senderFunction} bind:this={composeComponent} direct={view === "direct"}/>
+<Compose {senderFunction} bind:this={composeComponent} direct={view === 'direct'} />
 
 <main>
 	<div class="content">
@@ -712,7 +725,9 @@
 			<h1>Filters</h1>
 			<Filters {hashtags} {resetData} />
 		</div>
-		<div class="handle" bind:this={filterHandle}><a href="#filters" on:click={handleMinimizeContext}>&nbsp;</a></div>
+		<div class="handle" bind:this={filterHandle}>
+			<a href="#filters" on:click={handleMinimizeContext}>&nbsp;</a>
+		</div>
 	</div>
 </main>
 

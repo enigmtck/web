@@ -38,7 +38,7 @@ export {
 
 interface DisplayNote {
 	note: Note;
-	activity: Activity;
+	activity: Activity | undefined;
 	actor: UserProfile | UserProfileTerse;
 	published: string;
 	created_at: string;
@@ -47,7 +47,7 @@ interface DisplayNote {
 
 class DisplayNote {
 	note: Note;
-	activity: Activity;
+	activity: Activity | undefined;
 	actor: UserProfile | UserProfileTerse;
 	published: string;
 	created_at: string;
@@ -56,8 +56,8 @@ class DisplayNote {
 	constructor(
 		profile: UserProfile | UserProfileTerse,
 		note: Note,
-		activity: Activity,
-		replies?: Map<string, DisplayNote>,
+		activity?: Activity,
+		replies?: Map<string, DisplayNote>
 	) {
 		this.note = note;
 		this.activity = activity;
@@ -78,6 +78,19 @@ class DisplayNote {
 		}
 
 		this.replies = replies || new Map<string, DisplayNote>();
+	}
+
+	json_to(): string {
+		let ret: string[] = [];
+
+		this.note.to && ret.push(...this.note.to);
+		this.note.cc && ret.push(...this.note.cc);
+
+		return JSON.stringify(ret);
+	}
+
+	json_sender(): string {
+		return JSON.stringify(this.actor);
 	}
 }
 
@@ -309,21 +322,20 @@ interface VaultedMessage {
 function abbreviateNumber(num: number): string {
 	const suffixes = ['', 'k', 'M', 'B', 'T'];
 	let index = 0;
-  
+
 	while (num >= 1000 && index < suffixes.length - 1) {
-	  num /= 1000;
-	  index++;
+		num /= 1000;
+		index++;
 	}
-  
+
 	// For numbers less than 1000, return as integer
 	if (index === 0) {
-	  return Math.floor(num).toString();
+		return Math.floor(num).toString();
 	}
-  
+
 	// For numbers 1000 and above, return with 2 decimal places
 	return num.toFixed(1) + suffixes[index];
-  }
-  
+}
 
 function getFirst(s: string | string[] | undefined): string | undefined {
 	if (typeof s === 'string') {
@@ -391,7 +403,8 @@ function getWebFingerFromId(actor: UserProfile | UserProfileTerse): string {
 }
 
 function insertEmojis(
-	wasm: typeof import('enigmatick_wasm') | null,
+	wasm: any,
+	//wasm: typeof import('enigmatick_wasm') | null,
 	text: string,
 	profile: UserProfile | Note | UserProfileTerse
 ) {
@@ -492,7 +505,8 @@ function domainMatch(site1: string, site2: string): boolean {
 // URL, but that causes problems when the URL already includes URI encoding (i.e., I'm not the only one
 // who's had that idea). The resultant decoded URL ends up broken because the original URI decoding also
 // gets decoded at the core server.
-function cachedContent(wasm: typeof import('enigmatick_wasm') | null, url: string): string {
+//function cachedContent(wasm: typeof import('enigmatick_wasm') | null, url: string): string {
+function cachedContent(wasm: any, url: string): string {
 	//if (buffer) {
 	if (wasm) {
 		let encoded = wasm.get_url_safe_base64(url);

@@ -2,9 +2,13 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import wasmPack from 'vite-plugin-wasm-pack';
 import inject from '@rollup/plugin-inject';
+//import wasm from "vite-plugin-wasm";
+//import topLevelAwait from "vite-plugin-top-level-await";
 
 export default defineConfig({
 	plugins: [wasmPack('wasm/enigmatick_wasm'), sveltekit()],
+	//plugins: [sveltekit()],
+	//plugins: [wasm(), topLevelAwait(), sveltekit()],
 	resolve: {
 		alias: {
 			path: 'path-browserify'
@@ -16,6 +20,9 @@ export default defineConfig({
 		}
 	},
 	server: {
+		// fs: {
+		// 	allow: ['wasm']
+		// },
 		hmr: {
 			host: '127.0.0.1',
 			port: 5174,

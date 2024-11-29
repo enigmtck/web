@@ -7,7 +7,8 @@
 		Attachment,
 		DisplayNote,
 		AnnounceParams,
-		Ephemeral
+		Ephemeral,
+		UserProfileTerse
 	} from '../../../common';
 	import { onDestroy, onMount, getContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
@@ -131,19 +132,38 @@
 
 			replyToUrl: event.target.dataset.url,
 			replyToUsername: event.target.dataset.username,
+			encrypted: note.note.type == "EncryptedNote",
 			openAside: false
 		});
 	}
 
 	function handleReplyTo(event: any) {
-		replyToDispatch('replyTo', {
-			replyToRecipient: event.target.dataset.recipient,
-			replyToNote: event.target.dataset.reply,
-			replyToDisplay: insertEmojis(wasm, event.target.dataset.display, note.actor),
-			replyToConversation: event.target.dataset.conversation,
+		console.debug(event.target.dataset);
 
-			replyToUrl: event.target.dataset.url,
-			replyToUsername: event.target.dataset.username,
+		const sender: UserProfileTerse = JSON.parse(event.target.dataset.sender);
+		const senderId: string = sender.id ?? '';
+		const senderUsername: string = sender.preferredUsername;
+		const to: string[] = JSON.parse(event.target.dataset.recipient);
+		const senderDisplay: string = sender.name || sender.preferredUsername;
+		const conversation: string = note.note.conversation || '';
+		const noteId: string = note.note.id || '';
+		const encrypted: boolean = note.note.type == "EncryptedNote";
+
+		const senderUrl: string = Array.isArray(sender.url)
+			? sender.url[0] ?? ''
+			: typeof sender.url === 'string'
+			? sender.url
+			: '';
+
+		replyToDispatch('replyTo', {
+			replyToRecipient: senderId,
+			replyToNote: noteId,
+			replyToDisplay: insertEmojis(wasm, senderDisplay, note.actor),
+			replyToConversation: conversation,
+			encrypted,
+
+			replyToUrl: senderUrl,
+			replyToUsername: senderUsername,
 			openAside: true
 		});
 	}
@@ -288,12 +308,8 @@
 				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-reply"
-					data-reply={note.note.id}
-					data-display={note.actor.name || note.actor.preferredUsername}
-					data-url={note.actor.url}
-					data-username={note.actor.preferredUsername}
-					data-recipient={note.actor.id}
-					data-conversation={note.note.conversation}
+					data-sender={note.json_sender()}
+					data-recipient={note.json_to()}
 					on:click={handleReplyTo}
 				/>
 			{/if}

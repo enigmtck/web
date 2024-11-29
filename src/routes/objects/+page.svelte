@@ -46,7 +46,7 @@
 											String(conversation_note.id),
 											new DisplayNote(reply_actor, conversation_note)
 										);
-										note = new DisplayNote(actor, y, replies);
+										note = new DisplayNote(actor, y, undefined,replies);
 									}
 								}
 							}

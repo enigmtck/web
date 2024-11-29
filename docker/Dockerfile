@@ -1,4 +1,4 @@
-FROM node:18-bullseye AS builder
+FROM node:23-bookworm AS builder
 # Use bash for the shell
 SHELL ["/bin/bash", "-c"]
 RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
@@ -20,7 +20,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
   libolm-dev \
   cmake
 
-RUN emcc
+# RUN emcc
 RUN mkdir -p /opt/build/src
 WORKDIR /opt/build/src
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
@@ -45,7 +45,7 @@ COPY wasm /opt/build/src/wasm
 
 RUN source /root/.cargo/env && yarn install && yarn run build
 
-FROM node:18-alpine
+FROM node:23-alpine
 RUN apk update && apk --no-cache add ca-certificates nginx certbot
 RUN mkdir -p /srv/enigmatick
 WORKDIR /srv/enigmatick

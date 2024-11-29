@@ -1,14 +1,17 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
 	import { appData, wasmState, enigmatickWasm } from '../stores';
+	//import { appData, wasmState } from '../stores';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount, setContext } from 'svelte';
+	//import * as enigmatick from 'enigmatick-wasm';
 
 	$: username = $appData.username;
 	$: display_name = $appData.display_name;
 	$: avatar = $appData.avatar;
 	$: wasm = $enigmatickWasm;
+	//let wasm: any = null;
 
 	onMount(async () => {
 		const theme = localStorage.getItem('theme');
@@ -24,6 +27,7 @@
 		if (!wasm) {
 			wasm = await import('enigmatick_wasm');
 			await wasm.default();
+			//wasm = await enigmatick.default();
 
 			let instance = await wasm.load_instance_information();
 			console.log(instance?.domain);
@@ -78,7 +82,7 @@
 		username = $appData.username;
 		display_name = $appData.display_name;
 		avatar = $appData.avatar;
-		wasm = $enigmatickWasm;
+		//wasm = $enigmatickWasm;
 		return true;
 	}
 
