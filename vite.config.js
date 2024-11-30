@@ -9,20 +9,17 @@ export default defineConfig({
 	plugins: [wasmPack('wasm/enigmatick_wasm'), sveltekit()],
 	//plugins: [sveltekit()],
 	//plugins: [wasm(), topLevelAwait(), sveltekit()],
-	resolve: {
-		alias: {
-			path: 'path-browserify'
-		}
-	},
-	build: {
-		rollupOptions: {
-			plugins: [inject({ Buffer: ['buffer', 'Buffer'] })]
-		}
-	},
+	// resolve: {
+	// 	alias: {
+	// 		path: 'path-browserify'
+	// 	}
+	// },
+	// build: {
+	// 	rollupOptions: {
+	// 		plugins: []
+	// 	}
+	// },
 	server: {
-		// fs: {
-		// 	allow: ['wasm']
-		// },
 		hmr: {
 			host: '127.0.0.1',
 			port: 5174,

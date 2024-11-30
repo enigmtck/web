@@ -6,10 +6,7 @@
 
 	$: wasm = $enigmatickWasm;
 
-	onMount(async () => {
-		const { Buffer } = await import('buffer');
-		window.Buffer = Buffer;
-	});
+	onMount(async () => {});
 
 	type Metadata = {
 		url?: string | null;
