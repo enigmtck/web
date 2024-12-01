@@ -4,3 +4,6 @@
 [submodule "wasm/enigmatick_olm"]
 	path = wasm/enigmatick_olm
 	url = git@gitlab.com:enigmatick/enigmatick_olm.git
+[submodule "vendor/vite-plugin-wasm-pack"]
+	path = vendor/vite-plugin-wasm-pack
+	url = git@github.com:justindthomas/vite-plugin-wasm-pack.git
