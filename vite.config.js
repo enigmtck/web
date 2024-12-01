@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 import wasmPack from 'vite-plugin-wasm-pack';
 
 export default defineConfig({
-	plugins: [sveltekit(), wasmPack('./wasm/enigmatick_wasm')],
+	plugins: [sveltekit(), wasmPack('wasm/enigmatick_wasm')],
 	build: {
 		assetsDir: 'assets'
 	},

@@ -3,8 +3,8 @@
 	"version": "0.0.1",
 	"private": true,
 	"scripts": {
-		"modulize-wasm": "node ./enigmatick_wasm/modulize.js",
-		"wasm": "wasm-pack build ./enigmatick_wasm --target web",
+		"modulize-wasm": "node wasm/enigmatick_wasm/modulize.js",
+		"wasm": "wasm-pack build wasm/enigmatick_wasm --target web",
 		"dev": "yarn wasm && vite",
 		"build": "yarn wasm && vite build",
 		"static": "cross-env ADAPTER=static yarn build",
