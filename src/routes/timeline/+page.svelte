@@ -126,60 +126,6 @@
 		await loadMinimum();
 	});
 
-	async function replyToHeader(note: Note): Promise<string | null> {
-		if (note.inReplyTo) {
-			const replyNote = await cachedNote(note.inReplyTo);
-
-			if (replyNote) {
-				const note: Note = JSON.parse(String(replyNote));
-				const replyActor = note.ephemeral?.attributedTo?.at(0);
-
-				if (replyActor && wasm) {
-					const name = insertEmojis(
-						wasm,
-						replyActor.name || replyActor.preferredUsername,
-						replyActor
-					);
-
-					return name;
-				} else {
-					return null;
-				}
-			} else {
-				return null;
-			}
-		} else {
-			return null;
-		}
-	}
-
-	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
-		if (note.ephemeral?.announces) {
-			const announceActor = note.ephemeral.announces[0];
-			let others = '';
-
-			if (note.ephemeral.announces.length == 2) {
-				others = ` and ${note.ephemeral.announces.length - 1} other`;
-			} else if (note.ephemeral.announces.length > 2) {
-				others = ` and ${note.ephemeral.announces.length - 1} others`;
-			}
-
-			if (announceActor && wasm) {
-				const name = insertEmojis(
-					wasm,
-					announceActor.name || announceActor.preferredUsername,
-					announceActor
-				);
-
-				return <AnnounceParams>{ url: announceActor.url, name, others };
-			} else {
-				return null;
-			}
-		} else {
-			return null;
-		}
-	}
-
 	function placeOrphans() {
 		let orphans_copy = [...orphans];
 
@@ -195,7 +141,7 @@
 			if (!notes.has(displayNote.note.id)) {
 				notes.set(displayNote.note.id, displayNote);
 			}
-			await updateDOM(true, 4);
+			await updateDOM(true, 0);
 			return;
 		}
 
@@ -223,22 +169,6 @@
 			return;
 		} else if (displayNote.note.id && displayNote.note.inReplyTo) {
 			orphans.set(displayNote.note.id, displayNote);
-
-			// It doesn't seem like the below would ever be called based on the line directly above.
-			// I'm commenting it out because DisplayNote now requires an Activity and that can't happen with
-			// the structure below.
-
-			// if (!orphans.has(displayNote.note.id)) {
-			// 	let noteString = await cachedNote(displayNote.note.inReplyTo);
-			// 	if (noteString) {
-			// 		let note: Note = JSON.parse(noteString);
-			// 		let profile: UserProfile = await cachedActor(note.attributedTo);
-
-			// 		if (note.id) {
-			// 			orphans.set(note.id, new DisplayNote(profile, note));
-			// 		}
-			// 	}
-			// }
 		}
 
 		await updateDOM(false);
@@ -305,9 +235,9 @@
 
 		if (wasm && view && scrollable) {
 			if (!cache) {
-				console.debug("INSTANTIATING CACHE");
+				console.debug('INSTANTIATING CACHE');
 				cache = new wasm.EnigmatickCache();
-				console.debug("Cache instantiated");
+				console.debug('Cache instantiated');
 			}
 
 			let x = await wasm.get_timeline(maxValue, undefined, pageSize, view, hashtags);
@@ -424,20 +354,13 @@
 	async function handleNoteSelect(message: CustomEvent<ComposeDispatch>) {
 		console.debug('NOTE SELECT');
 		console.debug(message);
-		focusConversation = message.detail.replyToConversation;
-		focusNote = message.detail.replyToNote;
+		focusConversation = message.detail.replyToNote.conversation;
+		focusNote = message.detail.replyToNote.id || null;
 		console.debug(`setting focusNote to ${message.detail.replyToNote}`);
 
 		yPosition = await scrollToTop();
 
 		infiniteScrollDisabled = true;
-
-		// this doesn't seem to work
-		console.debug('MESSAGE DETAIL');
-		console.debug(message.detail);
-		composeComponent.handleReplyToMessage({
-			detail: message.detail
-		});
 	}
 
 	async function clearNoteSelect() {
@@ -527,38 +450,34 @@
 	}
 
 	async function senderFunction(
-		// directRecipient is a normal ID (e.g., https://enigmatick.social/user/jdt)
-		// Conversion from a webfinger is handled in Compose.svelte.
-		directRecipient: string | null,
-		replyToRecipient: string | null,
-		replyToMessageId: string | null,
-		conversationId: string | null,
+		replyToActor: UserProfile | UserProfileTerse | null,
+		replyToNote: Note | null,
 		content: string,
 		attachments: Attachment[],
-		encrypted: boolean
+		mentions: Map<string, UserProfile>,
+		hashtags: string[],
+		directed: boolean
 	): Promise<boolean> {
 		if (wasm) {
 			let params = (await wasm.SendParams.new()).set_content(content);
 
-			// Compose.svelte determines if this should be encrypted
-			if (encrypted) {
-				params.set_encrypted();
-			}
-
-			if (directRecipient) {
-				await params.add_recipient_id(directRecipient, true);
-			} else {
+			if (!directed) {
 				params.set_public();
 			}
 
 			params.set_attachments(JSON.stringify(attachments));
+			params.set_hashtags(hashtags);
 
-			if (replyToMessageId) {
-				params = (await params.add_recipient_id(String(replyToRecipient), true))
-					.set_in_reply_to(String(replyToMessageId))
-					.set_conversation(String(conversationId));
+			for (const [webfinger, actor] of mentions) {
+				params.add_mention(webfinger, actor.id || "", actor.capabilities?.enigmatickEncryption || false);
 			}
 
+			if (replyToNote) {
+				params.set_in_reply_to(String(replyToNote.id));
+				params.set_conversation(String(replyToNote.conversation));
+			}
+
+			console.log(params);
 			return await wasm.send_note(params);
 		} else {
 			return false;
@@ -574,6 +493,7 @@
 	}
 
 	async function resetData() {
+		clearNoteSelect();
 		noteQueue = [];
 		orphans = new Map<string, DisplayNote>();
 		notes = new Map<string, DisplayNote>();
@@ -679,21 +599,16 @@
 		<div class="scrollable" on:scroll={updateScrollPosition} bind:this={scrollable}>
 			{#each Array.from(notes.values()) as note}
 				{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeral?.announces?.length)) || note.note.id == focusNote)}
-					{#await replyToHeader(note.note) then replyTo}
-						{#await announceHeader(note.note) then announce}
-							<Article
-								{remove}
-								{refresh}
-								{note}
-								{username}
-								replyToHeader={replyTo}
-								announceHeader={announce}
-								on:replyTo={composeComponent.handleReplyToMessage}
-								on:noteSelect={handleNoteSelect}
-								renderAction={observeNote}
-							/>
-						{/await}
-					{/await}
+					<Article
+						{remove}
+						{refresh}
+						{note}
+						{username}
+						on:replyTo={composeComponent.handleReplyToMessage}
+						on:noteSelect={handleNoteSelect}
+						renderAction={observeNote}
+						{cachedNote}
+					/>
 
 					{#if note.note.id == focusNote && note.replies?.size}
 						<div class="replies">
@@ -844,7 +759,7 @@
 				color: white;
 				opacity: 0.6;
 				transition-duration: 1s;
-				z-index: 31;
+				z-index: 25;
 				background: maroon;
 				padding: 8px 0 0 0;
 			}

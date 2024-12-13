@@ -33,7 +33,10 @@ export {
 	convertMastodonUrlToWebfinger,
 	formatProfileTags,
 	getFirst,
-	abbreviateNumber
+	abbreviateNumber,
+	decrypt,
+	removeTags,
+	isNote
 };
 
 interface DisplayNote {
@@ -251,6 +254,10 @@ interface Note {
 	attachment?: Attachment[];
 	conversation: string | null;
 	ephemeral?: Ephemeral;
+}
+
+const isNote = (attr: string | Note): attr is Note => {
+    return typeof attr === "object" && attr !== null;
 }
 
 interface Activity {
@@ -515,3 +522,33 @@ function cachedContent(wasm: any, url: string): string {
 		return url;
 	}
 }
+
+function getVaultItem(activity: Activity): Instrument | null {
+	if (!activity.instrument) {
+		return null;
+	}
+
+	const vaultItem = activity.instrument.find((item) => item.type === 'VaultItem');
+	return vaultItem || null;
+}
+
+const decrypt = (wasm: any, activity: Activity): string => {
+	if (activity.object.type == 'EncryptedNote') {
+		let vault;
+		if (wasm && (vault = getVaultItem(activity))) {
+			return wasm.decrypt_text(vault.content) || '';
+		} else {
+			return '<span class"failure">Message could not be decrypted</span>';
+		}
+	} else {
+		return activity.object.content || '';
+	}
+};
+
+const removeTags = (str: string | null | undefined): string => {
+	if (str) {
+		return str.replace(/<[^>]*>/g, ' ');
+	} else {
+		return '';
+	}
+};

@@ -1,36 +1,14 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-
-	import { onMount, setContext } from 'svelte';
+	import { onMount } from 'svelte';
+	import { enigmatickWasm, wasmState } from '../../stores';
 	import { get } from 'svelte/store';
-	import { wasmState, appData } from '../../stores';
-	import init, {
-		load_instance_information,
-		upload_avatar,
-		upload_banner,
-		update_password,
-		get_state,
-		import_state
-	} from 'enigmatick_wasm';
+	import { goto } from '$app/navigation';
 
-	let username = get(appData).username;
-	let display_name = get(appData).display_name;
+	$: wasm = $enigmatickWasm;
 
-	onMount(() => {
-		if (username) {
-			init().then(() => {
-				load_instance_information().then((instance) => {
-					console.log(instance?.domain);
-					console.log(instance?.url);
-
-					if (get(wasmState)) {
-						import_state(get(wasmState));
-						console.log('loaded state from store');
-						console.log(get(wasmState));
-					}
-					console.log('init WASM');
-				});
-			});
+	onMount(async () => {
+		if (!wasm) {
+			goto('/');
 		}
 	});
 
@@ -44,9 +22,9 @@
 		if (current && updated && confirm && updated === confirm) {
 			console.log(current + ' ' + updated + ' ' + confirm);
 
-			update_password(String(current), String(updated)).then((x) => {
+			wasm?.update_password(String(current), String(updated)).then((x: any) => {
 				if (x) {
-					<HTMLFormElement>(event.target).reset();
+					<HTMLFormElement>event.target.reset();
 				} else {
 					failure.showModal();
 				}
@@ -61,9 +39,7 @@
 	<dialog bind:this={failure}>
 		<form method="dialog">
 			<h3>Password Update Failed</h3>
-			<p>
-				Something went wrong. Check your current password and try again.
-			</p>
+			<p>Something went wrong. Check your current password and try again.</p>
 			<button>Okay</button>
 		</form>
 	</dialog>

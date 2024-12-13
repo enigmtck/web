@@ -3,9 +3,9 @@
 	import { wasmState, appData, enigmatickWasm } from '../../stores';
 	import { goto } from '$app/navigation';
 	import type { Collection } from '../../common';
+	import { onMount } from 'svelte';
 
 	$: wasm = $enigmatickWasm;
-
 	let username = get(appData).username;
 
 	if (username) {

@@ -12,16 +12,20 @@
 	} from '../../../common';
 	import { onDestroy, onMount, getContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
-	import { get } from 'svelte/store';
+	import { get, writable } from 'svelte/store';
 	import {
 		insertEmojis,
 		timeSince,
 		getWebFingerFromId,
 		cachedContent,
-		domainMatch
+		domainMatch,
+		sleep,
+		decrypt
 	} from '../../../common';
 	import { replyCount, ComposeDispatch } from './common';
 	import { enigmatickWasm } from '../../../stores';
+	import TimeAgo from './TimeAgo.svelte';
+	import FediHandle from './FediHandle.svelte';
 
 	import { createEventDispatcher } from 'svelte';
 	const replyToDispatch = createEventDispatcher<{ replyTo: ComposeDispatch }>();
@@ -30,28 +34,85 @@
 	import LinkPreview from './LinkPreview.svelte';
 	import Menu from './Menu.svelte';
 	import Attachments from './Attachments.svelte';
+	import { json } from '@sveltejs/kit';
 
-	onMount(async () => {
+	$: wasm = $enigmatickWasm;
+
+	onMount(() => {
 		if (wasm && note && note.note && note.note.id) {
 			article_id = wasm.get_url_safe_base64(note.note.id);
 		}
 	});
 
-	$: wasm = $enigmatickWasm;
-
 	export let note: DisplayNote;
 	export let username: string | null;
-	export let replyToHeader: string | null;
-	export let announceHeader: AnnounceParams | null;
+	// export let replyToHeader: string | null;
+	// export let announceHeader: AnnounceParams | null;
 	export let renderAction: (node: any) => void;
 	export let refresh: () => void;
 	export let remove: (note: string) => void;
+	export let cachedNote: (id: string) => Promise<string | undefined>;
+
+	async function replyToHeader(note: Note): Promise<string | null> {
+		if (note.inReplyTo) {
+			const replyNote = await cachedNote(note.inReplyTo);
+
+			if (replyNote) {
+				const note: Note = JSON.parse(String(replyNote));
+				const replyActor = note.ephemeral?.attributedTo?.at(0);
+
+				if (replyActor && wasm) {
+					const name = insertEmojis(
+						wasm,
+						replyActor.name || replyActor.preferredUsername,
+						replyActor
+					);
+
+					return name;
+				} else {
+					return null;
+				}
+			} else {
+				return null;
+			}
+		} else {
+			return null;
+		}
+	}
+
+	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
+		if (note.ephemeral?.announces) {
+			const announceActor = note.ephemeral.announces[0];
+			let others = '';
+
+			if (note.ephemeral.announces.length == 2) {
+				others = ` and ${note.ephemeral.announces.length - 1} other`;
+			} else if (note.ephemeral.announces.length > 2) {
+				others = ` and ${note.ephemeral.announces.length - 1} others`;
+			}
+
+			if (announceActor && wasm) {
+				const name = insertEmojis(
+					wasm,
+					announceActor.name || announceActor.preferredUsername,
+					announceActor
+				);
+
+				return <AnnounceParams>{ url: announceActor.url, name, others };
+			} else {
+				return null;
+			}
+		} else {
+			return null;
+		}
+	}
 
 	let profile = note.note.ephemeral?.attributedTo ?? [note.actor];
 	let actorIcon = profile[0].icon?.url;
 	let actorName = profile[0].name ?? profile[0].preferredUsername;
 	let actorId = profile[0].id;
 	let actorTerseProfile = profile[0];
+	const messageTime = new Date(note.published || note.created_at);
 
 	function handleUnlike(event: any) {
 		const object: string = String(event.target.dataset.object);
@@ -91,15 +152,15 @@
 		const activity: string = String(event.target.dataset.activity);
 
 		if (wasm && object) {
-			wasm.send_unannounce(object, activity).then((uuid) => {
-				console.debug('UNANNOUNCE SENT');
+			wasm.send_unannounce(object, activity).then((id) => {
+				console.debug(`Undo Announce sent: ${id}`);
 				let ephemeral: Ephemeral = note.note.ephemeral || {};
 				ephemeral.announced = null;
 				note.note.ephemeral = ephemeral;
 				note = note;
 			});
 		} else {
-			console.error('OBJECT INVALID');
+			console.error('Object invalid');
 		}
 	}
 
@@ -107,63 +168,34 @@
 		const object: string = String(event.target.dataset.object);
 
 		if (wasm && object) {
-			wasm.send_announce(object).then((uuid) => {
-				console.debug(`ANNOUNCE SENT ${uuid}`);
+			wasm.send_announce(object).then((id) => {
+				console.debug(`Announce sent: ${id}`);
 				let ephemeral: Ephemeral = note.note.ephemeral || {};
-				ephemeral.announced = uuid;
+				ephemeral.announced = id;
 				note.note.ephemeral = ephemeral;
 				note = note;
 			});
 		} else {
-			console.error('OBJECT INVALID');
+			console.error('Object invalid');
 		}
 	}
 
-	function handleNoteSelect(event: any) {
+	function handleNoteSelect(note: Note, actor: UserProfile | UserProfileTerse) {
 		console.log('DISPATCHING NOTE_SELECT');
-		console.log(event);
 
 		noteSelectDispatch('noteSelect', {
-			replyToConversation: event.target.dataset.conversation,
-
-			replyToRecipient: event.target.dataset.recipient,
-			replyToNote: event.target.dataset.note,
-			replyToDisplay: insertEmojis(wasm, event.target.dataset.display, note.actor),
-
-			replyToUrl: event.target.dataset.url,
-			replyToUsername: event.target.dataset.username,
-			encrypted: note.note.type == "EncryptedNote",
+			replyToNote: note,
+			replyToActor: actor,
 			openAside: false
 		});
 	}
 
-	function handleReplyTo(event: any) {
-		console.debug(event.target.dataset);
-
-		const sender: UserProfileTerse = JSON.parse(event.target.dataset.sender);
-		const senderId: string = sender.id ?? '';
-		const senderUsername: string = sender.preferredUsername;
-		const to: string[] = JSON.parse(event.target.dataset.recipient);
-		const senderDisplay: string = sender.name || sender.preferredUsername;
-		const conversation: string = note.note.conversation || '';
-		const noteId: string = note.note.id || '';
-		const encrypted: boolean = note.note.type == "EncryptedNote";
-
-		const senderUrl: string = Array.isArray(sender.url)
-			? sender.url[0] ?? ''
-			: typeof sender.url === 'string'
-			? sender.url
-			: '';
+	function handleReplyTo(note: Note, actor: UserProfile | UserProfileTerse) {
+		console.log('DISPATCHING REPLY_TO');
 
 		replyToDispatch('replyTo', {
-			replyToRecipient: senderId,
-			replyToNote: noteId,
-			replyToDisplay: insertEmojis(wasm, senderDisplay, note.actor),
-			replyToConversation: conversation,
-			encrypted,
-
-			replyToUrl: senderUrl,
-			replyToUsername: senderUsername,
+			replyToNote: note,
+			replyToActor: actor,
 			openAside: true
 		});
 	}
@@ -180,18 +212,24 @@
 </script>
 
 <article use:renderAction data-conversation={note.note.conversation} id={article_id}>
-	{#if replyToHeader}
-		<span class="reply">
-			<i class="fa-solid fa-reply" /> In
-			<a href={note.note.inReplyTo} target="_blank" rel="noreferrer">reply</a>
-			to {@html replyToHeader}
-		</span>
-	{/if}
-	{#if announceHeader}
-		<span class="repost">
-			<i class="fa-solid fa-retweet" /> Reposted by
-			<a href={announceHeader.url}>{@html announceHeader.name}</a>{announceHeader.others}
-		</span>
+	{#if wasm}
+		{#await replyToHeader(note.note) then header}
+			{#if header}
+				<span class="reply">
+					<i class="fa-solid fa-reply" /> In
+					<a href={note.note.inReplyTo} target="_blank" rel="noreferrer">reply</a>
+					to {@html header}
+				</span>
+			{/if}
+		{/await}
+		{#await announceHeader(note.note) then header}
+			{#if header}
+				<span class="repost">
+					<i class="fa-solid fa-retweet" /> Reposted by
+					<a href={header.url}>{@html header.name}</a>{header.others}
+				</span>
+			{/if}
+		{/await}
 	{/if}
 
 	<header>
@@ -204,12 +242,16 @@
 			{#if actorName && actorTerseProfile}
 				<span>{@html insertEmojis(wasm, actorName, actorTerseProfile)}</span>
 				<a href="/{getWebFingerFromId(actorTerseProfile)}">
-					{getWebFingerFromId(actorTerseProfile)}
+					<!--{getWebFingerFromId(actorTerseProfile)}-->
+					<FediHandle handle={getWebFingerFromId(actorTerseProfile)} />
 				</a>
 			{/if}
 		</address>
 	</header>
-	<section>{@html insertEmojis(wasm, note.note.content || '', note.note)}</section>
+
+	{#if note.activity}
+		<section>{@html insertEmojis(wasm, decrypt(wasm, note.activity), note.note)}</section>
+	{/if}
 
 	{#if note.note.attachment && note.note.attachment.length > 0}
 		<Attachments note={note.note} />
@@ -230,22 +272,17 @@
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
 			<span
 				class="comments"
-				data-display={note.actor.name || note.actor.preferredUsername}
-				data-url={note.actor.url}
-				data-username={note.actor.preferredUsername}
-				data-recipient={note.actor.id}
-				data-conversation={note.note.conversation}
-				data-note={note.note.id}
-				on:click|preventDefault={handleNoteSelect}
+				on:click|preventDefault={() => handleNoteSelect(note.note, note.actor)}
 				><i class="fa-solid fa-comments" />
 				{replyCount(note)}</span
 			>
 		{/if}
 	</div>
 	<time datetime={note.published}>
-		<a href={note.note.url} {target} {rel}
-			>{timeSince(new Date(String(note.published)).getTime())}</a
-		>
+		<a href={note.note.url} {target} {rel}>
+			<!-- {timeSince(new Date(String(note.published)).getTime())} -->
+			<TimeAgo timestamp={messageTime} />
+		</a>
 	</time>
 	{#if username}
 		<nav>
@@ -253,14 +290,7 @@
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
 			<i
 				class="fa-solid fa-expand"
-				data-conversation={note.note.conversation}
-				data-note={note.note.id}
-				data-reply={note.note.id}
-				data-display={note.actor.name || note.actor.preferredUsername}
-				data-url={note.actor.url}
-				data-username={note.actor.preferredUsername}
-				data-recipient={note.actor.id}
-				on:click|preventDefault={handleNoteSelect}
+				on:click|preventDefault={() => handleNoteSelect(note.note, note.actor)}
 			/>
 
 			{#if note.note.ephemeral?.announced}
@@ -308,9 +338,7 @@
 				<!-- svelte-ignore a11y-no-static-element-interactions -->
 				<i
 					class="fa-solid fa-reply"
-					data-sender={note.json_sender()}
-					data-recipient={note.json_to()}
-					on:click={handleReplyTo}
+					on:click={() => handleReplyTo(note.note, note.actor)}
 				/>
 			{/if}
 
@@ -358,7 +386,7 @@
 
 		.reply,
 		.repost {
-			width: calc(100% - 130px);
+			width: calc(100% - 50px);
 			white-space: nowrap;
 			text-overflow: ellipsis;
 			overflow: hidden;
@@ -371,7 +399,7 @@
 			color: darkred;
 
 			a {
-				display: inline-block;
+				display: inline;
 				:global(.emoji) {
 					margin-bottom: 2px;
 				}
@@ -380,6 +408,7 @@
 
 		header {
 			padding: 10px 0;
+			margin-top: 10px;
 			color: #222;
 
 			display: flex;
@@ -393,6 +422,7 @@
 
 			div:first-child {
 				width: 55px;
+				min-width: 55px;
 			}
 
 			img {
@@ -400,17 +430,16 @@
 				clip-path: inset(0 0 0 0 round 20%);
 			}
 
-			:global(address) {
+			address {
 				position: relative;
-				width: calc(100% - 130px);
-				padding: 0 15px;
+				width: 100%;
+				padding: 0 0 0 15px;
+				overflow: hidden;
+				text-overflow: ellipsis;
 
-				:global(span),
-				:global(a) {
-					display: block;
-					overflow: hidden;
+				span {
+					display: inline;
 					white-space: nowrap;
-					text-overflow: ellipsis;
 				}
 			}
 		}
@@ -475,6 +504,7 @@
 		address > a {
 			color: #777;
 			font-weight: 400;
+			width: 100%;
 		}
 
 		address > a:hover {

@@ -38,13 +38,18 @@ RUN mkdir -p /opt/build/enigmatick/static/media
 COPY svelte.config.js /opt/build/enigmatick/
 COPY package.json /opt/build/enigmatick/
 COPY tsconfig.json /opt/build/enigmatick/
-COPY vite.config.js /opt/build/enigmatick/
+COPY vite.config.ts /opt/build/enigmatick/
 COPY yarn.lock /opt/build/enigmatick/
 COPY .npmrc /opt/build/enigmatick/
-COPY wasm /opt/build/enigmatick/wasm
 
 WORKDIR /opt/build/enigmatick/vendor/vite-plugin-wasm-pack
 RUN yarn install && yarn build
+
+RUN mkdir -p /opt/build/enigmatick/wasm/enigmatick_wasm
+COPY wasm/enigmatick_wasm/Cargo.lock /opt/build/enigmatick/wasm/enigmatick_wasm/
+COPY wasm/enigmatick_wasm/Cargo.toml /opt/build/enigmatick/wasm/enigmatick_wasm/
+COPY wasm/enigmatick_wasm/rust-toolchain.toml /opt/build/enigmatick/wasm/enigmatick_wasm/
+COPY wasm/enigmatick_wasm/src /opt/build/enigmatick/wasm/enigmatick_wasm/src
 
 WORKDIR /opt/build/enigmatick
 RUN source /root/.cargo/env && yarn install && yarn run build

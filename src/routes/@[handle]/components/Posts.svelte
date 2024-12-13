@@ -23,7 +23,8 @@
 		sleep,
 		DisplayNote,
 		type Collection,
-		extractMaxMin
+		extractMaxMin,
+		isNote
 	} from '../../../common';
 
 	let composeComponent: Compose;
@@ -109,23 +110,27 @@
 					addNote(<Activity>item);
 				} else if (item.type === 'Announce') {
 					console.debug('PROCESSING ANNOUNCE');
-					let note = await wasm?.get_note(String(item.object));
-					console.debug('ANNOUNCED NOTE');
-					console.debug(note);
-
-					if (note) {
-						const n: Note = JSON.parse(note);
-						console.debug(n);
-						if (item.actor) {
-							let actor = parseProfile(await cachedActor(item.actor));
-							if (actor) {
-								let ephemeral = n.ephemeral || {};
-								ephemeral.announces = [actor];
-								n.ephemeral = ephemeral;
-							}
-						}
-						(<Activity>item).object = n;
+					if (isNote(item.object)) {
 						addNote(<Activity>item);
+					} else {
+						let note = await wasm?.get_note(String(item.object));
+						console.debug('ANNOUNCED NOTE');
+						console.debug(note);
+
+						if (note) {
+							const n: Note = JSON.parse(note);
+							console.debug(n);
+							if (item.actor) {
+								let actor = parseProfile(await cachedActor(item.actor));
+								if (actor) {
+									let ephemeral = n.ephemeral || {};
+									ephemeral.announces = [actor];
+									n.ephemeral = ephemeral;
+								}
+							}
+							(<Activity>item).object = n;
+							addNote(<Activity>item);
+						}
 					}
 				}
 			}
@@ -352,22 +357,35 @@
 	}
 
 	async function senderFunction(
-		directRecipient: string | null,
-		recipientAddress: string | null,
-		replyToMessageId: string | null,
-		conversationId: string | null,
+		replyToActor: UserProfile | UserProfileTerse | null,
+		replyToNote: Note | null,
 		content: string,
-		attachments: Attachment[]
+		attachments: Attachment[],
+		mentions: Map<string, UserProfile>,
+		hashtags: string[],
+		directed: boolean
 	): Promise<boolean> {
 		if (wasm) {
 			let params = (await wasm.SendParams.new()).set_content(content).set_public();
 
-			params = params.set_attachments(JSON.stringify(attachments));
+			if (!directed) {
+				params.set_public();
+			}
 
-			if (replyToMessageId) {
-				params = await params.add_recipient_id(String(recipientAddress), true);
-				params = params.set_in_reply_to(String(replyToMessageId));
-				params = params.set_conversation(String(conversationId));
+			params.set_attachments(JSON.stringify(attachments));
+			params.set_hashtags(hashtags);
+
+			for (const [webfinger, actor] of mentions) {
+				params.add_mention(
+					webfinger,
+					actor.id || '',
+					actor.capabilities?.enigmatickEncryption || false
+				);
+			}
+
+			if (replyToNote) {
+				params.set_in_reply_to(String(replyToNote.id));
+				params.set_conversation(String(replyToNote.conversation));
 			}
 
 			return await wasm.send_note(params);
@@ -398,7 +416,7 @@
 			const replyNote = await cachedNote(note.inReplyTo);
 
 			if (replyNote) {
-				console.debug(`REPLY_NOTE: ${replyNote}`);
+				//console.debug(`REPLY_NOTE: ${replyNote}`);
 				const note: Note = JSON.parse(String(replyNote));
 
 				//console.debug(`ATTRIBUTED_TO: ${note.attributedTo}`);
@@ -406,7 +424,7 @@
 				const replyActor =
 					note.ephemeral?.attributedTo?.at(0) ?? parseProfile(await cachedActor(note.attributedTo));
 
-				console.debug(`REPLY_ACTOR: ${replyActor}`);
+				//console.debug(`REPLY_ACTOR: ${replyActor}`);
 				//const sender: UserProfile | null = parseProfile(reply_actor);
 
 				//console.debug(`SENDER: ${sender}`);
@@ -538,11 +556,10 @@
 							{refresh}
 							{note}
 							{username}
-							replyToHeader={replyTo}
-							announceHeader={announce}
 							on:replyTo={composeComponent.handleReplyToMessage}
 							on:noteSelect={handleNoteSelect}
 							renderAction={observeNote}
+							{cachedNote}
 						/>
 					{/await}
 				{/await}

@@ -1,6 +1,6 @@
 export { replyCount, ComposeDispatch };
 
-import type { DisplayNote } from '../../../common';
+import type { DisplayNote, Note, UserProfile, UserProfileTerse } from '../../../common';
 
 function replyCount(note: DisplayNote): number {
 	let count = note.replies.size;
@@ -15,13 +15,8 @@ function replyCount(note: DisplayNote): number {
 }
 
 interface ComposeDispatch {
-	replyToConversation: string;
-	replyToRecipient: string;
-	replyToNote: string;
-	replyToDisplay: string;
-	replyToUrl: string;
-	replyToUsername: string;
-	encrypted: boolean;
+	replyToActor: UserProfile | UserProfileTerse;
+	replyToNote: Note;
 	openAside: boolean;
 }
 

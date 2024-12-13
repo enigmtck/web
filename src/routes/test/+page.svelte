@@ -9,7 +9,6 @@
 		authenticate,
 		SendParams,
 		send_note,
-		send_encrypted_note,
 		get_inbox,
 		get_processing_queue,
 		upload_avatar,
@@ -234,13 +233,11 @@
 		}
 
 		let note = await SendParams.new();
-		note = await note.add_recipient_id(recipient, false);
 		note = note.set_content(String(encrypted_message));
-		note = note.set_encrypted();
 
-		send_encrypted_note(note).then(() => {
-			console.log('note sent');
-		});
+		// send_encrypted_note(note).then(() => {
+		// 	console.log('note sent');
+		// });
 	}
 
 	let avatar: string | ArrayBuffer | null, fileinput: HTMLInputElement;

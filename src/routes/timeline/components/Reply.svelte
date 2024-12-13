@@ -2,92 +2,96 @@
 	import { onDestroy, setContext, getContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { get } from 'svelte/store';
-	import type { UserProfile, Note, Tag, Attachment, DisplayNote } from '../../../common';
-	import { insertEmojis, timeSince, compare, getWebFingerFromId } from '../../../common';
-	import { replyCount } from './common';
+	import type {
+		UserProfile,
+		Note,
+		Tag,
+		Attachment,
+		DisplayNote,
+		UserProfileTerse,
+		Ephemeral
+	} from '../../../common';
+	import {
+		insertEmojis,
+		timeSince,
+		compare,
+		getWebFingerFromId,
+		cachedContent
+	} from '../../../common';
+	import { ComposeDispatch, replyCount } from './common';
 	import { enigmatickWasm } from '../../../stores';
 	import Attachments from './Attachments.svelte';
 
 	import { createEventDispatcher, onMount } from 'svelte';
-	const dispatch = createEventDispatcher();
+	import TimeAgo from './TimeAgo.svelte';
+	const replyToDispatch = createEventDispatcher<{ replyTo: ComposeDispatch }>();
 
-	//export let wasm: typeof import('enigmatick_wasm');
 	$: wasm = $enigmatickWasm;
 	export let note: DisplayNote;
 	export let username: string | null;
 
-	function forwardAnnounce(event: any) {
-		dispatch('announce', event.detail);
-	}
+	function handleAnnounce(displayNote: DisplayNote) {
+		console.debug('Handling Announce');
 
-	function handleAnnounce(event: any) {
-		console.debug('HANDLING DISPATCHED ANNOUNCE');
-		const object: string = String(event.target.dataset.object);
-		const actor: string = String(event.target.dataset.actor);
+		if (displayNote.note.id) {
+			const object: string = displayNote.note.id;
 
-		if (wasm && object && actor) {
-			// wasm.send_announce(actor, object).then(() => {
-			// 	// this will only work for top-level notes
-			// 	//let note = notes.get(object);
-			// 	//if (note) {
-			// 		//note.note.ephemeralAnnounced = true;
-			// 	//}
-			// });
-
-			event.target.classList.add('selected');
-		} else {
-			console.error('OBJECT OR ACTOR INVALID');
-			console.debug(`OBJECT: ${object}, ACTOR: ${actor}`);
+			if (object) {
+				wasm?.send_announce(object).then((id) => {
+					console.debug('Announce sent');
+					let ephemeral: Ephemeral = displayNote.note.ephemeral || {};
+					ephemeral.announced = id;
+					displayNote.note.ephemeral = ephemeral;
+					note = displayNote;
+				});
+			} else {
+				console.error(`Object invalid: ${object}`);
+			}
 		}
 	}
 
-	function handleLike(event: any) {
-		console.debug('HANDLING DISPATCHED LIKE');
-		const object: string = String(event.target.dataset.object);
-		const actor: string = String(event.target.dataset.actor);
+	function handleLike(displayNote: DisplayNote) {
+		console.debug('Handling Like');
 
-		if (wasm) {
-			wasm.send_like(actor, object).then(() => {
-				// this will only work for top-level notes
-				/* let note = notes.get(object);
-			if (note) {
-				note.note.ephemeralLiked = true;
-			} */
+		if (displayNote.note.id && displayNote.note.attributedTo) {
+			const actor: string = displayNote.note.attributedTo;
+			const object: string = displayNote.note.id;
+
+			wasm?.send_like(actor, object).then((id) => {
+				console.debug('Like sent');
+				let ephemeral: Ephemeral = displayNote.note.ephemeral || {};
+				ephemeral.liked = id;
+				displayNote.note.ephemeral = ephemeral;
+				note = displayNote;
 			});
 		}
 	}
 
-	function handleUnlike(event: any) {
-		const object: string = String(event.target.dataset.object);
-		const actor: string = String(event.target.dataset.actor);
+	function handleUnlike(displayNote: DisplayNote) {
+		console.debug('Handling Unike');
+
+		if (displayNote.note.id && displayNote.note.attributedTo) {
+			const actor: string = displayNote.note.attributedTo;
+			const object: string = displayNote.note.id;
+
+			if (displayNote.note.ephemeral && displayNote.note.ephemeral.liked) {
+				wasm?.send_unlike(actor, object, displayNote.note.ephemeral.liked).then((uuid) => {
+					console.debug('Unlike sent');
+					let ephemeral: Ephemeral = displayNote.note.ephemeral || {};
+					ephemeral.liked = null;
+					displayNote.note.ephemeral = ephemeral;
+					note = displayNote;
+				});
+			}
+		}
 	}
 
-	function forwardNoteSelect(event: any) {
-		dispatch('noteSelect', event.detail);
-	}
+	function handleReplyTo(displayNote: DisplayNote) {
+		console.log('IN handleReplyTo');
 
-	function handleNoteSelect(event: any) {
-		dispatch('noteSelect', {
-			note: event.target.dataset.note,
-			conversation: event.target.dataset.conversation
-		});
-	}
-
-	function forwardReplyTo(event: any) {
-		dispatch('replyTo', event.detail);
-	}
-
-	function handleReplyTo(event: any) {
-		console.log("IN handleReplyTo");
-
-		dispatch('replyTo', {
-			replyToRecipient: event.target.dataset.recipient,
-			replyToNote: event.target.dataset.reply,
-			replyToDisplay: event.target.dataset.display,
-			replyToConversation: event.target.dataset.conversation,
-
-			replyToUrl: event.target.dataset.url,
-			replyToUsername: event.target.dataset.username,
+		replyToDispatch('replyTo', {
+			replyToNote: displayNote.note,
+			replyToActor: displayNote.actor,
 			openAside: true
 		});
 	}
@@ -98,7 +102,7 @@
 		<div class="avatar">
 			<div>
 				{#if note.actor && note.actor.icon}
-					<img src={note.actor.icon.url} alt="Sender" />
+					<img src={cachedContent(wasm, note.actor.icon.url)} alt="Sender" />
 				{/if}
 			</div>
 		</div>
@@ -122,7 +126,9 @@
 				{replyCount(note)}</span
 			>
 		{/if}
-		<time datetime={note.published}>{timeSince(new Date(String(note.published)).getTime())}</time>
+
+		<TimeAgo timestamp={new Date(note.published)} />
+		
 		{#if username}
 			<nav>
 				{#if note.note.ephemeral?.announced}
@@ -130,19 +136,12 @@
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i
 						class="fa-solid fa-repeat selected"
-						data-object={note.note.id}
-						data-actor={note.note.attributedTo}
-						on:click|preventDefault={handleAnnounce}
+						on:click|preventDefault={() => handleAnnounce(note)}
 					/>
 				{:else}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<i
-						class="fa-solid fa-repeat"
-						data-object={note.note.id}
-						data-actor={note.note.attributedTo}
-						on:click|preventDefault={handleAnnounce}
-					/>
+					<i class="fa-solid fa-repeat" on:click|preventDefault={() => handleAnnounce(note)} />
 				{/if}
 
 				{#if note.note.ephemeral?.liked}
@@ -150,34 +149,18 @@
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i
 						class="fa-solid fa-star selected"
-						data-actor={note.note.attributedTo}
-						data-object={note.note.id}
-						on:click|preventDefault={handleUnlike}
+						on:click|preventDefault={() => handleUnlike(note)}
 					/>
 				{:else}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<i
-						class="fa-solid fa-star"
-						data-actor={note.note.attributedTo}
-						data-object={note.note.id}
-						on:click|preventDefault={handleLike}
-					/>
+					<i class="fa-solid fa-star" on:click|preventDefault={() => handleLike(note)} />
 				{/if}
 
 				{#if note.actor}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<i
-						class="fa-solid fa-reply"
-						data-reply={note.note.id}
-						data-display={note.actor.name || note.actor.preferredUsername}
-						data-url={note.actor.url}
-						data-username={note.actor.preferredUsername}
-						data-recipient={note.actor.id}
-						data-conversation={note.note.conversation}
-						on:click|preventDefault={handleReplyTo}
-					/>
+					<i class="fa-solid fa-reply" on:click={() => handleReplyTo(note)} />
 				{/if}
 			</nav>
 		{/if}
@@ -186,12 +169,7 @@
 	{#if note.replies?.size}
 		<div class="replies">
 			{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
-				<svelte:self
-					note={reply}
-					{username}
-					on:reply_to={forwardReplyTo}
-					on:note_select={forwardNoteSelect}
-				/>
+				<svelte:self note={reply} {username} on:replyTo={() => handleReplyTo(reply)} />
 			{/each}
 		</div>
 	{/if}
@@ -294,7 +272,7 @@
 			}
 		}
 
-		time {
+		:global(time) {
 			font-size: 13px;
 			display: inline-block;
 			position: absolute;
