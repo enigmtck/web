@@ -1,6 +1,6 @@
-export { replyCount, ComposeDispatch };
+export { replyCount, ComposeDispatch, TimelineDispatch };
 
-import type { DisplayNote, Note, UserProfile, UserProfileTerse } from '../../../common';
+import type { Activity, DisplayNote, Note, UserProfile, UserProfileTerse } from '../../../common';
 
 function replyCount(note: DisplayNote): number {
 	let count = note.replies.size;
@@ -21,3 +21,9 @@ interface ComposeDispatch {
 }
 
 class ComposeDispatch {}
+
+interface TimelineDispatch {
+	activity: Activity
+}
+
+class TimelineDispatch {}

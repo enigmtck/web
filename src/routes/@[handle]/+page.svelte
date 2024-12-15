@@ -12,7 +12,10 @@
 		cachedContent,
 		convertMastodonUrlToWebfinger,
 		getFirst,
-		abbreviateNumber
+		abbreviateNumber,
+
+		type Activity
+
 	} from '../../common';
 	import Posts from './components/Posts.svelte';
 
@@ -193,11 +196,12 @@
 
 	function handleFollow(event: Event) {
 		if (profile && profile.id) {
-			console.log('following: ' + profile.id);
+			console.log('Following: ' + profile.id);
 
 			wasm?.send_follow(profile.id).then((x) => {
-				console.debug(`FOLLOW ${x}`);
 				if (x && profile) {
+					let activity: Activity = JSON.parse(x);
+					console.debug(`Follow sent: ${activity.id}`);
 					let ephemeral = profile.ephemeral || {};
 					ephemeral.following = true;
 					profile.ephemeral = ephemeral;
@@ -208,17 +212,14 @@
 		}
 	}
 
-	function handleUnfollow(event: any) {
-		const activity: string = String(event.target.dataset.activity);
-
-		console.debug(`ACTIVITY ${activity}`);
-		console.debug(profile);
-
-		if (profile && profile.id) {
-			console.log('unfollowing: ' + profile.id);
+	function handleUnfollow(activity: string | undefined) {
+		if (activity && profile && profile.id) {
+			console.log('Unfollowing: ' + profile.id);
 
 			wasm?.send_unfollow(profile.id, activity).then((x) => {
 				if (x && profile) {
+					let activity: Activity = JSON.parse(x);
+					console.debug(`Unfollow sent: ${activity.id}`);
 					let ephemeral = profile.ephemeral || {};
 					ephemeral.following = false;
 					profile.ephemeral = ephemeral;
@@ -359,8 +360,7 @@
 							{#if profile.ephemeral?.following !== undefined && profile.ephemeral?.following}
 								<button
 									title="Unfollow"
-									data-activity={profile.ephemeral?.followActivityAsId}
-									on:click|preventDefault={handleUnfollow}
+									on:click|preventDefault={() => handleUnfollow(profile?.ephemeral?.followActivityAsId)}
 								>
 									<i class="fa-solid fa-user-minus" />
 								</button>

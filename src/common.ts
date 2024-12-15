@@ -532,8 +532,8 @@ function getVaultItem(activity: Activity): Instrument | null {
 	return vaultItem || null;
 }
 
-const decrypt = (wasm: any, activity: Activity): string => {
-	if (activity.object.type == 'EncryptedNote') {
+const decrypt = (wasm: any, activity: Activity | null | undefined): string => {
+	if (activity?.object.type == 'EncryptedNote') {
 		let vault;
 		if (wasm && (vault = getVaultItem(activity))) {
 			return wasm.decrypt_text(vault.content) || '';
@@ -541,7 +541,7 @@ const decrypt = (wasm: any, activity: Activity): string => {
 			return '<span class"failure">Message could not be decrypted</span>';
 		}
 	} else {
-		return activity.object.content || '';
+		return activity?.object.content || '';
 	}
 };
 

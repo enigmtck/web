@@ -16,7 +16,10 @@
 		timeSince,
 		compare,
 		getWebFingerFromId,
-		cachedContent
+		cachedContent,
+
+		decrypt
+
 	} from '../../../common';
 	import { ComposeDispatch, replyCount } from './common';
 	import { enigmatickWasm } from '../../../stores';
@@ -29,6 +32,11 @@
 	$: wasm = $enigmatickWasm;
 	export let note: DisplayNote;
 	export let username: string | null;
+
+	let content: string;
+	$: {
+		content = (note.note.type == "Note" ? note.note.content : decrypt(wasm, note.activity)) || "";
+	}
 
 	function handleAnnounce(displayNote: DisplayNote) {
 		console.debug('Handling Announce');
@@ -114,7 +122,7 @@
 				</a>
 			{/if}
 		</address>
-		<section>{@html insertEmojis(wasm, note.note.content || '', note.note)}</section>
+		<section>{@html insertEmojis(wasm, content || "", note.note)}</section>
 
 		{#if note.note.attachment && note.note.attachment.length > 0}
 			<Attachments note={note.note} />

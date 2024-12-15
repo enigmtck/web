@@ -8,7 +8,8 @@
 		DisplayNote,
 		AnnounceParams,
 		Ephemeral,
-		UserProfileTerse
+		UserProfileTerse,
+		Activity
 	} from '../../../common';
 	import { onDestroy, onMount, getContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
@@ -137,12 +138,17 @@
 		const actor: string = String(event.target.dataset.actor);
 
 		if (wasm) {
-			wasm.send_like(actor, object).then((uuid) => {
-				console.debug(`LIKE SENT ${uuid}`);
-				let ephemeral: Ephemeral = note.note.ephemeral || {};
-				ephemeral.liked = uuid;
-				note.note.ephemeral = ephemeral;
-				note = note;
+			wasm.send_like(actor, object).then((x) => {
+				console.debug(x);
+
+				if (x) {
+					let activity: Activity = JSON.parse(x);
+					console.debug(`Like sent: ${activity.id}`);
+					let ephemeral: Ephemeral = note.note.ephemeral || {};
+					ephemeral.liked = activity.id;
+					note.note.ephemeral = ephemeral;
+					note = note;
+				}
 			});
 		}
 	}
@@ -168,12 +174,17 @@
 		const object: string = String(event.target.dataset.object);
 
 		if (wasm && object) {
-			wasm.send_announce(object).then((id) => {
-				console.debug(`Announce sent: ${id}`);
-				let ephemeral: Ephemeral = note.note.ephemeral || {};
-				ephemeral.announced = id;
-				note.note.ephemeral = ephemeral;
-				note = note;
+			wasm.send_announce(object).then((x) => {
+				console.debug(x);
+
+				if (x) {
+					let activity: Activity = JSON.parse(x);
+					console.debug(`Announce sent: ${activity.id}`);
+					let ephemeral: Ephemeral = note.note.ephemeral || {};
+					ephemeral.announced = activity.id;
+					note.note.ephemeral = ephemeral;
+					note = note;
+				}
 			});
 		} else {
 			console.error('Object invalid');
@@ -270,9 +281,7 @@
 		{#if note.replies?.size}
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<span
-				class="comments"
-				on:click|preventDefault={() => handleNoteSelect(note.note, note.actor)}
+			<span class="comments" on:click|preventDefault={() => handleNoteSelect(note.note, note.actor)}
 				><i class="fa-solid fa-comments" />
 				{replyCount(note)}</span
 			>
@@ -336,10 +345,7 @@
 			{#if note.actor}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i
-					class="fa-solid fa-reply"
-					on:click={() => handleReplyTo(note.note, note.actor)}
-				/>
+				<i class="fa-solid fa-reply" on:click={() => handleReplyTo(note.note, note.actor)} />
 			{/if}
 
 			{#if note.note.id}

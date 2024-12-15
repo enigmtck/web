@@ -34,7 +34,7 @@
 	} from '../../common';
 
 	import { goto } from '$app/navigation';
-	import type { ComposeDispatch } from './components/common';
+	import type { ComposeDispatch, TimelineDispatch } from './components/common';
 	import Filters from './components/Filters.svelte';
 
 	let composeComponent: Compose;
@@ -415,11 +415,6 @@
 		if (scrollable.scrollTop < 50) {
 			liveLoading = true;
 
-			// let note;
-			// while ((note = noteQueue.shift()) !== undefined) {
-			// 	addNote(note);
-			// }
-
 			scroll.style.display = 'none';
 		} else {
 			liveLoading = false;
@@ -457,7 +452,7 @@
 		mentions: Map<string, UserProfile>,
 		hashtags: string[],
 		directed: boolean
-	): Promise<boolean> {
+	): Promise<string | null | undefined> {
 		if (wasm) {
 			let params = (await wasm.SendParams.new()).set_content(content);
 
@@ -469,7 +464,11 @@
 			params.set_hashtags(hashtags);
 
 			for (const [webfinger, actor] of mentions) {
-				params.add_mention(webfinger, actor.id || "", actor.capabilities?.enigmatickEncryption || false);
+				params.add_mention(
+					webfinger,
+					actor.id || '',
+					actor.capabilities?.enigmatickEncryption || false
+				);
 			}
 
 			if (replyToNote) {
@@ -480,7 +479,7 @@
 			console.log(params);
 			return await wasm.send_note(params);
 		} else {
-			return false;
+			return null;
 		}
 	}
 
@@ -497,6 +496,7 @@
 		noteQueue = [];
 		orphans = new Map<string, DisplayNote>();
 		notes = new Map<string, DisplayNote>();
+		published = new Array<DisplayNote>();
 		retrievedConversations = new Set();
 		await scrollToTop();
 		maxValue = undefined;
@@ -520,10 +520,26 @@
 		}
 	};
 
+	const handlePublishMessage = async (message: CustomEvent<TimelineDispatch>) => {
+		console.debug('Handling dispatched Publish in Timeline');
+		console.debug(message);
+
+		const activity = message.detail.activity;
+
+		if (activity.object.attributedTo) {
+			const actor = activity.object.ephemeral?.attributedTo?.at(0);
+
+			if (actor) {
+				const displayNote = new DisplayNote(actor, activity.object, activity);
+				published.unshift(displayNote);
+				published = published;
+			}
+		}
+	};
+
 	let cache: any = null;
 
 	let hashtags: Set<string> = new Set();
-	//let hashtags: string[] = [];
 
 	// controls whether messages from EventSource are immediately displayed or queued
 	let liveLoading = true;
@@ -536,6 +552,7 @@
 	//$: notes = new Array<DisplayNote>();
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
 	$: notes = new Map<string, DisplayNote>();
+	$: published = new Array<DisplayNote>;
 
 	//let orphans: Map<string, DisplayNote> = new Map<string, DisplayNote>();
 	let orphans: Map<string, DisplayNote> = new Map<string, DisplayNote>();
@@ -557,10 +574,6 @@
 	let yPosition: number = 0;
 	let filterHandle: HTMLDivElement;
 
-	// $: if (wasm) {
-	// 	loadMinimum();
-	// }
-
 	let scrollable: HTMLDivElement;
 	let scrollPosition = 0;
 
@@ -571,7 +584,12 @@
 	};
 </script>
 
-<Compose {senderFunction} bind:this={composeComponent} direct={view === 'direct'} />
+<Compose
+	{senderFunction}
+	on:publish={handlePublishMessage}
+	bind:this={composeComponent}
+	direct={view === 'direct'}
+/>
 
 <main>
 	<div class="content">
@@ -597,6 +615,19 @@
 		</header>
 
 		<div class="scrollable" on:scroll={updateScrollPosition} bind:this={scrollable}>
+			{#each published as note}
+				<Article
+					{remove}
+					{refresh}
+					{note}
+					{username}
+					on:replyTo={composeComponent.handleReplyToMessage}
+					on:noteSelect={handleNoteSelect}
+					renderAction={observeNote}
+					{cachedNote}
+				/>
+			{/each}
+
 			{#each Array.from(notes.values()) as note}
 				{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeral?.announces?.length)) || note.note.id == focusNote)}
 					<Article

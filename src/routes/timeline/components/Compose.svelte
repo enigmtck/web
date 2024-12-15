@@ -8,14 +8,17 @@
 		cachedContent,
 		insertEmojis,
 		removeTags,
+		type Activity,
 		type Attachment,
 		type Note,
 		type UserProfile,
 		type UserProfileTerse
 	} from '../../../common';
-	import type { ComposeDispatch } from './common';
+	import type { ComposeDispatch, TimelineDispatch } from './common';
 	import Reply from './Reply.svelte';
 	import { tick } from 'svelte';
+	import { createEventDispatcher } from 'svelte';
+	const publishDispatch = createEventDispatcher<{ publish: TimelineDispatch }>();
 
 	$: wasm = $enigmatickWasm;
 
@@ -30,7 +33,7 @@
 		mentions: Map<string, UserProfile>,
 		tags: string[],
 		directed: boolean
-	) => Promise<boolean>;
+	) => Promise<string | null | undefined>;
 
 	export let direct: boolean;
 
@@ -151,6 +154,14 @@
 			if (x) {
 				resetCompose();
 				closeAside();
+
+				let activity: Activity = JSON.parse(x);
+
+				publishDispatch('publish', {
+					activity
+				});
+
+				console.log(activity);
 				console.log('send successful');
 			} else {
 				console.log('send unsuccessful');
@@ -480,6 +491,9 @@
 					bind:this={composeDiv}
 					contenteditable="true"
 					on:keyup={checkForAddresses}
+					on:focusout={(e) => {
+						annotate(true);
+					}}
 					bind:innerText={markdownNote}
 				/>
 			</div>
@@ -509,7 +523,7 @@
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i
 						class="fa-solid fa-paperclip"
-						on:keypress={() => {
+						on:keyup={() => {
 							imageFileInput.click();
 						}}
 						on:click={() => {

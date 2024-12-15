@@ -364,7 +364,7 @@
 		mentions: Map<string, UserProfile>,
 		hashtags: string[],
 		directed: boolean
-	): Promise<boolean> {
+	): Promise<string | null | undefined> {
 		if (wasm) {
 			let params = (await wasm.SendParams.new()).set_content(content).set_public();
 
@@ -390,7 +390,7 @@
 
 			return await wasm.send_note(params);
 		} else {
-			return false;
+			return null;
 		}
 	}
 
