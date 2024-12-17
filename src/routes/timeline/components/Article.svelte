@@ -46,7 +46,7 @@
 	});
 
 	export let note: DisplayNote;
-	export let username: string | null;
+	export let username: string | null | undefined;
 	// export let replyToHeader: string | null;
 	// export let announceHeader: AnnounceParams | null;
 	export let renderAction: (node: any) => void;
@@ -262,6 +262,8 @@
 
 	{#if note.activity}
 		<section>{@html insertEmojis(wasm, decrypt(wasm, note.activity), note.note)}</section>
+	{:else if note.note && note.note.content}
+		<section>{@html insertEmojis(wasm, note.note.content, note.note)}</section>
 	{/if}
 
 	{#if note.note.attachment && note.note.attachment.length > 0}

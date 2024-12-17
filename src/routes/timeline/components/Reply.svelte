@@ -1,19 +1,10 @@
 <script lang="ts">
-	import { onDestroy, setContext, getContext } from 'svelte';
-	import { beforeNavigate } from '$app/navigation';
-	import { get } from 'svelte/store';
 	import type {
-		UserProfile,
-		Note,
-		Tag,
-		Attachment,
 		DisplayNote,
-		UserProfileTerse,
 		Ephemeral
 	} from '../../../common';
 	import {
 		insertEmojis,
-		timeSince,
 		compare,
 		getWebFingerFromId,
 		cachedContent,
@@ -95,8 +86,6 @@
 	}
 
 	function handleReplyTo(displayNote: DisplayNote) {
-		console.log('IN handleReplyTo');
-
 		replyToDispatch('replyTo', {
 			replyToNote: displayNote.note,
 			replyToActor: displayNote.actor,
@@ -177,7 +166,7 @@
 	{#if note.replies?.size}
 		<div class="replies">
 			{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
-				<svelte:self note={reply} {username} on:replyTo={() => handleReplyTo(reply)} />
+				<svelte:self note={reply} {username} on:replyTo />
 			{/each}
 		</div>
 	{/if}

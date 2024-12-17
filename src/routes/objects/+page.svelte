@@ -46,7 +46,7 @@
 											String(conversation_note.id),
 											new DisplayNote(reply_actor, conversation_note)
 										);
-										note = new DisplayNote(actor, y, undefined,replies);
+										note = new DisplayNote(actor, y, undefined, replies);
 									}
 								}
 							}
@@ -69,19 +69,32 @@
 
 	let note: DisplayNote | null = null;
 
-	function renderAction(note: any) {
+	function renderAction(note: any) {}
+
+	let apCache = new Map<string, string | undefined>();
+	async function cachedNote(id: string): Promise<string | undefined> {
+		if (wasm && !apCache.has(id)) {
+			apCache.set(id, await wasm.get_note(id));
+		}
+
+		return apCache.get(id);
 	}
 
 	$: if (wasm && $page.url.searchParams.get('uuid')) {
-		loadObject().then(() => {
-			console.log('loadObject');
-		});
+		(async () => {
+			try {
+				await loadObject();
+				console.log('loadObject');
+			} catch (error) {
+				console.error('Error loading object:', error);
+			}
+		})();
 	}
 </script>
 
 <main>
 	{#if wasm && note}
-		<Article {remove} {refresh} {note} username={null} replyToHeader={null} announceHeader={null} {renderAction} />
+		<Article {remove} {refresh} {note} username={null} {renderAction} {cachedNote} />
 		{#if note.replies?.size}
 			<div class="replies">
 				{#each Array.from(note.replies.values()).sort(compare) as reply}

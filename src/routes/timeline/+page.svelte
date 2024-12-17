@@ -599,9 +599,9 @@
 					<button class="selected" data-view="home" on:click={handleView}
 						><i class="fa-solid fa-house" /></button
 					>
-					<button data-view="local" on:click={handleView}><i class="fa-solid fa-city" /></button>
+					<button data-view="local" on:click={handleView}><i class="fa-solid fa-hotel" /></button>
 					<button data-view="direct" on:click={handleView}
-						><i class="fa-solid fa-envelope" /></button
+						><i class="fa-solid fa-at" /></button
 					>
 				{/if}
 				<button data-view="global" on:click={handleView}><i class="fa-solid fa-globe" /></button>
