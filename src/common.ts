@@ -46,6 +46,7 @@ interface DisplayNote {
 	published: string;
 	created_at: string;
 	replies: Map<string, DisplayNote>;
+	public: boolean;
 }
 
 class DisplayNote {
@@ -55,6 +56,7 @@ class DisplayNote {
 	published: string;
 	created_at: string;
 	replies: Map<string, DisplayNote>;
+	public: boolean;
 
 	constructor(
 		profile: UserProfile | UserProfileTerse,
@@ -81,9 +83,10 @@ class DisplayNote {
 		}
 
 		this.replies = replies || new Map<string, DisplayNote>();
+		this.public = this.isPublic();
 	}
 
-	json_to(): string {
+	jsonTo(): string {
 		let ret: string[] = [];
 
 		this.note.to && ret.push(...this.note.to);
@@ -92,9 +95,26 @@ class DisplayNote {
 		return JSON.stringify(ret);
 	}
 
-	json_sender(): string {
+	jsonSender(): string {
 		return JSON.stringify(this.actor);
 	}
+
+	isPublic(): boolean {
+		const publicIdentifiers = [
+			'https://www.w3.org/ns/activitystreams#Public',
+			'as:Public',
+			'Public'
+		];
+		
+		let recipients: string[] = [];
+
+		this.note.to && recipients.push(...this.note.to);
+		this.note.cc && recipients.push(...this.note.cc);
+
+		return recipients.some(recipient => 
+			publicIdentifiers.includes(recipient)
+		);
+	};
 }
 
 interface Image {

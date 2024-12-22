@@ -272,82 +272,85 @@
 		<LinkPreview links={note.note.ephemeral?.metadata} />
 	{/if}
 
-	<div class="activity">
-		{#if note.note.ephemeral?.likes?.length}
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<span class="likes"
-				><i class="fa-solid fa-star" />
-				{note.note.ephemeral?.likes.length}</span
-			>
+	<div class="visibility">
+		{#if note.public}
+			<span><i class="fa-solid fa-globe" /></span>
+		{:else}
+			<span><i class="fa-solid fa-at" /></span>
 		{/if}
-		{#if note.replies?.size}
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<span class="comments" on:click|preventDefault={() => handleNoteSelect(note.note, note.actor)}
-				><i class="fa-solid fa-comments" />
-				{replyCount(note)}</span
-			>
-		{/if}
+
+		<time datetime={note.published}>
+			<a href={note.note.url} {target} {rel}>
+				<!-- {timeSince(new Date(String(note.published)).getTime())} -->
+				<TimeAgo timestamp={messageTime} />
+			</a>
+		</time>
 	</div>
-	<time datetime={note.published}>
-		<a href={note.note.url} {target} {rel}>
-			<!-- {timeSince(new Date(String(note.published)).getTime())} -->
-			<TimeAgo timestamp={messageTime} />
-		</a>
-	</time>
 	{#if username}
 		<nav>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<i
-				class="fa-solid fa-expand"
+			<span
+				class="comments"
 				on:click|preventDefault={() => handleNoteSelect(note.note, note.actor)}
-			/>
+			>
+				<i class="fa-solid fa-comments" />
+				{#if note.replies?.size}
+					{replyCount(note)}
+				{/if}
+			</span>
 
-			{#if note.note.ephemeral?.announced}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i
-					class="fa-solid fa-repeat selected"
-					data-object={note.note.id}
-					data-activity={note.note.ephemeral?.announced}
-					on:click|preventDefault={handleUnannounce}
-				/>
-			{:else}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i
-					class="fa-solid fa-repeat"
-					data-object={note.note.id}
-					on:click|preventDefault={handleAnnounce}
-				/>
-			{/if}
+			<span>
+				{#if note.note.ephemeral?.announced}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i
+						class="fa-solid fa-repeat selected"
+						data-object={note.note.id}
+						data-activity={note.note.ephemeral?.announced}
+						on:click|preventDefault={handleUnannounce}
+					/>
+				{:else}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i
+						class="fa-solid fa-repeat"
+						data-object={note.note.id}
+						on:click|preventDefault={handleAnnounce}
+					/>
+				{/if}
+			</span>
 
-			{#if note.note.ephemeral?.liked}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i
-					class="fa-solid fa-star selected"
-					data-actor={note.note.attributedTo}
-					data-object={note.note.id}
-					data-activity={note.note.ephemeral?.liked}
-					on:click|preventDefault={handleUnlike}
-				/>
-			{:else}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i
-					class="fa-solid fa-star"
-					data-actor={note.note.attributedTo}
-					data-object={note.note.id}
-					on:click|preventDefault={handleLike}
-				/>
-			{/if}
+			<span>
+				{#if note.note.ephemeral?.liked}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i
+						class="fa-solid fa-star selected"
+						data-actor={note.note.attributedTo}
+						data-object={note.note.id}
+						data-activity={note.note.ephemeral?.liked}
+						on:click|preventDefault={handleUnlike}
+					/>
+				{:else}
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i
+						class="fa-solid fa-star"
+						data-actor={note.note.attributedTo}
+						data-object={note.note.id}
+						on:click|preventDefault={handleLike}
+					/>
+				{/if}
+				{note.note.ephemeral?.likes?.length || ''}
+			</span>
 
 			{#if note.actor}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i class="fa-solid fa-reply" on:click={() => handleReplyTo(note.note, note.actor)} />
+				<span>
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i class="fa-solid fa-reply" on:click={() => handleReplyTo(note.note, note.actor)} />
+				</span>
 			{/if}
 
 			{#if note.note.id}
@@ -394,7 +397,7 @@
 
 		.reply,
 		.repost {
-			width: calc(100% - 50px);
+			width: calc(100% - 40px);
 			white-space: nowrap;
 			text-overflow: ellipsis;
 			overflow: hidden;
@@ -452,22 +455,41 @@
 			}
 		}
 
-		.activity {
+		.visibility {
 			display: flex;
+			flex-direction: row-reverse;
 			position: absolute;
 			top: 10px;
-			right: 40px;
+			right: 10px;
 
 			span {
+				display: inline-block;
 				color: #444;
 				font-size: 14px;
 				font-weight: 600;
-				margin-right: 10px;
 				user-select: none;
-				cursor: pointer;
+				pointer-events: none;
 
-				i {
-					pointer-events: none;
+				i.fa-globe {
+					color: #5CB3FF;
+				}
+
+				i.fa-at {
+					color: goldenrod;
+				}
+			}
+
+			time {
+				display: inline-block;
+				font-style: normal;
+				font-size: 14px;
+				text-decoration: none;
+				color: inherit;
+				font-weight: 600;
+				margin: 0 10px;
+
+				a {
+					color: inherit;
 				}
 			}
 		}
@@ -477,22 +499,6 @@
 
 			:global(i) {
 				color: red;
-			}
-		}
-
-		time {
-			display: inline-block;
-			position: absolute;
-			top: 10px;
-			right: 10px;
-			font-style: normal;
-			font-size: 14px;
-			text-decoration: none;
-			color: inherit;
-			font-weight: 600;
-
-			a {
-				color: inherit;
 			}
 		}
 
@@ -562,20 +568,25 @@
 			flex-direction: row;
 			transition-duration: 300ms;
 
-			i {
-				text-align: center;
+			span {
 				font-size: 14px;
-				color: #444;
 				width: calc(100% / 5);
-			}
+				text-align: center;
 
-			i:hover {
-				cursor: pointer;
-				color: red;
-			}
+				i {
+					margin-right: 5px;
+					font-size: 14px;
+					color: #444;
+				}
 
-			i.selected {
-				color: goldenrod;
+				i:hover {
+					cursor: pointer;
+					color: red;
+				}
+
+				i.selected {
+					color: goldenrod;
+				}
 			}
 		}
 
@@ -608,7 +619,7 @@
 				background: maroon;
 			}
 
-			.activity {
+			.visibility {
 				span {
 					color: #999;
 				}
