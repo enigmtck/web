@@ -1,16 +1,11 @@
 <script lang="ts">
-	import type {
-		DisplayNote,
-		Ephemeral
-	} from '../../../common';
+	import type { DisplayNote, Ephemeral } from '../../../common';
 	import {
 		insertEmojis,
 		compare,
 		getWebFingerFromId,
 		cachedContent,
-
 		decrypt
-
 	} from '../../../common';
 	import { ComposeDispatch, replyCount } from './common';
 	import { enigmatickWasm } from '../../../stores';
@@ -18,15 +13,17 @@
 
 	import { createEventDispatcher, onMount } from 'svelte';
 	import TimeAgo from './TimeAgo.svelte';
+	import Menu from './Menu.svelte';
 	const replyToDispatch = createEventDispatcher<{ replyTo: ComposeDispatch }>();
 
 	$: wasm = $enigmatickWasm;
 	export let note: DisplayNote;
 	export let username: string | null;
+	export let remove: (note: string) => void;
 
 	let content: string;
 	$: {
-		content = (note.note.type == "Note" ? note.note.content : decrypt(wasm, note.activity)) || "";
+		content = (note.note.type == 'Note' ? note.note.content : decrypt(wasm, note.activity)) || '';
 	}
 
 	function handleAnnounce(displayNote: DisplayNote) {
@@ -87,7 +84,7 @@
 
 	function handleReplyTo(displayNote: DisplayNote) {
 		replyToDispatch('replyTo', {
-			replyToNote: displayNote.note,
+			replyToNote: displayNote,
 			replyToActor: displayNote.actor,
 			openAside: true
 		});
@@ -111,7 +108,7 @@
 				</a>
 			{/if}
 		</address>
-		<section>{@html insertEmojis(wasm, content || "", note.note)}</section>
+		<section>{@html insertEmojis(wasm, content || '', note.note)}</section>
 
 		{#if note.note.attachment && note.note.attachment.length > 0}
 			<Attachments note={note.note} />
@@ -125,7 +122,7 @@
 		{/if}
 
 		<TimeAgo timestamp={new Date(note.published)} />
-		
+
 		{#if username}
 			<nav>
 				{#if note.note.ephemeral?.announced}
@@ -144,10 +141,7 @@
 				{#if note.note.ephemeral?.liked}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<i
-						class="fa-solid fa-star selected"
-						on:click|preventDefault={() => handleUnlike(note)}
-					/>
+					<i class="fa-solid fa-star selected" on:click|preventDefault={() => handleUnlike(note)} />
 				{:else}
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -158,6 +152,16 @@
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i class="fa-solid fa-reply" on:click={() => handleReplyTo(note)} />
+				{/if}
+
+				{#if note.note.id}
+					{#await wasm?.get_ap_id() then ap_id}
+						<Menu
+							{remove}
+							object={note.note.id}
+							owner={ap_id == note.note.attributedTo}
+						/>
+					{/await}
 				{/if}
 			</nav>
 		{/if}
@@ -183,7 +187,6 @@
 		border-bottom: 1px solid #ddd;
 		font-family: 'Open Sans';
 		background: #fafafa;
-		overflow: hidden;
 		display: grid;
 		grid-template-columns: 90px 1fr;
 		grid-auto-rows: minmax(10px, auto);
@@ -293,14 +296,14 @@
 			padding: 5px 0;
 			margin: 0;
 			opacity: 0.3;
-			transform: translateY(100%);
+			display: none;
 			transition-duration: 300ms;
 
 			i {
 				text-align: center;
 				font-size: 14px;
 				color: #444;
-				width: calc(95% / 3);
+				width: calc(95% / 4);
 			}
 
 			i:hover {
@@ -314,13 +317,14 @@
 		}
 
 		nav:hover {
-			opacity: 1;
+			opacity: 0.9;
 		}
 	}
 
 	article:hover {
 		nav {
-			transform: translateY(0);
+			display: block;
+			transition-duration: 300ms;
 		}
 	}
 
@@ -366,7 +370,7 @@
 			}
 
 			nav {
-				background: #555;
+				background: #222;
 
 				i {
 					color: #fff;

@@ -6,6 +6,7 @@
 	import { appData, enigmatickWasm } from '../../../stores';
 	import {
 		cachedContent,
+		DisplayNote,
 		insertEmojis,
 		removeTags,
 		type Activity,
@@ -27,7 +28,7 @@
 	// of the sending function is left up to the container component.
 	export let senderFunction: (
 		replyToActor: UserProfile | UserProfileTerse | null,
-		replyToNote: Note | null,
+		replyToNote: DisplayNote | null,
 		content: string,
 		attachments: Attachment[],
 		mentions: Map<string, UserProfile>,
@@ -44,8 +45,10 @@
 		replyToActor = message.detail.replyToActor;
 		replyToNote = message.detail.replyToNote;
 
-		if (replyToNote.type == 'EncryptedNote') {
+		if (replyToNote.note.type == 'EncryptedNote') {
 			direct = true;
+		} else if (replyToNote.isPublic()) {
+			direct = false;
 		}
 
 		let webfinger = await wasm?.get_webfinger_from_id(replyToActor.id as string);
@@ -442,7 +445,7 @@
 
 	let webfingerRecipient: string | null = null;
 	let replyToActor: UserProfile | UserProfileTerse | null = null;
-	let replyToNote: Note | null = null;
+	let replyToNote: DisplayNote | null = null;
 
 	let imageBuffer: string | ArrayBuffer | null;
 	let imageFileInput: HTMLInputElement;
@@ -480,7 +483,7 @@
 								{/if}
 							</span>
 						</div>
-						<span>{removeTags(replyToNote.content)}</span>
+						<span>{removeTags(replyToNote.note.content)}</span>
 						<!-- svelte-ignore a11y-click-events-have-key-events -->
 						<!-- svelte-ignore a11y-no-static-element-interactions -->
 						<i class="fa-solid fa-xmark" on:click|preventDefault={cancelReplyTo} />

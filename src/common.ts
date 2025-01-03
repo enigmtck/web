@@ -4,7 +4,6 @@ export type {
 	EnigmatickEvent,
 	EnigmatickEventObject,
 	Activity,
-	Announce,
 	Tag,
 	Attachment,
 	Metadata,
@@ -89,8 +88,10 @@ class DisplayNote {
 	jsonTo(): string {
 		let ret: string[] = [];
 
-		this.note.to && ret.push(...this.note.to);
-		this.note.cc && ret.push(...this.note.cc);
+		this.note.to &&
+			(Array.isArray(this.note.to) ? ret.push(...this.note.to) : ret.push(this.note.to));
+		this.note.cc &&
+			(Array.isArray(this.note.cc) ? ret.push(...this.note.cc) : ret.push(this.note.cc));
 
 		return JSON.stringify(ret);
 	}
@@ -105,16 +106,20 @@ class DisplayNote {
 			'as:Public',
 			'Public'
 		];
-		
+
 		let recipients: string[] = [];
 
-		this.note.to && recipients.push(...this.note.to);
-		this.note.cc && recipients.push(...this.note.cc);
+		this.note.to &&
+			(Array.isArray(this.note.to)
+				? recipients.push(...this.note.to)
+				: recipients.push(this.note.to));
+		this.note.cc &&
+			(Array.isArray(this.note.cc)
+				? recipients.push(...this.note.cc)
+				: recipients.push(this.note.cc));
 
-		return recipients.some(recipient => 
-			publicIdentifiers.includes(recipient)
-		);
-	};
+		return recipients.some((recipient) => publicIdentifiers.includes(recipient));
+	}
 }
 
 interface Image {
@@ -139,7 +144,7 @@ interface UserProfileTerse {
 	url?: string | string[];
 	name?: string;
 	preferredUsername: string;
-	tag?: Tag[];
+	tag?: Tag[] | null;
 	icon?: Image;
 }
 
@@ -208,17 +213,6 @@ interface EnigmatickEvent {
 	inReplyTo?: string | null;
 }
 
-interface Announce {
-	'@context': string;
-	id: string;
-	actor: string;
-	cc: string[];
-	to: string[];
-	object: string;
-	published: string;
-	type: 'Announce';
-}
-
 interface Tag {
 	type: 'Mention' | 'Emoji' | 'Hashtag';
 	name: string;
@@ -255,30 +249,30 @@ interface Metadata {
 	published?: string | null;
 	twitterSite?: string | null;
 	ogType?: string | null;
+	url?: string | null;
 }
 
 interface Note {
 	'@context': string;
 	type: 'Note' | 'EncryptedNote';
-	tag?: Tag[];
+	tag?: Tag[] | Tag | null;
 	id?: string;
-	actor?: string | null;
-	to?: string[];
-	cc?: string[];
+	to?: string[] | string;
+	cc?: string[] | string;
 	url?: string;
 	attributedTo: string;
 	content?: string | null;
 	replies?: object | null;
 	published: string | null;
 	inReplyTo?: string | null;
-	attachment?: Attachment[];
-	conversation: string | null;
+	attachment?: Attachment[] | null;
+	conversation?: string | null;
 	ephemeral?: Ephemeral;
 }
 
 const isNote = (attr: string | Note): attr is Note => {
-    return typeof attr === "object" && attr !== null;
-}
+	return typeof attr === 'object' && attr !== null;
+};
 
 interface Activity {
 	'@context': string;
@@ -330,7 +324,7 @@ interface Collection {
 	'@context': string;
 	type: 'Collection' | 'CollectionPage' | 'OrderedCollection' | 'OrderedCollectionPage';
 	id: string;
-	totalItems: number;
+	totalItems?: number;
 	items?: Activity[];
 	orderedItems?: Activity[];
 	prev?: string;
@@ -436,7 +430,15 @@ function insertEmojis(
 	profile: UserProfile | Note | UserProfileTerse
 ) {
 	if (wasm && profile.tag) {
-		profile.tag.forEach((tag) => {
+		let tags: Tag[] = [];
+		
+		if (Array.isArray(profile.tag)) {
+			tags = [...profile.tag];
+		} else {
+			tags.push(profile.tag);
+		}
+
+		tags.forEach((tag) => {
 			if (tag.type === 'Emoji') {
 				if (tag.icon) {
 					if (text) {

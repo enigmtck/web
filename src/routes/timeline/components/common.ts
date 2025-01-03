@@ -16,7 +16,7 @@ function replyCount(note: DisplayNote): number {
 
 interface ComposeDispatch {
 	replyToActor: UserProfile | UserProfileTerse;
-	replyToNote: Note;
+	replyToNote: DisplayNote;
 	openAside: boolean;
 }
 

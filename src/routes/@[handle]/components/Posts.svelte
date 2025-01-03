@@ -11,7 +11,6 @@
 		UserProfile,
 		Note,
 		StreamConnect,
-		Announce,
 		AnnounceParams,
 		Attachment,
 		Activity,
@@ -358,7 +357,7 @@
 
 	async function senderFunction(
 		replyToActor: UserProfile | UserProfileTerse | null,
-		replyToNote: Note | null,
+		replyToNote: DisplayNote | null,
 		content: string,
 		attachments: Attachment[],
 		mentions: Map<string, UserProfile>,
@@ -384,8 +383,8 @@
 			}
 
 			if (replyToNote) {
-				params.set_in_reply_to(String(replyToNote.id));
-				params.set_conversation(String(replyToNote.conversation));
+				params.set_in_reply_to(String(replyToNote.note.id));
+				params.set_conversation(String(replyToNote.note.conversation));
 			}
 
 			return await wasm.send_note(params);
@@ -568,6 +567,7 @@
 					<div class="replies">
 						{#each Array.from(note.replies.values()).sort(compare) as reply}
 							<Reply
+								{remove}
 								note={reply}
 								{username}
 								on:replyTo={composeComponent.handleReplyToMessage}

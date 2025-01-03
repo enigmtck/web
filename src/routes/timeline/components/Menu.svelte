@@ -4,7 +4,6 @@
 
 	export let object: string;
     export let owner: boolean;
-	export let refresh: () => void;
 	export let remove: (note: string) => void;
 
     $: wasm = $enigmatickWasm;
@@ -61,6 +60,11 @@
 	i {
 		text-align: center;
 		width: calc(100% / 5);
+	}
+
+	i:hover {
+		cursor: pointer;
+		color: red;
 	}
 
 	dialog {

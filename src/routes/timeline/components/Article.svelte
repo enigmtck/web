@@ -54,7 +54,7 @@
 	export let remove: (note: string) => void;
 	export let cachedNote: (id: string) => Promise<string | undefined>;
 
-	async function replyToHeader(note: Note): Promise<string | null> {
+	const replyToHeader = async (note: Note): Promise<string | null> => {
 		if (note.inReplyTo) {
 			const replyNote = await cachedNote(note.inReplyTo);
 
@@ -79,9 +79,9 @@
 		} else {
 			return null;
 		}
-	}
+	};
 
-	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
+	const announceHeader = async (note: Note): Promise<AnnounceParams | null> => {
 		if (note.ephemeral?.announces) {
 			const announceActor = note.ephemeral.announces[0];
 			let others = '';
@@ -106,7 +106,7 @@
 		} else {
 			return null;
 		}
-	}
+	};
 
 	let profile = note.note.ephemeral?.attributedTo ?? [note.actor];
 	let actorIcon = profile[0].icon?.url;
@@ -115,7 +115,7 @@
 	let actorTerseProfile = profile[0];
 	const messageTime = new Date(note.published || note.created_at);
 
-	function handleUnlike(event: any) {
+	const handleUnlike = async (event: any) => {
 		const object: string = String(event.target.dataset.object);
 		const actor: string = String(event.target.dataset.actor);
 		const activity: string = String(event.target.dataset.activity);
@@ -131,9 +131,9 @@
 				note = note;
 			});
 		}
-	}
+	};
 
-	function handleLike(event: any) {
+	const handleLike = (event: any) => {
 		const object: string = String(event.target.dataset.object);
 		const actor: string = String(event.target.dataset.actor);
 
@@ -151,9 +151,9 @@
 				}
 			});
 		}
-	}
+	};
 
-	function handleUnannounce(event: any) {
+	const handleUnannounce = (event: any) => {
 		const object: string = String(event.target.dataset.object);
 		const activity: string = String(event.target.dataset.activity);
 
@@ -168,9 +168,9 @@
 		} else {
 			console.error('Object invalid');
 		}
-	}
+	};
 
-	function handleAnnounce(event: any) {
+	const handleAnnounce = (event: any) => {
 		const object: string = String(event.target.dataset.object);
 
 		if (wasm && object) {
@@ -189,9 +189,9 @@
 		} else {
 			console.error('Object invalid');
 		}
-	}
+	};
 
-	function handleNoteSelect(note: Note, actor: UserProfile | UserProfileTerse) {
+	const handleNoteSelect = (note: DisplayNote, actor: UserProfile | UserProfileTerse) => {
 		console.log('DISPATCHING NOTE_SELECT');
 
 		noteSelectDispatch('noteSelect', {
@@ -199,9 +199,9 @@
 			replyToActor: actor,
 			openAside: false
 		});
-	}
+	};
 
-	function handleReplyTo(note: Note, actor: UserProfile | UserProfileTerse) {
+	const handleReplyTo = (note: DisplayNote, actor: UserProfile | UserProfileTerse) => {
 		console.log('DISPATCHING REPLY_TO');
 
 		replyToDispatch('replyTo', {
@@ -209,7 +209,7 @@
 			replyToActor: actor,
 			openAside: true
 		});
-	}
+	};
 
 	let target: string | null = null;
 	let rel: string | null = null;
@@ -275,6 +275,8 @@
 	<div class="visibility">
 		{#if note.public}
 			<span><i class="fa-solid fa-globe" /></span>
+		{:else if note.note.type == 'EncryptedNote'}
+			<span><i class="fa-solid fa-lock" /></span>
 		{:else}
 			<span><i class="fa-solid fa-at" /></span>
 		{/if}
@@ -290,10 +292,7 @@
 		<nav>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<span
-				class="comments"
-				on:click|preventDefault={() => handleNoteSelect(note.note, note.actor)}
-			>
+			<span class="comments" on:click|preventDefault={() => handleNoteSelect(note, note.actor)}>
 				<i class="fa-solid fa-comments" />
 				{#if note.replies?.size}
 					{replyCount(note)}
@@ -319,6 +318,7 @@
 						on:click|preventDefault={handleAnnounce}
 					/>
 				{/if}
+				{note.note.ephemeral?.announces?.length || ''}
 			</span>
 
 			<span>
@@ -349,13 +349,13 @@
 				<span>
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<i class="fa-solid fa-reply" on:click={() => handleReplyTo(note.note, note.actor)} />
+					<i class="fa-solid fa-reply" on:click={() => handleReplyTo(note, note.actor)} />
 				</span>
 			{/if}
 
 			{#if note.note.id}
 				{#await wasm?.get_ap_id() then ap_id}
-					<Menu {remove} {refresh} object={note.note.id} owner={ap_id == note.note.attributedTo} />
+					<Menu {remove} object={note.note.id} owner={ap_id == note.note.attributedTo} />
 				{/await}
 			{/if}
 		</nav>
@@ -381,10 +381,15 @@
 			border-radius: 0;
 		}
 
-		:global(code) {
-			background: darkgoldenrod;
-			color: #fff;
-			padding: 0 5px;
+		:global(section pre) {
+			background: #eee;
+			padding: 10px;
+			white-space: pre-wrap;
+
+			:global(code) {
+				padding: 0 5px;
+				background: unset;
+			}
 		}
 
 		a {
@@ -397,7 +402,7 @@
 
 		.reply,
 		.repost {
-			width: calc(100% - 40px);
+			width: calc(100% - 50px);
 			white-space: nowrap;
 			text-overflow: ellipsis;
 			overflow: hidden;
@@ -471,11 +476,15 @@
 				pointer-events: none;
 
 				i.fa-globe {
-					color: #5CB3FF;
+					color: #5cb3ff;
+				}
+
+				i.fa-lock {
+					color: goldenrod;
 				}
 
 				i.fa-at {
-					color: goldenrod;
+					color: red;
 				}
 			}
 
@@ -579,13 +588,17 @@
 					color: #444;
 				}
 
-				i:hover {
-					cursor: pointer;
-					color: red;
-				}
-
 				i.selected {
 					color: goldenrod;
+				}
+			}
+
+			span:hover {
+				cursor: pointer;
+				color: red;
+
+				i {
+					color: inherit;
 				}
 			}
 		}
@@ -615,10 +628,6 @@
 				}
 			}
 
-			:global(code) {
-				background: maroon;
-			}
-
 			.visibility {
 				span {
 					color: #999;
@@ -640,6 +649,16 @@
 				color: #eee;
 			}
 
+			:global(section pre) {
+				background: #111;
+				padding: 10px;
+				white-space: pre-wrap;
+
+				:global(code) {
+					background: unset;
+				}
+			}
+
 			nav {
 				background: unset;
 
@@ -647,12 +666,17 @@
 					color: #fff;
 				}
 
-				i:hover {
-					color: red;
-				}
-
 				i.selected {
 					color: goldenrod;
+				}
+
+				span:hover {
+					cursor: pointer;
+					color: red;
+
+					i {
+						color: inherit;
+					}
 				}
 			}
 		}

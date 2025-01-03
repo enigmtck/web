@@ -15,7 +15,6 @@
 		UserProfileTerse,
 		Note,
 		StreamConnect,
-		Announce,
 		AnnounceParams,
 		Attachment,
 		Activity,
@@ -51,61 +50,112 @@
 
 	const isSmallScreen = useMediaQuery('(max-width: 1000px)');
 
-	function onIntersection(entries: IntersectionObserverEntry[]) {
-		for (let entry of entries) {
-			if (entry.target) {
-				let target = <HTMLElement>entry.target;
-				if (entry.isIntersecting) {
-					currentIds.push(target.id);
+	const handleIntersectingTarget = async (
+		target: HTMLElement,
+		wasm: any,
+		retrievedConversations: Set<string>
+	) => {
+		currentIds.push(target.id);
 
-					if (target.dataset) {
-						let dataset = <DOMStringMap>target.dataset;
-						console.log(dataset.conversation);
-						if (wasm && dataset.conversation) {
-							let conversation = dataset.conversation;
+		if (!target.dataset?.conversation) {
+			return;
+		}
 
-							if (!retrievedConversations.has(conversation)) {
-								retrievedConversations.add(conversation);
-								wasm
-									.get_conversation(encodeURIComponent(dataset.conversation), 50)
-									.then((conversation: any) => {
-										if (conversation) {
-											let collection: Collection = JSON.parse(conversation);
+		const conversationId = target.dataset.conversation;
+		if (retrievedConversations.has(conversationId)) {
+			return;
+		}
 
-											collection.orderedItems?.forEach((a: Activity) => {
-												console.debug(a);
-												if (a.object.inReplyTo) {
-													addNote(a);
-												}
-											});
+		retrievedConversations.add(conversationId);
+		await processConversation(wasm, conversationId);
+	};
 
-											placeOrphans();
-										}
+	const processConversation = async (wasm: any, conversationId: string) => {
+		const result = await wasm.get_conversation(encodeURIComponent(conversationId), 50);
+		if (!result) {
+			return;
+		}
 
-										console.debug('NOTES MAP');
-										console.debug(notes);
+		const collection: Collection = JSON.parse(result);
+		await processCollectionItems(collection);
+	};
 
-										console.debug('ORPHANS MAP');
-										console.debug(orphans);
-									});
-							}
-						}
-					}
-				} else {
-					let index = currentIds.indexOf(target.id);
-					if (index !== -1) {
-						currentIds.splice(index, 1);
-					}
-				}
+	const processCollectionItems = async (collection: Collection) => {
+		if (!collection.orderedItems) {
+			return;
+		}
+
+		for (const item of collection.orderedItems) {
+			console.debug(item);
+			if (item.object.inReplyTo) {
+				await addNote(item);
 			}
 		}
-	}
+	};
 
-	function observeNote(note: any) {
+	const handleNonIntersectingTarget = (target: HTMLElement) => {
+		const index = currentIds.indexOf(target.id);
+		if (index !== -1) {
+			currentIds.splice(index, 1);
+		}
+	};
+
+	const onIntersection = async (entries: IntersectionObserverEntry[]) => {
+		for (const entry of entries) {
+			const target = entry.target as HTMLElement;
+			if (!target) continue;
+
+			if (entry.isIntersecting) {
+				await handleIntersectingTarget(target, wasm, retrievedConversations);
+			} else {
+				handleNonIntersectingTarget(target);
+			}
+		}
+	};
+
+	// const onIntersection = async (entries: IntersectionObserverEntry[]) => {
+	// 	for (let entry of entries) {
+	// 		let target;
+	// 		if (target = <HTMLElement>entry.target) {
+	// 			if (entry.isIntersecting) {
+	// 				currentIds.push(target.id);
+
+	// 				if (target.dataset) {
+	// 					let dataset = <DOMStringMap>target.dataset;
+	// 					if (wasm && dataset.conversation) {
+	// 						if (!retrievedConversations.has(dataset.conversation)) {
+	// 							retrievedConversations.add(dataset.conversation);
+	// 							let c = await wasm.get_conversation(encodeURIComponent(dataset.conversation), 50);
+	// 							if (c) {
+	// 								let collection: Collection = JSON.parse(c);
+
+	// 								if (collection.orderedItems) {
+	// 									for (const a of collection.orderedItems) {
+	// 										console.debug(a);
+	// 										if (a.object.inReplyTo) {
+	// 											await addNote(a);
+	// 										}
+	// 									}
+	// 								}
+	// 							}
+	// 						}
+	// 					}
+	// 				}
+	// 			} else {
+	// 				let index = currentIds.indexOf(target.id);
+	// 				if (index !== -1) {
+	// 					currentIds.splice(index, 1);
+	// 				}
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	const observeNote = (note: any) => {
 		if (observer) {
 			observer.observe(note);
 		}
-	}
+	};
 
 	onMount(async () => {
 		observer = new IntersectionObserver(onIntersection, {
@@ -126,16 +176,7 @@
 		await loadMinimum();
 	});
 
-	function placeOrphans() {
-		let orphans_copy = [...orphans];
-
-		orphans_copy.forEach((orphan) => {
-			orphans.delete(orphan[0]);
-			placeNote(orphan[1]);
-		});
-	}
-
-	async function placeNote(displayNote: DisplayNote) {
+	const placeNote = async (displayNote: DisplayNote) => {
 		if (!displayNote.note.inReplyTo && displayNote.note.id) {
 			// If 'inReplyTo' is blank or no matching DisplayNote found, add it to the top level
 			if (!notes.has(displayNote.note.id)) {
@@ -145,7 +186,7 @@
 			return;
 		}
 
-		function findAndAddReply(map: Map<string, DisplayNote>): boolean {
+		const findAndAddReply = (map: Map<string, DisplayNote>): boolean => {
 			for (const [, parentDisplayNote] of map.entries()) {
 				if (parentDisplayNote.note.id === displayNote.note.inReplyTo && displayNote.note.id) {
 					// Add the reply to the 'replies' Map of the matching DisplayNote
@@ -161,18 +202,16 @@
 				}
 			}
 			return false;
-		}
+		};
 
 		// If 'inReplyTo' exists, try to find the parent note
 		if (displayNote.note.inReplyTo && findAndAddReply(notes)) {
 			await updateDOM(false);
 			return;
-		} else if (displayNote.note.id && displayNote.note.inReplyTo) {
-			orphans.set(displayNote.note.id, displayNote);
 		}
 
 		await updateDOM(false);
-	}
+	};
 
 	const updateDOM = async (fixScroll: boolean, ticks?: number) => {
 		try {
@@ -194,7 +233,7 @@
 		}
 	};
 
-	async function addNote(activity: Activity) {
+	const addNote = async (activity: Activity) => {
 		if (activity.object.attributedTo) {
 			const actor = activity.object.ephemeral?.attributedTo?.at(0);
 
@@ -203,9 +242,9 @@
 				await placeNote(displayNote);
 			}
 		}
-	}
+	};
 
-	async function loadMinimum() {
+	const loadMinimum = async () => {
 		let topLevel = 0;
 
 		notes.forEach((note) => {
@@ -227,9 +266,9 @@
 				console.error(e);
 			}
 		}
-	}
+	};
 
-	async function loadTimelineData() {
+	const loadTimelineData = async () => {
 		const pageSize = 20;
 		let attempts = 0;
 
@@ -265,8 +304,6 @@
 					console.error(e);
 				}
 
-				placeOrphans();
-
 				return length;
 			} catch (e) {
 				console.error(e);
@@ -288,7 +325,7 @@
 			await sleep(500);
 			await loadTimelineData();
 		}
-	}
+	};
 
 	beforeNavigate(async (navigation) => {
 		console.log(navigation);
@@ -331,7 +368,7 @@
 		console.log(hashtags);
 	});
 
-	async function handleView(event: Event) {
+	const handleView = async (event: Event) => {
 		console.log(event);
 		if (event.target) {
 			let selected = (<HTMLElement>event.target).dataset.view;
@@ -349,21 +386,21 @@
 				await resetData();
 			}
 		}
-	}
+	};
 
-	async function handleNoteSelect(message: CustomEvent<ComposeDispatch>) {
+	const handleNoteSelect = async (message: CustomEvent<ComposeDispatch>) => {
 		console.debug('NOTE SELECT');
 		console.debug(message);
-		focusConversation = message.detail.replyToNote.conversation;
-		focusNote = message.detail.replyToNote.id || null;
+		focusConversation = message.detail.replyToNote.note.conversation || null;
+		focusNote = message.detail.replyToNote.note.id || null;
 		console.debug(`setting focusNote to ${message.detail.replyToNote}`);
 
 		yPosition = await scrollToTop();
 
 		infiniteScrollDisabled = true;
-	}
+	};
 
-	async function clearNoteSelect() {
+	const clearNoteSelect = async () => {
 		focusConversation = null;
 		focusNote = null;
 		composeComponent.resetCompose();
@@ -371,16 +408,16 @@
 		await revertScroll();
 
 		infiniteScrollDisabled = false;
-	}
+	};
 
-	async function revertScroll() {
+	const revertScroll = async () => {
 		await tick();
 		await tick();
 		await tick();
 		scrollable.scrollTo({ top: yPosition, left: 0, behavior: 'instant' });
-	}
+	};
 
-	async function scrollToTop(): Promise<number> {
+	const scrollToTop = async (): Promise<number> => {
 		let current: number = scrollable.scrollTop;
 
 		console.debug(`CURRENT: ${current}`);
@@ -393,10 +430,10 @@
 		console.debug('SCROLLED TO TOP');
 
 		return current;
-	}
+	};
 
-	async function handleInfiniteScroll() {
-		if (!loading && !infiniteScrollDisabled) {
+	const handleInfiniteScroll = async () => {
+		if (!loading && !infiniteScrollDisabled && !focusNote) {
 			loading = true;
 
 			let results = 1;
@@ -420,9 +457,9 @@
 			liveLoading = false;
 			scroll.style.display = 'revert';
 		}
-	}
+	};
 
-	async function cachedActor(id: string) {
+	const cachedActor = async (id: string) => {
 		if (id && wasm && cache) {
 			try {
 				console.debug(`RETRIEVING ${id} FROM CACHE`);
@@ -434,25 +471,25 @@
 		}
 
 		return null;
-	}
+	};
 
-	async function cachedNote(id: string): Promise<string | undefined> {
+	const cachedNote = async (id: string): Promise<string | undefined> => {
 		if (wasm && !apCache.has(id)) {
 			apCache.set(id, await wasm.get_note(id));
 		}
 
 		return apCache.get(id);
-	}
+	};
 
-	async function senderFunction(
+	const senderFunction = async (
 		replyToActor: UserProfile | UserProfileTerse | null,
-		replyToNote: Note | null,
+		replyToNote: DisplayNote | null,
 		content: string,
 		attachments: Attachment[],
 		mentions: Map<string, UserProfile>,
 		hashtags: string[],
 		directed: boolean
-	): Promise<string | null | undefined> {
+	): Promise<string | null | undefined> => {
 		if (wasm) {
 			let params = (await wasm.SendParams.new()).set_content(content);
 
@@ -472,8 +509,8 @@
 			}
 
 			if (replyToNote) {
-				params.set_in_reply_to(String(replyToNote.id));
-				params.set_conversation(String(replyToNote.conversation));
+				params.set_in_reply_to(String(replyToNote.note.id));
+				params.set_conversation(String(replyToNote.note.conversation));
 			}
 
 			console.log(params);
@@ -481,20 +518,19 @@
 		} else {
 			return null;
 		}
-	}
+	};
 
-	function refresh() {
+	const refresh = () => {
 		console.debug('REFRESH');
-	}
+	};
 
-	function remove() {
+	const remove = () => {
 		console.debug('REMOVE');
-	}
+	};
 
-	async function resetData() {
+	const resetData = async () => {
 		clearNoteSelect();
 		noteQueue = [];
-		orphans = new Map<string, DisplayNote>();
 		notes = new Map<string, DisplayNote>();
 		published = new Array<DisplayNote>();
 		retrievedConversations = new Set();
@@ -505,7 +541,7 @@
 		const scroll = document.getElementsByClassName('scroll')[0] as HTMLElement;
 		scroll.style.display = 'none';
 		await loadMinimum();
-	}
+	};
 
 	const handleMinimizeContext = (event?: any) => {
 		if (event) {
@@ -552,10 +588,7 @@
 	//$: notes = new Array<DisplayNote>();
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
 	$: notes = new Map<string, DisplayNote>();
-	$: published = new Array<DisplayNote>;
-
-	//let orphans: Map<string, DisplayNote> = new Map<string, DisplayNote>();
-	let orphans: Map<string, DisplayNote> = new Map<string, DisplayNote>();
+	$: published = new Array<DisplayNote>();
 
 	// used very temporarily to control requests to the API for new data
 	let loading = false;
@@ -578,7 +611,7 @@
 	let scrollPosition = 0;
 
 	const updateScrollPosition = (event: UIEvent) => {
-		if (!loading) {
+		if (!loading && !focusNote) {
 			scrollPosition = scrollable.scrollTop;
 		}
 	};
@@ -600,9 +633,7 @@
 						><i class="fa-solid fa-house" /></button
 					>
 					<button data-view="local" on:click={handleView}><i class="fa-solid fa-hotel" /></button>
-					<button data-view="direct" on:click={handleView}
-						><i class="fa-solid fa-at" /></button
-					>
+					<button data-view="direct" on:click={handleView}><i class="fa-solid fa-at" /></button>
 				{/if}
 				<button data-view="global" on:click={handleView}><i class="fa-solid fa-globe" /></button>
 			</nav>
@@ -645,6 +676,7 @@
 						<div class="replies">
 							{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
 								<Reply
+									{remove}
 									note={reply}
 									{username}
 									on:replyTo={composeComponent.handleReplyToMessage}
