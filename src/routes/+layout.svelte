@@ -220,9 +220,9 @@
 						><i class="fa-solid fa-right-to-bracket" />Login</a
 					>
 				{/if}
-				<!-- <a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
+				<a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
 					><i class="fa-solid fa-gear" />TEST</a
-				> -->
+				>
 			</div>
 
 			<div class="toggle">
