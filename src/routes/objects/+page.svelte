@@ -98,7 +98,7 @@
 		{#if note.replies?.size}
 			<div class="replies">
 				{#each Array.from(note.replies.values()).sort(compare) as reply}
-					<Reply note={reply} username={null} />
+					<Reply note={reply} username={null} {remove} />
 				{/each}
 			</div>
 		{/if}

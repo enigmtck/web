@@ -55,14 +55,14 @@
 			wasm?.get_remote_followers(`@${handle}`).then((x) => {
 				if (x) {
 					let followers: Collection = JSON.parse(x);
-					followerCount = followers.totalItems;
+					followerCount = followers.totalItems || 0;
 				}
 			});
 
 			wasm?.get_remote_following(`@${handle}`).then((x) => {
 				if (x) {
 					let following: Collection = JSON.parse(x);
-					followingCount = following.totalItems;
+					followingCount = following.totalItems || 0;
 				}
 			});
 		} else {
@@ -232,23 +232,6 @@
 
 	async function handleKexInit(event: any) {
 		console.log(event);
-
-		let kexinit = wasm?.KexInitParams.new();
-
-		if (wasm && profile && profile.id && kexinit) {
-			let a = (await wasm.get_state()).get_olm_pickled_account();
-			console.debug('PICKLED ACCOUNT');
-			console.debug(a);
-			let x = wasm?.get_identity_public_key(String(a));
-			console.debug('IDENTITY KEY');
-			console.debug(x);
-			kexinit.set_recipient_id(profile.id);
-			kexinit.set_identity_key(String(x));
-
-			//wasm?.send_kex_init(kexinit).then(() => {
-			//	console.debug('KEXINIT SENT');
-			//});
-		}
 	}
 
 	const Views = {

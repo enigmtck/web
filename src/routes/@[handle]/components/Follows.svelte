@@ -4,7 +4,6 @@
 	import type {
 		UserProfile,
 		Note,
-		Announce,
 		AnnounceParams,
 		Attachment,
 		Activity,
