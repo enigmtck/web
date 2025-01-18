@@ -40,13 +40,7 @@
 
 			if (state) {
 				wasmState.set(state.export());
-				/* 						let data = JSON.stringify({
-							pickled_account: x.get_olm_pickled_account(),
-							olm_sessions: JSON.parse(x.get_olm_sessions())
-						});
-						console.log(get(wasmState)); */
-
-				let result = await wasm?.replenish_otk();
+				let result = await wasm?.replenish_mkp();
 				console.debug(`REPLENISH RESULT: ${result}`);
 			}
 
