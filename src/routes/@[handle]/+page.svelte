@@ -13,9 +13,7 @@
 		convertMastodonUrlToWebfinger,
 		getFirst,
 		abbreviateNumber,
-
 		type Activity
-
 	} from '../../common';
 	import Posts from './components/Posts.svelte';
 
@@ -264,6 +262,8 @@
 	}
 
 	beforeNavigate(async (navigation) => {
+		currentView = Views.Posts;
+
 		console.debug(navigation);
 		if (navigation.to) {
 			if (navigation.to.route.id === null) {
@@ -281,9 +281,7 @@
 						console.log(`WEBFINGER: ${webfinger}`);
 						navigation.cancel();
 
-						goto(`/${webfinger}`).then(() => {
-							currentView = Views.Posts;
-						});
+						await goto(`/${webfinger}`);
 					}
 				}
 			}
@@ -291,207 +289,210 @@
 	});
 </script>
 
-<main>
-	{#if profile}
-		<div class="profile">
-			<div class="banner">
-				{#if username}
-					<input
-						style="display:none"
-						type="file"
-						accept=".jpg, .jpeg, .png"
-						on:change={(e) => onBannerSelected(e)}
-						bind:this={bannerFileInput}
-					/>
-				{/if}
-				{#if profile.image}
-					<img src={cachedContent(wasm, String(profile.image.url))} alt="Banner" />
-				{/if}
-			</div>
-			<div class="identity">
-				<div class="avatar">
+{#key profile}
+	<main>
+		{#if profile}
+			<div class="profile">
+				<div class="banner">
 					{#if username}
 						<input
 							style="display:none"
 							type="file"
 							accept=".jpg, .jpeg, .png"
-							on:change={(e) => onAvatarSelected(e)}
-							bind:this={avatarFileInput}
+							on:change={(e) => onBannerSelected(e)}
+							bind:this={bannerFileInput}
 						/>
 					{/if}
-
-					<img src={cachedContent(wasm, String(profile.icon?.url))} alt="Avatar" />
+					{#if profile.image}
+						<img src={cachedContent(wasm, String(profile.image.url))} alt="Banner" />
+					{/if}
 				</div>
-				<div class="details">
-					{#if profile.name}
-						<h1>{@html insertEmojis(wasm, profile.name, profile)}</h1>
-					{/if}
+				<div class="identity">
+					<div class="avatar">
+						{#if username}
+							<input
+								style="display:none"
+								type="file"
+								accept=".jpg, .jpeg, .png"
+								on:change={(e) => onAvatarSelected(e)}
+								bind:this={avatarFileInput}
+							/>
+						{/if}
 
-					<a href={getFirst(profile.url)}>{getWebFingerFromId(profile)}</a>
+						<img src={cachedContent(wasm, String(profile.icon?.url))} alt="Avatar" />
+					</div>
+					<div class="details">
+						{#if profile.name}
+							<h1>{@html insertEmojis(wasm, profile.name, profile)}</h1>
+						{/if}
+
+						<a href={getFirst(profile.url)}>{getWebFingerFromId(profile)}</a>
+					</div>
 				</div>
-			</div>
-			{#if username}
-				<div class="controls">
-					<!-- This is super convoluted. The goal is to hide this if it's the user's own profile. -->
-					{#if $appData.domain && (!profile.id?.includes($appData.domain) || profile.preferredUsername !== username)}
-						<div>
-							{#if !profile.ephemeral?.following}
-								<button title="Follow" on:click|preventDefault={handleFollow}>
-									<i class="fa-solid fa-user-plus" />
-								</button>
-							{/if}
-							{#if profile.ephemeral?.following !== undefined && profile.ephemeral?.following}
+				{#if username}
+					<div class="controls">
+						<!-- This is super convoluted. The goal is to hide this if it's the user's own profile. -->
+						{#if $appData.domain && (!profile.id?.includes($appData.domain) || profile.preferredUsername !== username)}
+							<div>
+								{#if !profile.ephemeral?.following}
+									<button title="Follow" on:click|preventDefault={handleFollow}>
+										<i class="fa-solid fa-user-plus" />
+									</button>
+								{/if}
+								{#if profile.ephemeral?.following !== undefined && profile.ephemeral?.following}
+									<button
+										title="Unfollow"
+										on:click|preventDefault={() =>
+											handleUnfollow(profile?.ephemeral?.followActivityAsId)}
+									>
+										<i class="fa-solid fa-user-minus" />
+									</button>
+								{/if}
+								{#if profile.capabilities && profile.capabilities.enigmatickEncryption}
+									<button title="Exchange Keys" on:click|preventDefault={handleKexInit}>
+										<i class="fa-solid fa-key" />
+									</button>
+								{/if}
+							</div>
+						{/if}
+						{#if local && profile.preferredUsername === username}
+							<div>
 								<button
-									title="Unfollow"
-									on:click|preventDefault={() => handleUnfollow(profile?.ephemeral?.followActivityAsId)}
+									title="Change Avatar"
+									on:keypress={() => {
+										avatarFileInput.click();
+									}}
+									on:click={() => {
+										avatarFileInput.click();
+									}}
 								>
-									<i class="fa-solid fa-user-minus" />
+									<i class="fa-solid fa-image-portrait" />
 								</button>
-							{/if}
-							{#if profile.capabilities && profile.capabilities.enigmatickEncryption}
-								<button title="Exchange Keys" on:click|preventDefault={handleKexInit}>
-									<i class="fa-solid fa-key" />
-								</button>
-							{/if}
-						</div>
-					{/if}
-					{#if local && profile.preferredUsername === username}
-						<div>
-							<button
-								title="Change Avatar"
-								on:keypress={() => {
-									avatarFileInput.click();
-								}}
-								on:click={() => {
-									avatarFileInput.click();
-								}}
-							>
-								<i class="fa-solid fa-image-portrait" />
-							</button>
-							<button
-								title="Change Banner"
-								on:keypress={() => {
-									bannerFileInput.click();
-								}}
-								on:click={() => {
-									bannerFileInput.click();
-								}}
-							>
-								<i class="fa-solid fa-panorama" />
-							</button>
-							{#if !editSummary}
 								<button
-									title="Update Biography"
-									on:click|preventDefault={handleEdit}
-									on:keypress|preventDefault={handleEdit}
+									title="Change Banner"
+									on:keypress={() => {
+										bannerFileInput.click();
+									}}
+									on:click={() => {
+										bannerFileInput.click();
+									}}
 								>
-									<i class="fa-solid fa-pencil" />
+									<i class="fa-solid fa-panorama" />
 								</button>
-							{/if}
-						</div>
-					{/if}
+								{#if !editSummary}
+									<button
+										title="Update Biography"
+										on:click|preventDefault={handleEdit}
+										on:keypress|preventDefault={handleEdit}
+									>
+										<i class="fa-solid fa-pencil" />
+									</button>
+								{/if}
+							</div>
+						{/if}
 
-					{#if editSummary}
-						<div>
-							<button title="Cancel" on:click|preventDefault={handleCancel}
-								><i class="fa-solid fa-ban" /></button
-							>
-							<button title="Preview" on:click|preventDefault={handlePreview}
-								><i class="fa-solid fa-eye" /></button
-							>
-							{#if summaryChanged}
+						{#if editSummary}
+							<div>
+								<button title="Cancel" on:click|preventDefault={handleCancel}
+									><i class="fa-solid fa-ban" /></button
+								>
+								<button title="Preview" on:click|preventDefault={handlePreview}
+									><i class="fa-solid fa-eye" /></button
+								>
+								{#if summaryChanged}
+									<button on:click|preventDefault={handleSaveSummary} title="Save"
+										><i class="fa-solid fa-floppy-disk" /></button
+									>
+								{/if}
+							</div>
+						{:else if summaryChanged}
+							<div>
 								<button on:click|preventDefault={handleSaveSummary} title="Save"
 									><i class="fa-solid fa-floppy-disk" /></button
 								>
-							{/if}
-						</div>
-					{:else if summaryChanged}
-						<div>
-							<button on:click|preventDefault={handleSaveSummary} title="Save"
-								><i class="fa-solid fa-floppy-disk" /></button
-							>
-						</div>
-					{/if}
-				</div>
-			{/if}
-			<div class="summary">
-				{#if editSummary}
-					<pre id="summary_edit" contenteditable="true">{summaryMarkdown}</pre>
-				{/if}
-
-				{#if username && !editSummary}
-					<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
-					<!-- svelte-ignore a11y-positive-tabindex -->
-					<div>
-						{@html insertEmojis(wasm, profile.summary || '', profile)}
+							</div>
+						{/if}
 					</div>
 				{/if}
+				<div class="summary">
+					{#if editSummary}
+						<pre id="summary_edit" contenteditable="true">{summaryMarkdown}</pre>
+					{/if}
 
-				{#if !username}
-					<span>{@html profile.summary || ''}</span>
-				{/if}
+					{#if username && !editSummary}
+						<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
+						<!-- svelte-ignore a11y-positive-tabindex -->
+						<div>
+							{@html insertEmojis(wasm, profile.summary || '', profile)}
+						</div>
+					{/if}
+
+					{#if !username}
+						<span>{@html profile.summary || ''}</span>
+					{/if}
+				</div>
+				<div class="tabs">
+					{#if local}
+						<button class={currentView === Views.Articles ? 'selected' : ''}>Articles</button>
+					{/if}
+
+					{#if local || username}
+						<button
+							class={currentView === Views.Posts ? 'selected' : ''}
+							on:click={() => {
+								currentView = Views.Posts;
+							}}>Posts</button
+						>
+					{/if}
+
+					{#if username}
+						<button
+							class={currentView === Views.Following ? 'selected' : ''}
+							on:click={() => {
+								currentView = Views.Following;
+							}}
+							>Following &bull; {abbreviateNumber(
+								profile.ephemeral?.leaders || followingCount
+							)}</button
+						>
+						<button
+							class={currentView === Views.Followers ? 'selected' : ''}
+							on:click={() => {
+								currentView = Views.Followers;
+							}}
+							>Followers &bull; {abbreviateNumber(
+								profile.ephemeral?.followers || followerCount
+							)}</button
+						>
+					{/if}
+				</div>
 			</div>
-			<div class="tabs">
-				{#if local}
-					<button class={currentView === Views.Articles ? 'selected' : ''}>Articles</button>
+			<section>
+				{#if currentView === Views.Posts}
+					<Posts bind:this={postsComponent} handle={$page.params.handle} {local} />
+				{:else if currentView == Views.Followers}
+					<Follows
+						bind:this={followersComponent}
+						handle={$page.params.handle}
+						{local}
+						view="Followers"
+						{cache}
+						{cachedActor}
+					/>
+				{:else if currentView == Views.Following}
+					<Follows
+						bind:this={followingComponent}
+						handle={$page.params.handle}
+						{local}
+						view="Following"
+						{cache}
+						{cachedActor}
+					/>
 				{/if}
-
-				{#if local || username}
-					<button
-						class={currentView === Views.Posts ? 'selected' : ''}
-						on:click={() => {
-							currentView = Views.Posts;
-						}}>Posts</button
-					>
-				{/if}
-
-				{#if username}
-					<button
-						class={currentView === Views.Following ? 'selected' : ''}
-						on:click={() => {
-							currentView = Views.Following;
-						}}
-						>Following &bull; {abbreviateNumber(
-							profile.ephemeral?.leaders || followingCount
-						)}</button
-					>
-					<button
-						class={currentView === Views.Followers ? 'selected' : ''}
-						on:click={() => {
-							currentView = Views.Followers;
-						}}
-						>Followers &bull; {abbreviateNumber(
-							profile.ephemeral?.followers || followerCount
-						)}</button
-					>
-				{/if}
-			</div>
-		</div>
-		<section>
-			{#if currentView === Views.Posts}
-				<Posts bind:this={postsComponent} handle={$page.params.handle} {local} />
-			{:else if currentView == Views.Followers}
-				<Follows
-					bind:this={followersComponent}
-					handle={$page.params.handle}
-					{local}
-					view="Followers"
-					{cache}
-					{cachedActor}
-				/>
-			{:else if currentView == Views.Following}
-				<Follows
-					bind:this={followingComponent}
-					handle={$page.params.handle}
-					{local}
-					view="Following"
-					{cache}
-					{cachedActor}
-				/>
-			{/if}
-		</section>
-	{/if}
-</main>
+			</section>
+		{/if}
+	</main>
+{/key}
 
 <style lang="scss">
 	:global(.emoji) {

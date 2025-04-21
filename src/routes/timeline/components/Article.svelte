@@ -387,7 +387,8 @@
 			white-space: pre-wrap;
 
 			:global(code) {
-				padding: 0 5px;
+				padding: 0;
+				white-space: pre-wrap;
 				background: unset;
 			}
 		}
@@ -503,14 +504,6 @@
 			}
 		}
 
-		.comments:hover {
-			color: red;
-
-			:global(i) {
-				color: red;
-			}
-		}
-
 		:global(address > span),
 		address > a {
 			display: inline-block;
@@ -572,7 +565,6 @@
 			background: unset;
 			padding: 10px 0;
 			margin: 0;
-			opacity: 0.3;
 			display: flex;
 			flex-direction: row;
 			transition-duration: 300ms;
@@ -591,20 +583,11 @@
 				i.selected {
 					color: goldenrod;
 				}
-			}
 
-			span:hover {
-				cursor: pointer;
-				color: red;
-
-				i {
-					color: inherit;
+				i:hover {
+					cursor: pointer;
 				}
 			}
-		}
-
-		nav:hover {
-			opacity: 1;
 		}
 	}
 
@@ -651,8 +634,6 @@
 
 			:global(section pre) {
 				background: #111;
-				padding: 10px;
-				white-space: pre-wrap;
 
 				:global(code) {
 					background: unset;
@@ -663,20 +644,11 @@
 				background: unset;
 
 				i {
-					color: #fff;
+					color: #aaa;
 				}
 
 				i.selected {
 					color: goldenrod;
-				}
-
-				span:hover {
-					cursor: pointer;
-					color: red;
-
-					i {
-						color: inherit;
-					}
 				}
 			}
 		}

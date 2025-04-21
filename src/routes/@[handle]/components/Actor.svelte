@@ -25,13 +25,13 @@
 
 	} from '../../../common';
 
-	export let profile: UserProfileTerse | UserProfile;
+	export let profile: UserProfileTerse;
 
 	$: wasm = $enigmatickWasm;
 </script>
 
 <div>
-	<a href={getFirst(profile.url)} title={convertMastodonUrlToWebfinger(getFirst(profile.url) || '')}>
+	<a href={"/" + profile.webfinger}>
 		<div class="image">
 			{#if profile.icon}
 				<img src={cachedContent(wasm, profile.icon.url)} alt="Avatar" />
@@ -43,7 +43,7 @@
 			{:else}
 				<span>{profile.name}</span>
 			{/if}
-			<span class="handle">{convertMastodonUrlToWebfinger(getFirst(profile.url) || '', true) || getFirst(profile.url)}</span>
+			<span class="handle">{profile.webfinger || (convertMastodonUrlToWebfinger(getFirst(profile.url) || '', true) || getFirst(profile.url))}</span>
 		</div>
 	</a>
 </div>

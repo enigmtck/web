@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { appData, wasmState, enigmatickWasm } from '../stores';
+	import { appData, enigmatickWasm } from '../stores';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount, setContext } from 'svelte';
@@ -30,10 +30,10 @@
 			console.log(instance?.domain);
 			console.log(instance?.url);
 
-			if (get(wasmState)) {
-				wasm.import_state(get(wasmState));
-				console.log('loaded state from store');
-			}
+			// if (get(wasmState)) {
+			// 	wasm.import_state(get(wasmState));
+			// 	alert('loaded state from store');
+			// }
 
 			console.log(wasm);
 			enigmatickWasm.set(wasm);

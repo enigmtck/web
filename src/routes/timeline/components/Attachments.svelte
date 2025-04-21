@@ -64,7 +64,7 @@
 <section>
 	{#if note.attachment}
 		{#each note.attachment as x}
-			{#if x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))}
+			{#if ((x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))) || x.type == 'Image')}
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 				<div class={placement.getPlacement()} tabindex="0">
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -94,7 +94,11 @@
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 				<div class={placement.getPlacement()} tabindex="0">
 					<!-- svelte-ignore a11y-media-has-caption -->
-					<audio controls src={cachedContent(wasm, String(x.url))} on:error={(e) => console.log(e)}></audio>
+					<audio
+						controls
+						src={cachedContent(wasm, String(x.url))}
+						on:error={(e) => console.log(e)}
+					/>
 				</div>
 			{/if}
 		{/each}

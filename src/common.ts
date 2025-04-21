@@ -146,6 +146,7 @@ interface UserProfileTerse {
 	preferredUsername: string;
 	tag?: Tag[] | null;
 	icon?: Image;
+	webfinger?: string;
 }
 
 interface UserProfile {
@@ -224,7 +225,7 @@ interface Tag {
 }
 
 interface Attachment {
-	type: 'PropertyValue' | 'Document' | 'IdentityProof';
+	type: 'PropertyValue' | 'Document' | 'IdentityProof' | 'Image';
 	name?: string | null;
 	value?: string | null;
 	hash?: string | null;

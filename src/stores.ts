@@ -1,6 +1,6 @@
 import { writable, type Writable } from 'svelte/store';
 
-export const wasmState = writable('');
+//export const wasmState = writable('');
 export const appData: Writable<{
 	username: string | null;
 	display_name: string | null;

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { wasmState, appData, enigmatickWasm } from '../../stores';
+	import { appData, enigmatickWasm } from '../../stores';
 	import { goto } from '$app/navigation';
 	import type { Collection } from '../../common';
 	import { onMount } from 'svelte';
@@ -39,7 +39,7 @@
 			console.debug(state);
 
 			if (state) {
-				wasmState.set(state.export());
+				//wasmState.set(state.export());
 				let result = await wasm?.replenish_mkp();
 				console.debug(`REPLENISH RESULT: ${result}`);
 			}

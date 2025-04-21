@@ -5,7 +5,7 @@
 
 	import { onDestroy, onMount, tick, afterUpdate } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
-	import { appData, enigmatickWasm, wasmState } from '../../stores';
+	import { appData, enigmatickWasm } from '../../stores';
 	//import { appData, wasmState } from '../../stores';
 	import { useMediaQuery } from 'svelte-breakpoints';
 	//import init from 'wasm/enigmatick_wasm_bg.wasm?init';
@@ -40,7 +40,6 @@
 	$: view = '';
 
 	$: wasm = $enigmatickWasm;
-	//let wasm: any = null;
 
 	let streamUuid: string | null = null;
 	let observer: IntersectionObserver | null = null;
@@ -112,44 +111,6 @@
 			}
 		}
 	};
-
-	// const onIntersection = async (entries: IntersectionObserverEntry[]) => {
-	// 	for (let entry of entries) {
-	// 		let target;
-	// 		if (target = <HTMLElement>entry.target) {
-	// 			if (entry.isIntersecting) {
-	// 				currentIds.push(target.id);
-
-	// 				if (target.dataset) {
-	// 					let dataset = <DOMStringMap>target.dataset;
-	// 					if (wasm && dataset.conversation) {
-	// 						if (!retrievedConversations.has(dataset.conversation)) {
-	// 							retrievedConversations.add(dataset.conversation);
-	// 							let c = await wasm.get_conversation(encodeURIComponent(dataset.conversation), 50);
-	// 							if (c) {
-	// 								let collection: Collection = JSON.parse(c);
-
-	// 								if (collection.orderedItems) {
-	// 									for (const a of collection.orderedItems) {
-	// 										console.debug(a);
-	// 										if (a.object.inReplyTo) {
-	// 											await addNote(a);
-	// 										}
-	// 									}
-	// 								}
-	// 							}
-	// 						}
-	// 					}
-	// 				}
-	// 			} else {
-	// 				let index = currentIds.indexOf(target.id);
-	// 				if (index !== -1) {
-	// 					currentIds.splice(index, 1);
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
 
 	const observeNote = (note: any) => {
 		if (observer) {
