@@ -46,7 +46,8 @@ WORKDIR /opt/build/enigmatick/vendor/vite-plugin-wasm-pack
 RUN yarn install && yarn build
 
 RUN mkdir -p /opt/build/enigmatick/wasm/enigmatick_wasm
-COPY wasm/enigmatick_wasm/Cargo.lock /opt/build/enigmatick/wasm/enigmatick_wasm/
+COPY .cargo /opt/build/enigmatick/.cargo
+COPY Cargo.lock /opt/build/enigmatick/wasm/enigmatick_wasm/
 COPY wasm/enigmatick_wasm/Cargo.toml /opt/build/enigmatick/wasm/enigmatick_wasm/
 COPY wasm/enigmatick_wasm/rust-toolchain.toml /opt/build/enigmatick/wasm/enigmatick_wasm/
 COPY wasm/enigmatick_wasm/src /opt/build/enigmatick/wasm/enigmatick_wasm/src
