@@ -131,13 +131,15 @@
 		html {
 			margin: 0;
 			padding: 0;
-			height: 100%;
+			height: 100dvh;
+			width: 100dvw;
 		}
 
 		body {
 			margin: 0;
 			padding: 0;
-			height: 100%;
+			height: 100dvh;
+			width: 100dvw;
 		}
 	</style>
 </svelte:head>
@@ -220,9 +222,9 @@
 						><i class="fa-solid fa-right-to-bracket" />Login</a
 					>
 				{/if}
-				<a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
+				<!-- <a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
 					><i class="fa-solid fa-gear" />TEST</a
-				>
+				> -->
 			</div>
 
 			<div class="toggle">
@@ -271,8 +273,8 @@
 	}
 
 	.app {
-		width: 100%;
-		height: 100%;
+		width: 100vw;
+		height: 100vh;
 		position: relative;
 		display: grid;
 		grid-template:
@@ -435,7 +437,7 @@
 				display: flex;
 				flex-direction: row;
 				justify-content: space-evenly;
-				width: 100%;
+				width: 100vw;
 			}
 
 			img:hover {

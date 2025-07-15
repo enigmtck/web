@@ -9,7 +9,9 @@
 		AnnounceParams,
 		Ephemeral,
 		UserProfileTerse,
-		Activity
+		Activity,
+		Question,
+		Article
 	} from '../../../common';
 	import { onDestroy, onMount, getContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
@@ -21,7 +23,11 @@
 		cachedContent,
 		domainMatch,
 		sleep,
-		decrypt
+		decrypt,
+		isNote,
+		isArticle,
+		isEncryptedNote,
+		isQuestion
 	} from '../../../common';
 	import { replyCount, ComposeDispatch } from './common';
 	import { enigmatickWasm } from '../../../stores';
@@ -36,6 +42,7 @@
 	import Menu from './Menu.svelte';
 	import Attachments from './Attachments.svelte';
 	import { json } from '@sveltejs/kit';
+	import { tick } from 'svelte';
 
 	$: wasm = $enigmatickWasm;
 
@@ -54,7 +61,7 @@
 	export let remove: (note: string) => void;
 	export let cachedNote: (id: string) => Promise<string | undefined>;
 
-	const replyToHeader = async (note: Note): Promise<string | null> => {
+	const replyToHeader = async (note: Note | Article | Question): Promise<string | null> => {
 		if (note.inReplyTo) {
 			const replyNote = await cachedNote(note.inReplyTo);
 
@@ -81,7 +88,9 @@
 		}
 	};
 
-	const announceHeader = async (note: Note): Promise<AnnounceParams | null> => {
+	const announceHeader = async (
+		note: Note | Article | Question
+	): Promise<AnnounceParams | null> => {
 		if (note.ephemeral?.announces) {
 			const announceActor = note.ephemeral.announces[0];
 			let others = '';
@@ -220,6 +229,45 @@
 	}
 
 	let article_id = '';
+
+	let selectedOption: number | null = null;
+	let selectedOptions: number[] = [];
+	let hasVoted = false;
+
+	function handleVote() {
+		// For oneOf: selectedOption is the index of the chosen option
+		// For anyOf: selectedOptions is an array of indices
+		// TODO: Send vote to backend here
+		hasVoted = true;
+	}
+
+	// Helper to normalize oneOf/anyOf to arrays
+	function toArray<T>(val: T | T[] | undefined | null): T[] {
+		return val == null ? [] : Array.isArray(val) ? val : [val];
+	}
+
+	// Precompute poll options and votes only if note.note is a Question
+	$: pollOptions = isQuestion(note.note)
+		? note.note.oneOf
+			? toArray(note.note.oneOf)
+			: note.note.anyOf
+			? toArray(note.note.anyOf)
+			: []
+		: [];
+
+	$: maxVotes =
+		pollOptions.length > 0
+			? Math.max(
+					...pollOptions.map((opt) =>
+						opt.replies && opt.replies.totalItems ? opt.replies.totalItems : 0
+					),
+					1 // avoid division by zero
+			  )
+			: 1;
+
+	$: pollVotes = pollOptions.map((opt) =>
+		opt.replies && opt.replies.totalItems ? opt.replies.totalItems : 0
+	);
 </script>
 
 <article use:renderAction data-conversation={note.note.conversation} id={article_id}>
@@ -254,16 +302,75 @@
 				<span>{@html insertEmojis(wasm, actorName, actorTerseProfile)}</span>
 				<a href="/{getWebFingerFromId(actorTerseProfile)}">
 					<!--{getWebFingerFromId(actorTerseProfile)}-->
-					<FediHandle handle={getWebFingerFromId(actorTerseProfile)} />
+					<FediHandle handle={note.note.ephemeral?.attributedTo?.[0].webfinger || ''} />
 				</a>
 			{/if}
 		</address>
 	</header>
 
-	{#if note.activity}
+	{#if note.activity && note.note && isEncryptedNote(note.note)}
 		<section>{@html insertEmojis(wasm, decrypt(wasm, note.activity), note.note)}</section>
-	{:else if note.note && note.note.content}
+	{:else if note.note && isArticle(note.note) && note.note.summary}
+		<section>
+			{@html insertEmojis(wasm, note.note.summary, note.note)}
+			<nav>
+				<h3>Open Article</h3>
+				<button>Local</button><button>Remote</button>
+			</nav>
+		</section>
+	{:else if note.note && isNote(note.note) && note.note.content}
 		<section>{@html insertEmojis(wasm, note.note.content, note.note)}</section>
+	{:else if note.note && isQuestion(note.note) && note.note.content}
+		<section class="question">
+			<div class="question-content">
+				{@html insertEmojis(wasm, note.note.content, note.note)}
+			</div>
+			{#if isQuestion(note.note) && note.note.oneOf}
+				<div class="poll-bars">
+					<form on:submit|preventDefault={handleVote} class="poll-form">
+						{#each toArray(note.note.oneOf) as option, idx (option.name)}
+							<label class="poll-option">
+								<input
+									type="radio"
+									name="poll"
+									bind:group={selectedOption}
+									value={idx}
+									disabled={hasVoted}
+								/>
+								<div class="bar-container{selectedOption === idx ? ' selected' : ''}">
+									<div class="bar" style="width: {Math.round((pollVotes[idx] / maxVotes) * 100)}%;" />
+									<span class="option-label">{option.name}</span>
+									<span class="votes-label">{pollVotes[idx]} votes</span>
+								</div>
+							</label>
+						{/each}
+						{#if note.note.votersCount !== undefined}
+							<span class="total-voters">Total voters: {note.note.votersCount}</span>
+						{/if}
+						<button type="submit" disabled={hasVoted || selectedOption === null}>Vote</button>
+					</form>
+				</div>
+			{:else if isQuestion(note.note) && note.note.anyOf}
+				<div class="poll-bars">
+					<form on:submit|preventDefault={handleVote} class="poll-form">
+						{#each toArray(note.note.anyOf) as option, idx (option.name)}
+							<label class="poll-option">
+								<input type="checkbox" bind:group={selectedOptions} value={idx} disabled={hasVoted} />
+								<div class="bar-container{selectedOptions.includes(idx) ? ' selected' : ''}">
+									<div class="bar" style="width: {Math.round((pollVotes[idx] / maxVotes) * 100)}%;" />
+									<span class="option-label">{option.name}</span>
+									<span class="votes-label">{pollVotes[idx]} votes</span>
+								</div>
+							</label>
+						{/each}
+						{#if note.note.votersCount !== undefined}
+							<span class="total-voters">Total voters: {note.note.votersCount}</span>
+						{/if}
+						<button type="submit" disabled={hasVoted || selectedOptions.length === 0}>Vote</button>
+					</form>
+				</div>
+			{/if}
+		</section>
 	{/if}
 
 	{#if note.note.attachment && note.note.attachment.length > 0}
@@ -540,6 +647,43 @@
 			:global(pre) {
 				white-space: pre;
 			}
+
+			:global(img) {
+				max-width: 100%;
+				height: auto;
+			}
+
+			nav {
+				padding: 0;
+				display: inline-block;
+				text-align: center;
+				border: 1px solid #ddd;
+				margin-top: 10px;
+				background: #eee;
+				border-radius: 10px;
+
+				h3 {
+					font-size: 16px;
+					padding: 10px 0;
+					margin: 0;
+					color: #555;
+				}
+
+				button {
+					background: none;
+					border: 0;
+					outline: 0;
+					margin: 0px 10px 10px 10px;
+					padding: 5px 25px;
+					background: darkred;
+					color: #fff;
+				}
+
+				button:hover {
+					background: red;
+					cursor: pointer;
+				}
+			}
 		}
 
 		:global(section > p) {
@@ -591,6 +735,109 @@
 		}
 	}
 
+	.poll-form {
+		margin-top: 1em;
+	}
+	.poll-option {
+		display: block;
+		margin-bottom: 0.5em;
+		cursor: pointer;
+		position: relative;
+	}
+	.bar-container {
+		display: flex;
+		align-items: center;
+		position: relative;
+		height: 2em;
+		background: #f0f0f0;
+		overflow: hidden;
+	}
+	.bar {
+		background: linear-gradient(90deg, darkgoldenrod, goldenrod);
+		height: 100%;
+		transition: width 0.4s;
+	}
+	.option-label {
+		position: absolute;
+		left: 2.5em;
+		z-index: 1;
+		color: #222;
+		font-weight: 600;
+		pointer-events: none;
+	}
+	.votes-label {
+		position: absolute;
+		right: 1em;
+		z-index: 1;
+		color: #555;
+		font-size: 0.9em;
+		pointer-events: none;
+	}
+	.poll-option input[type='radio'],
+	.poll-option input[type='checkbox'] {
+		position: absolute;
+		left: 0;
+		top: 50%;
+		transform: translateY(-50%);
+		z-index: 2;
+		display: none;
+	}
+	.bar-container.selected .bar {
+		box-shadow: 0 0 0 3px goldenrod, 0 2px 8px #ffd70055;
+		background: linear-gradient(90deg, darkred, red);
+	}
+	.bar-container.selected {
+		outline: 2px solid goldenrod;
+		outline-offset: -2px;
+	}
+
+	button[type='submit'] {
+		background: darkred;
+		color: #fff;
+		border: none;
+		border-radius: 10px;
+		padding: 0.5em 2em;
+		font-size: 1em;
+		font-weight: 600;
+		margin: 1em auto 1.5em auto;
+		display: block;
+		cursor: pointer;
+		transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+		box-shadow: none;
+		outline: none;
+	}
+	button[type='submit']:hover:not(:disabled) {
+		background: red;
+		box-shadow: 0 2px 8px #ff525233;
+	}
+	button[type='submit']:active:not(:disabled) {
+		background: #2a0000;
+		color: goldenrod;
+	}
+	button[type='submit']:disabled {
+		background: #333;
+		color: #888;
+		cursor: not-allowed;
+		box-shadow: none;
+	}
+	.total-voters {
+		text-align: right;
+		color: #222;
+	}
+
+	.poll-bars {
+		position: relative;
+	}
+	.total-voters {
+		display: block;
+		font-size: 0.8em;
+		color: #222;
+		margin-top: 0.2em;
+		text-align: right;
+		font-style: italic;
+		opacity: 0.85;
+	}
+
 	:global(body.dark) {
 		a {
 			color: darkgoldenrod;
@@ -639,9 +886,19 @@
 					background: unset;
 				}
 			}
+			section {
+				nav {
+					border-color: #333;
+					background: #000;
+				}
+			}
 
 			nav {
 				background: unset;
+
+				h3 {
+					color: #aaa;
+				}
 
 				i {
 					color: #aaa;
@@ -669,6 +926,10 @@
 			i {
 				color: #ccc;
 			}
+		}
+
+		.total-voters {
+			color: #aaa;
 		}
 	}
 </style>

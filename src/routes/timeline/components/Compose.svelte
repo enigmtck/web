@@ -783,6 +783,7 @@
 
 				> div.entry {
 					flex-grow: 2;
+					height: 100%;
 					width: 100%;
 					padding: 10px;
 					bottom: 0;
@@ -956,6 +957,7 @@
 
 					> div {
 						display: unset;
+						transform: translateY(calc(-100% - 50px));
 					}
 				}
 
@@ -974,7 +976,7 @@
 			max-width: unset;
 			max-height: unset;
 			margin: 0;
-			height: 100%;
+			height: 100dvh;
 			z-index: 21;
 			text-align: unset;
 			background: #ddd;
@@ -988,13 +990,28 @@
 				padding: 0;
 				border: 0;
 				border-radius: 0;
-				height: 100%;
-				width: 100%;
+				height: 100dvh;
+				width: 100dvw;
 				max-height: unset;
 				min-height: unset;
 				padding-top: 35px;
 				max-width: unset;
 				min-width: unset;
+
+				form {
+					> div.privacy {
+					background: #efefef;
+					outline: 1px solid #aaa;
+
+					> div {
+						display: unset;
+						position: fixed;
+						left: calc(50dvw - 200px);
+						top: calc(50dvh - 75px);
+						transform: unset;
+					}
+				}
+				}
 
 				> i.fa-xmark {
 					font-size: 28px;

@@ -4,6 +4,7 @@ export type {
 	EnigmatickEvent,
 	EnigmatickEventObject,
 	Activity,
+	Article,
 	Tag,
 	Attachment,
 	Metadata,
@@ -16,7 +17,8 @@ export type {
 	Collection,
 	QueueItem,
 	VaultedMessage,
-	Ephemeral
+	Ephemeral,
+	Question
 };
 export {
 	insertEmojis,
@@ -35,11 +37,14 @@ export {
 	abbreviateNumber,
 	decrypt,
 	removeTags,
-	isNote
+	isNote,
+	isArticle,
+	isEncryptedNote,
+	isQuestion
 };
 
 interface DisplayNote {
-	note: Note;
+	note: Note | Article | Question;
 	activity: Activity | undefined;
 	actor: UserProfile | UserProfileTerse;
 	published: string;
@@ -49,7 +54,7 @@ interface DisplayNote {
 }
 
 class DisplayNote {
-	note: Note;
+	note: Note | Article | Question;
 	activity: Activity | undefined;
 	actor: UserProfile | UserProfileTerse;
 	published: string;
@@ -59,7 +64,7 @@ class DisplayNote {
 
 	constructor(
 		profile: UserProfile | UserProfileTerse,
-		note: Note,
+		note: Note | Article | Question,
 		activity?: Activity,
 		replies?: Map<string, DisplayNote>
 	) {
@@ -254,7 +259,6 @@ interface Metadata {
 }
 
 interface Note {
-	'@context': string;
 	type: 'Note' | 'EncryptedNote';
 	tag?: Tag[] | Tag | null;
 	id?: string;
@@ -263,6 +267,7 @@ interface Note {
 	url?: string;
 	attributedTo: string;
 	content?: string | null;
+	summary?: string | null;
 	replies?: object | null;
 	published: string | null;
 	inReplyTo?: string | null;
@@ -271,7 +276,73 @@ interface Note {
 	ephemeral?: Ephemeral;
 }
 
-const isNote = (attr: string | Note): attr is Note => {
+const isNote = (attr: string | Question | Note | Article): attr is Note & { type: 'Note' }=> {
+	return typeof attr === 'object' && attr !== null && attr.type === 'Note';
+};
+
+const isEncryptedNote = (attr: string | Question | Note | Article): attr is Note & { type: 'EncryptedNote' } => {
+	return typeof attr === 'object' && attr !== null && attr.type === 'EncryptedNote';
+};
+
+interface Article {
+	type: 'Article';
+	tag?: Tag[] | Tag | null;
+	id?: string;
+	to?: string[] | string;
+	cc?: string[] | string;
+	url?: string;
+	attributedTo: string;
+	preview?: Note | string | null
+	content?: string | null;
+	summary?: string | null;
+	replies?: object | null;
+	published: string | null;
+	inReplyTo?: string | null;
+	attachment?: Attachment[] | null;
+	conversation?: string | null;
+	ephemeral?: Ephemeral;
+}
+
+const isArticle = (attr: string | Question | Article | Note): attr is Article => {
+	return typeof attr === 'object' && attr !== null;
+};
+
+interface QuestionCollection {
+	totalItems: number;
+	type?: 'Collection';
+}
+
+interface QuestionNote {
+	type: 'Note';
+	attributedTo?: string | null;
+	to?: string[] | string | null;
+	name: string;
+	replies?: QuestionCollection | null
+}
+
+interface Question {
+	type: 'Question';
+	tag?: Tag[] | Tag | null;
+	id?: string | null;
+	to?: string[] | string;
+	cc?: string[] | string;
+	url?: string | null;
+	attributedTo: string;
+	oneOf?: QuestionNote[] | QuestionNote | null;
+	anyOf?: QuestionNote[] | QuestionNote | null;
+	content?: string | null;
+	summary?: string | null;
+	votersCount?: number | null;
+	replies?: object | null;
+	published: string | null;
+	inReplyTo?: string | null;
+	attachment?: Attachment[] | null;
+	conversation?: string | null;
+	endTime?: string | null;
+	ephemeral?: Ephemeral;
+}
+
+const isQuestion = (attr: string | Question | Article | Note): attr is Question => {
 	return typeof attr === 'object' && attr !== null;
 };
 
@@ -282,7 +353,7 @@ interface Activity {
 	to: string[];
 	cc: string[];
 	id: string;
-	object: Note;
+	object: Note | Article | Question;
 	published: string | null;
 	instrument?: Instrument[] | null;
 	ephemeral?: Ephemeral;
@@ -428,7 +499,7 @@ function insertEmojis(
 	wasm: any,
 	//wasm: typeof import('enigmatick_wasm') | null,
 	text: string,
-	profile: UserProfile | Note | UserProfileTerse
+	profile: UserProfile | Note | UserProfileTerse | Article | Question
 ) {
 	if (wasm && profile.tag) {
 		let tags: Tag[] = [];

@@ -92,7 +92,6 @@
 				background: goldenrod;
 				color: #fff;
 				border-radius: 5px;
-				font-size: 12px;
                 cursor: pointer;
 			}
 		}
@@ -113,7 +112,7 @@
 
 	:global(body.dark) {
 		div {
-			background: #000;
+			background: #222;
 			border-color: #333;
 
 			div {
@@ -128,6 +127,26 @@
 					background: #1a1a1a;
 					color: white;
 					border-color: #555;
+				}
+			}
+		}
+	}
+
+	@media screen and (max-width: 1000px) {
+		div {
+			background: #eee;
+
+			div {
+				background: #eee;
+			}
+		}
+
+		:global(body.dark) {
+			div {
+				background: #000;
+
+				div {
+					background: #000;
 				}
 			}
 		}

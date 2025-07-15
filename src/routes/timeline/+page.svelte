@@ -677,7 +677,6 @@
 		overflow-y: hidden;
 		grid-area: content;
 		display: grid;
-		min-width: 400px;
 		grid-template:
 			[row1-start] 'content context' auto [row2-end]
 			/ auto 350px;
@@ -832,7 +831,8 @@
 			align-items: center;
 			padding: 20px;
 
-			div {
+			> div {
+				position: relative;
 				width: 100%;
 				background: #fafafa;
 				padding: 0 0 5px 0;
@@ -894,14 +894,6 @@
 						color: white;
 					}
 				}
-
-				:global(div.filters) {
-					background: #eee;
-				}
-
-				:global(div.filters > div) {
-					background: #eee;
-				}
 			}
 		}
 	}
@@ -930,23 +922,11 @@
 					h1 {
 						background: #222;
 					}
-
-					:global(div.filters) {
-						background: #222;
-					}
 				}
 
 				@media screen and (max-width: 1000px) {
 					div {
 						background: #000;
-
-						:global(div.filters) {
-							background: #000;
-						}
-
-						:global(div.filters > div) {
-							background: #000;
-						}
 					}
 				}
 			}

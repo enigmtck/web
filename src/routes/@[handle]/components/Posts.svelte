@@ -14,7 +14,9 @@
 		AnnounceParams,
 		Attachment,
 		Activity,
-		UserProfileTerse
+		UserProfileTerse,
+		Article as ApArticle,
+		Question,
 	} from '../../../common';
 	import {
 		insertEmojis,
@@ -23,7 +25,13 @@
 		DisplayNote,
 		type Collection,
 		extractMaxMin,
-		isNote
+		isNote,
+
+		isArticle,
+
+		isQuestion
+
+
 	} from '../../../common';
 
 	let composeComponent: Compose;
@@ -109,7 +117,7 @@
 					addNote(<Activity>item);
 				} else if (item.type === 'Announce') {
 					console.debug('PROCESSING ANNOUNCE');
-					if (isNote(item.object)) {
+					if (isNote(item.object) || isArticle(item.object) || isQuestion(item.object)) {
 						addNote(<Activity>item);
 					} else {
 						let note = await wasm?.get_note(String(item.object));
@@ -117,7 +125,7 @@
 						console.debug(note);
 
 						if (note) {
-							const n: Note = JSON.parse(note);
+							const n: Note | ApArticle | Question = JSON.parse(note);
 							console.debug(n);
 							if (item.actor) {
 								let actor = parseProfile(await cachedActor(item.actor));
@@ -410,7 +418,7 @@
 		}
 	}
 
-	async function replyToHeader(note: Note): Promise<string | null> {
+	async function replyToHeader(note: Note | ApArticle | Question): Promise<string | null> {
 		if (note.inReplyTo) {
 			const replyNote = await cachedNote(note.inReplyTo);
 
@@ -449,7 +457,7 @@
 		}
 	}
 
-	async function announceHeader(note: Note): Promise<AnnounceParams | null> {
+	async function announceHeader(note: Note | ApArticle | Question): Promise<AnnounceParams | null> {
 		if (note.ephemeral?.announces) {
 			const announceActor = note.ephemeral.announces[0];
 			let others = '';

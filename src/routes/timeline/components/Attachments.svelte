@@ -1,10 +1,10 @@
 <script lang="ts">
-	import type { Note } from '../../../common';
+	import type { Article, Note, Question } from '../../../common';
 	import { cachedContent } from '../../../common';
 	import { onDestroy, onMount } from 'svelte';
 	import { enigmatickWasm } from '../../../stores';
 
-	export let note: Note;
+	export let note: Note | Article | Question;
 
 	$: wasm = $enigmatickWasm;
 
