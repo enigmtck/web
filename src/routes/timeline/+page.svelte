@@ -610,9 +610,8 @@
 			{#each published as note}
 				<Article
 					{remove}
-					{refresh}
 					{note}
-					{username}
+					{composeComponent}
 					on:replyTo={composeComponent.handleReplyToMessage}
 					on:noteSelect={handleNoteSelect}
 					renderAction={observeNote}
@@ -624,28 +623,13 @@
 				{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeral?.announces?.length)) || note.note.id == focusNote)}
 					<Article
 						{remove}
-						{refresh}
 						{note}
-						{username}
+						{composeComponent}
 						on:replyTo={composeComponent.handleReplyToMessage}
 						on:noteSelect={handleNoteSelect}
 						renderAction={observeNote}
 						{cachedNote}
 					/>
-
-					{#if note.note.id == focusNote && note.replies?.size}
-						<div class="replies">
-							{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
-								<Reply
-									{remove}
-									note={reply}
-									{username}
-									on:replyTo={composeComponent.handleReplyToMessage}
-									on:noteSelect={handleNoteSelect}
-								/>
-							{/each}
-						</div>
-					{/if}
 				{/if}
 			{/each}
 		</div>

@@ -1997,9 +1997,9 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "jdt_activity_pub"
-version = "0.2.54"
+version = "0.2.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1b7a25ae477ab2712d681f944322cdadafbc3978da4ef499a6687f125a351f6"
+checksum = "8614fdedcc384e16efa4d3f6e0feabe22cdfb7c1f0a008e28aace6a00c22487c"
 dependencies = [
  "anyhow",
  "base64",
@@ -2052,9 +2052,9 @@ dependencies = [
 
 [[package]]
 name = "jdt_maybe_reference"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "233381e2daf61ecc1ad8108891b6e6cb77142a05b5e268473fcfa588924f0f4f"
+checksum = "4e13f53e52f521910db1d58b39b0059cc009737e5006c3684fe1253c3a7f6e6a"
 dependencies = [
  "anyhow",
  "regex",

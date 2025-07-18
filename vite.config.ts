@@ -17,6 +17,7 @@ export default defineConfig({
 		cors: false,
 		host: true,
 		port: 5273,
+		allowedHosts: ['enigmatick.social'],
 		proxy: {
 			'/events': {
 				target: 'http://10.42.113.8/',

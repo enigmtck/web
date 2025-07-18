@@ -27,10 +27,11 @@
 		isNote,
 		isArticle,
 		isEncryptedNote,
-		isQuestion
+		isQuestion,
+		compare
 	} from '../../../common';
 	import { replyCount, ComposeDispatch } from './common';
-	import { enigmatickWasm } from '../../../stores';
+	import { enigmatickWasm, appData } from '../../../stores';
 	import TimeAgo from './TimeAgo.svelte';
 	import FediHandle from './FediHandle.svelte';
 
@@ -43,6 +44,8 @@
 	import Attachments from './Attachments.svelte';
 	import { json } from '@sveltejs/kit';
 	import { tick } from 'svelte';
+	import Reply from './Reply.svelte';
+	import Compose from './Compose.svelte';
 
 	$: wasm = $enigmatickWasm;
 
@@ -52,14 +55,15 @@
 		}
 	});
 
+	let username = $appData.username;
+
+	export let composeComponent: Compose;
 	export let note: DisplayNote;
-	export let username: string | null | undefined;
-	// export let replyToHeader: string | null;
-	// export let announceHeader: AnnounceParams | null;
 	export let renderAction: (node: any) => void;
-	export let refresh: () => void;
 	export let remove: (note: string) => void;
 	export let cachedNote: (id: string) => Promise<string | undefined>;
+
+	let showReplies: boolean = false;
 
 	const replyToHeader = async (note: Note | Article | Question): Promise<string | null> => {
 		if (note.inReplyTo) {
@@ -220,6 +224,14 @@
 		});
 	};
 
+	const handleArticleExpand = (event: Event) => {
+		console.debug(event);
+	};
+
+	const handleArticleNavigate = (event: Event) => {
+		console.debug(event);
+	};
+
 	let target: string | null = null;
 	let rel: string | null = null;
 
@@ -268,9 +280,17 @@
 	$: pollVotes = pollOptions.map((opt) =>
 		opt.replies && opt.replies.totalItems ? opt.replies.totalItems : 0
 	);
+
+	// Replace articlePreview with articlePreviewContent in <script>:
+	$: articlePreviewContent =
+		note.note && isArticle(note.note) && note.note.preview && isNote(note.note.preview)
+			? note.note.preview.content
+			: note.note && isArticle(note.note) && note.note.summary
+			? note.note.summary
+			: null;
 </script>
 
-<article use:renderAction data-conversation={note.note.conversation} id={article_id}>
+<article use:renderAction data-conversation={note.note.id} id={article_id}>
 	{#if wasm}
 		{#await replyToHeader(note.note) then header}
 			{#if header}
@@ -310,12 +330,24 @@
 
 	{#if note.activity && note.note && isEncryptedNote(note.note)}
 		<section>{@html insertEmojis(wasm, decrypt(wasm, note.activity), note.note)}</section>
-	{:else if note.note && isArticle(note.note) && note.note.summary}
+	{:else if articlePreviewContent}
 		<section>
-			{@html insertEmojis(wasm, note.note.summary, note.note)}
+			{@html insertEmojis(wasm, articlePreviewContent || '', note.note)}
 			<nav>
-				<h3>Open Article</h3>
-				<button>Local</button><button>Remote</button>
+				<div>
+					<div class="icon-row">
+						<!-- svelte-ignore a11y-click-events-have-key-events -->
+						<!-- svelte-ignore a11y-no-static-element-interactions -->
+						<i
+							class="fa-solid fa-up-right-and-down-left-from-center"
+							on:click={handleArticleExpand}
+						/>
+						<!-- svelte-ignore a11y-click-events-have-key-events -->
+						<!-- svelte-ignore a11y-no-static-element-interactions -->
+						<i class="fa-solid fa-arrow-right" on:click={handleArticleNavigate} />
+					</div>
+					<span>Article Actions</span>
+				</div>
 			</nav>
 		</section>
 	{:else if note.note && isNote(note.note) && note.note.content}
@@ -338,7 +370,10 @@
 									disabled={hasVoted}
 								/>
 								<div class="bar-container{selectedOption === idx ? ' selected' : ''}">
-									<div class="bar" style="width: {Math.round((pollVotes[idx] / maxVotes) * 100)}%;" />
+									<div
+										class="bar"
+										style="width: {Math.round((pollVotes[idx] / maxVotes) * 100)}%;"
+									/>
 									<span class="option-label">{option.name}</span>
 									<span class="votes-label">{pollVotes[idx]} votes</span>
 								</div>
@@ -355,9 +390,17 @@
 					<form on:submit|preventDefault={handleVote} class="poll-form">
 						{#each toArray(note.note.anyOf) as option, idx (option.name)}
 							<label class="poll-option">
-								<input type="checkbox" bind:group={selectedOptions} value={idx} disabled={hasVoted} />
+								<input
+									type="checkbox"
+									bind:group={selectedOptions}
+									value={idx}
+									disabled={hasVoted}
+								/>
 								<div class="bar-container{selectedOptions.includes(idx) ? ' selected' : ''}">
-									<div class="bar" style="width: {Math.round((pollVotes[idx] / maxVotes) * 100)}%;" />
+									<div
+										class="bar"
+										style="width: {Math.round((pollVotes[idx] / maxVotes) * 100)}%;"
+									/>
 									<span class="option-label">{option.name}</span>
 									<span class="votes-label">{pollVotes[idx]} votes</span>
 								</div>
@@ -399,7 +442,7 @@
 		<nav>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
 			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<span class="comments" on:click|preventDefault={() => handleNoteSelect(note, note.actor)}>
+			<span class="comments" on:click|preventDefault={() => (showReplies = !showReplies)}>
 				<i class="fa-solid fa-comments" />
 				{#if note.replies?.size}
 					{replyCount(note)}
@@ -466,6 +509,19 @@
 				{/await}
 			{/if}
 		</nav>
+	{/if}
+
+	{#if showReplies && note.replies?.size}
+		<div class="replies">
+			{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
+				<Reply
+					{remove}
+					note={reply}
+					{username}
+					on:replyTo={composeComponent.handleReplyToMessage}
+				/>
+			{/each}
+		</div>
 	{/if}
 </article>
 
@@ -654,34 +710,56 @@
 			}
 
 			nav {
-				padding: 0;
+				padding: 5px;
 				display: inline-block;
 				text-align: center;
-				border: 1px solid #ddd;
 				margin-top: 10px;
-				background: #eee;
-				border-radius: 10px;
 
-				h3 {
-					font-size: 16px;
-					padding: 10px 0;
-					margin: 0;
-					color: #555;
-				}
+				div {
+					box-sizing: border-box;
+					background: #eee;
+					border-radius: 10px;
+					margin: 10px;
+					display: inline-flex;
+					flex-direction: column;
+					align-items: stretch;
+					text-align: center;
+					padding: 5px;
 
-				button {
-					background: none;
-					border: 0;
-					outline: 0;
-					margin: 0px 10px 10px 10px;
-					padding: 5px 25px;
-					background: darkred;
-					color: #fff;
-				}
+					.icon-row {
+						display: flex;
+						flex-direction: row;
+						gap: 0.5em;
+						justify-content: center;
+						width: 100%;
+						margin: 0;
+						border: 0;
+					}
 
-				button:hover {
-					background: red;
-					cursor: pointer;
+					i {
+						font-size: 24px;
+						padding: 10px;
+						margin: 0;
+						background: darkred;
+						color: white;
+						border-radius: 10px;
+					}
+
+					i:hover {
+						cursor: pointer;
+						background: red;
+					}
+
+					span {
+						width: 100%;
+						display: block;
+						margin-top: 0.5em;
+						width: 100%;
+						text-align: center;
+						font-weight: bold;
+						color: #555;
+						padding: 0 10px;
+					}
 				}
 			}
 		}
@@ -888,8 +966,17 @@
 			}
 			section {
 				nav {
-					border-color: #333;
-					background: #000;
+					div {
+						background: #151515;
+
+						i {
+							color: white;
+						}
+
+						span {
+							color: #aaa;
+						}
+					}
 				}
 			}
 

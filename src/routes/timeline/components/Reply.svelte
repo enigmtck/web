@@ -50,7 +50,7 @@
 		console.debug('Handling Like');
 
 		if (displayNote.note.id && displayNote.note.attributedTo) {
-			const actor: string = displayNote.note.attributedTo;
+			const actor: string = displayNote.note.attributedTo[0];
 			const object: string = displayNote.note.id;
 
 			wasm?.send_like(actor, object).then((id) => {
@@ -67,7 +67,7 @@
 		console.debug('Handling Unike');
 
 		if (displayNote.note.id && displayNote.note.attributedTo) {
-			const actor: string = displayNote.note.attributedTo;
+			const actor: string = displayNote.note.attributedTo[0];
 			const object: string = displayNote.note.id;
 
 			if (displayNote.note.ephemeral && displayNote.note.ephemeral.liked) {
@@ -184,6 +184,7 @@
 	article {
 		position: relative;
 		margin: 0;
+		padding-bottom: 25px;
 		border-bottom: 1px solid #ddd;
 		font-family: 'Open Sans';
 		background: #fafafa;
@@ -287,17 +288,17 @@
 		nav {
 			width: 100%;
 			position: absolute;
-			z-index: 36;
+			z-index: 25;
 			top: unset;
 			right: unset;
 			bottom: 0;
 			left: 0;
-			background: #eee;
+			//background: #eee;
 			padding: 5px 0;
 			margin: 0;
-			opacity: 0.3;
-			display: none;
-			transition-duration: 300ms;
+			//opacity: 0.3;
+			//display: none;
+			//transition-duration: 300ms;
 
 			i {
 				text-align: center;
@@ -314,10 +315,6 @@
 			i.selected {
 				color: goldenrod;
 			}
-		}
-
-		nav:hover {
-			opacity: 0.9;
 		}
 	}
 
@@ -370,8 +367,6 @@
 			}
 
 			nav {
-				background: #222;
-
 				i {
 					color: #fff;
 				}

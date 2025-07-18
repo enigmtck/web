@@ -265,7 +265,7 @@ interface Note {
 	to?: string[] | string;
 	cc?: string[] | string;
 	url?: string;
-	attributedTo: string;
+	attributedTo?: string[] | string | null;
 	content?: string | null;
 	summary?: string | null;
 	replies?: object | null;
