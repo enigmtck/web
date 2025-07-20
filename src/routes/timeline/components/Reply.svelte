@@ -7,7 +7,7 @@
 		cachedContent,
 		decrypt
 	} from '../../../common';
-	import { ComposeDispatch, replyCount } from './common';
+	import { type ComposeDispatch, replyCount } from './common';
 	import { enigmatickWasm } from '../../../stores';
 	import Attachments from './Attachments.svelte';
 
@@ -20,6 +20,7 @@
 	export let note: DisplayNote;
 	export let username: string | null;
 	export let remove: (note: string) => void;
+	export let parentArticle: any = null;
 
 	let content: string;
 	$: {
@@ -158,6 +159,7 @@
 					{#await wasm?.get_ap_id() then ap_id}
 						<Menu
 							{remove}
+							reload = {() => {}}
 							object={note.note.id}
 							owner={ap_id == note.note.attributedTo}
 						/>
@@ -170,7 +172,7 @@
 	{#if note.replies?.size}
 		<div class="replies">
 			{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
-				<svelte:self note={reply} {username} on:replyTo />
+				<svelte:self note={reply} {username} {remove} on:replyTo parentArticle={parentArticle} />
 			{/each}
 		</div>
 	{/if}
@@ -184,17 +186,17 @@
 	article {
 		position: relative;
 		margin: 0;
-		padding-bottom: 25px;
 		border-bottom: 1px solid #ddd;
 		font-family: 'Open Sans';
 		background: #fafafa;
 		display: grid;
-		grid-template-columns: 90px 1fr;
+		grid-template-columns: 90px auto;
 		grid-auto-rows: minmax(10px, auto);
 		grid-template-areas:
 			'avatar address'
 			'avatar content'
-			'avatar attachments';
+			'avatar attachments'
+			'avatar nav';
 
 		:global(.emoji) {
 			display: inline;
@@ -261,16 +263,20 @@
 			}
 		}
 
-		section {
-			grid-area: content;
-			padding: 0;
-
-			:global(p) {
-				width: 100%;
-				margin: 5px 0;
-				padding: 0 5px 0 0;
-				font-size: 14px;
-			}
+		section, section pre, section code {
+			min-width: 0;
+			max-width: 100%;
+			box-sizing: border-box;
+			word-break: break-word;
+			padding-right: 10px;
+			font-size: 14px;
+		}
+		section pre {
+			overflow-x: auto;
+			white-space: pre-wrap;
+		}
+		section code {
+			white-space: pre-wrap;
 		}
 
 		:global(time) {
@@ -286,19 +292,15 @@
 		}
 
 		nav {
+			grid-area: nav;
 			width: 100%;
-			position: absolute;
 			z-index: 25;
-			top: unset;
-			right: unset;
-			bottom: 0;
-			left: 0;
-			//background: #eee;
 			padding: 5px 0;
 			margin: 0;
-			//opacity: 0.3;
-			//display: none;
-			//transition-duration: 300ms;
+			opacity: 0;
+			max-height: 0;
+			overflow: hidden;
+			transition: opacity 0.5s ease-in-out, max-height 0.5s ease-in-out;
 
 			i {
 				text-align: center;
@@ -320,8 +322,8 @@
 
 	article:hover {
 		nav {
-			display: block;
-			transition-duration: 300ms;
+			opacity: 1;
+			max-height: 50px;
 		}
 	}
 

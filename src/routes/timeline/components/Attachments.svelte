@@ -152,7 +152,7 @@
 			min-width: unset;
 			min-height: unset;
 			max-height: 50vh;
-			height: 200px;
+			height: 300px;
 			box-sizing: border-box;
 			width: 100%;
 			text-align: center;

@@ -42,88 +42,11 @@
 	$: wasm = $enigmatickWasm;
 
 	let streamUuid: string | null = null;
-	let observer: IntersectionObserver | null = null;
-	let retrievedConversations: Set<string> = new Set();
-	let currentIds: Array<string> = new Array();
 	let context: any;
 
 	const isSmallScreen = useMediaQuery('(max-width: 1000px)');
 
-	const handleIntersectingTarget = async (
-		target: HTMLElement,
-		wasm: any,
-		retrievedConversations: Set<string>
-	) => {
-		currentIds.push(target.id);
-
-		if (!target.dataset?.conversation) {
-			return;
-		}
-
-		const conversationId = target.dataset.conversation;
-		if (retrievedConversations.has(conversationId)) {
-			return;
-		}
-
-		retrievedConversations.add(conversationId);
-		await processConversation(wasm, conversationId);
-	};
-
-	const processConversation = async (wasm: any, conversationId: string) => {
-		const result = await wasm.get_conversation(encodeURIComponent(conversationId), 50);
-		if (!result) {
-			return;
-		}
-
-		const collection: Collection = JSON.parse(result);
-		await processCollectionItems(collection);
-	};
-
-	const processCollectionItems = async (collection: Collection) => {
-		if (!collection.orderedItems) {
-			return;
-		}
-
-		for (const item of collection.orderedItems) {
-			console.debug(item);
-			if (item.object.inReplyTo) {
-				await addNote(item);
-			}
-		}
-	};
-
-	const handleNonIntersectingTarget = (target: HTMLElement) => {
-		const index = currentIds.indexOf(target.id);
-		if (index !== -1) {
-			currentIds.splice(index, 1);
-		}
-	};
-
-	const onIntersection = async (entries: IntersectionObserverEntry[]) => {
-		for (const entry of entries) {
-			const target = entry.target as HTMLElement;
-			if (!target) continue;
-
-			if (entry.isIntersecting) {
-				await handleIntersectingTarget(target, wasm, retrievedConversations);
-			} else {
-				handleNonIntersectingTarget(target);
-			}
-		}
-	};
-
-	const observeNote = (note: any) => {
-		if (observer) {
-			observer.observe(note);
-		}
-	};
-
 	onMount(async () => {
-		observer = new IntersectionObserver(onIntersection, {
-			root: null, // default is the viewport
-			threshold: 0.3 // percentage of target's visible area. Triggers "onIntersection"
-		});
-
 		if (scrollable) {
 			scrollable.addEventListener('scroll', handleInfiniteScroll);
 		}
@@ -349,18 +272,6 @@
 		}
 	};
 
-	const handleNoteSelect = async (message: CustomEvent<ComposeDispatch>) => {
-		console.debug('NOTE SELECT');
-		console.debug(message);
-		focusConversation = message.detail.replyToNote.note.conversation || null;
-		focusNote = message.detail.replyToNote.note.id || null;
-		console.debug(`setting focusNote to ${message.detail.replyToNote}`);
-
-		yPosition = await scrollToTop();
-
-		infiniteScrollDisabled = true;
-	};
-
 	const clearNoteSelect = async () => {
 		focusConversation = null;
 		focusNote = null;
@@ -494,7 +405,6 @@
 		noteQueue = [];
 		notes = new Map<string, DisplayNote>();
 		published = new Array<DisplayNote>();
-		retrievedConversations = new Set();
 		await scrollToTop();
 		maxValue = undefined;
 		minValue = undefined;
@@ -571,6 +481,8 @@
 	let scrollable: HTMLDivElement;
 	let scrollPosition = 0;
 
+	let articleRefs: any[] = [];
+
 	const updateScrollPosition = (event: UIEvent) => {
 		if (!loading && !focusNote) {
 			scrollPosition = scrollable.scrollTop;
@@ -607,27 +519,27 @@
 		</header>
 
 		<div class="scrollable" on:scroll={updateScrollPosition} bind:this={scrollable}>
-			{#each published as note}
+			{#each published as note, i}
 				<Article
+					bind:this={articleRefs[i]}
+					parentArticle={articleRefs[i]}
 					{remove}
 					{note}
 					{composeComponent}
 					on:replyTo={composeComponent.handleReplyToMessage}
-					on:noteSelect={handleNoteSelect}
-					renderAction={observeNote}
 					{cachedNote}
 				/>
 			{/each}
 
-			{#each Array.from(notes.values()) as note}
+			{#each Array.from(notes.values()) as note, i}
 				{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeral?.announces?.length)) || note.note.id == focusNote)}
 					<Article
+						bind:this={articleRefs[i]}
+						parentArticle={articleRefs[i]}
 						{remove}
 						{note}
 						{composeComponent}
 						on:replyTo={composeComponent.handleReplyToMessage}
-						on:noteSelect={handleNoteSelect}
-						renderAction={observeNote}
 						{cachedNote}
 					/>
 				{/if}

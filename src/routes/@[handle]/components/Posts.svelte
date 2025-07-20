@@ -16,7 +16,7 @@
 		Activity,
 		UserProfileTerse,
 		Article as ApArticle,
-		Question,
+		Question
 	} from '../../../common';
 	import {
 		insertEmojis,
@@ -26,68 +26,13 @@
 		type Collection,
 		extractMaxMin,
 		isNote,
-
 		isArticle,
-
 		isQuestion
-
-
 	} from '../../../common';
 
 	let composeComponent: Compose;
 	export let local: boolean;
 	export let handle: string;
-
-	let retrievedConversations: Set<string> = new Set();
-	let currentIds: Array<string> = new Array();
-	let observer: IntersectionObserver | null = null;
-	function onIntersection(entries: IntersectionObserverEntry[]) {
-		for (let entry of entries) {
-			if (entry.target) {
-				let target = <HTMLElement>entry.target;
-				if (entry.isIntersecting) {
-					if (target.dataset) {
-						let dataset = <DOMStringMap>target.dataset;
-						console.log(dataset.conversation);
-						if (wasm && dataset.conversation) {
-							let conversation = dataset.conversation;
-
-							if (!retrievedConversations.has(conversation)) {
-								retrievedConversations.add(conversation);
-								wasm
-									.get_conversation(encodeURIComponent(dataset.conversation), 50)
-									.then((conversation) => {
-										if (conversation) {
-											let collection: Collection = JSON.parse(conversation);
-
-											collection.orderedItems?.forEach((a: Activity) => {
-												console.debug(a);
-												if (a.object.inReplyTo) {
-													addNote(a);
-												}
-											});
-
-											placeOrphans(true);
-										}
-									});
-							}
-						}
-					}
-				} else {
-					let index = currentIds.indexOf(target.id);
-					if (index !== -1) {
-						currentIds.splice(index, 1);
-					}
-				}
-			}
-		}
-	}
-
-	function observeNote(note: any) {
-		if (observer) {
-			observer.observe(note);
-		}
-	}
 
 	onMount(async () => {
 		// Commenting this out until I have time to think about how to add comments to top-level notes
@@ -107,7 +52,7 @@
 		console.debug('RELOADED POSTS');
 	});
 
-	async function processCollection(collection: Collection) {
+	/* 	async function processCollection(collection: Collection) {
 		const items = collection.orderedItems;
 		console.debug(items);
 
@@ -145,10 +90,57 @@
 
 		next = collection.next || null;
 		prev = collection.prev || null;
+	} */
+
+	async function processCollection(collection: Collection) {
+		const items = collection.orderedItems;
+		console.debug(items);
+
+		if (items) {
+			for (const item of items) {
+				if (item.type === 'Create' || item.type === 'Announce') {
+					console.debug('PROCESSING ACTIVITY');
+					let noteId = '';
+
+					if (
+						(isNote(item.object) || isArticle(item.object) || isQuestion(item.object)) &&
+						item.object.id
+					) {
+						noteId = item.object.id;
+					} else {
+						noteId = String(item.object);
+					}
+
+					let note = await wasm?.get_note(noteId);
+					console.debug('RETRIEVED NOTE');
+					console.debug(note);
+
+					if (note) {
+						const n: Note | ApArticle | Question = JSON.parse(note);
+						console.debug(n);
+/* 						if (item.actor) {
+							let actor = parseProfile(await cachedActor(item.actor));
+							if (actor) {
+								let ephemeral = n.ephemeral || {};
+								ephemeral.announces = [actor];
+								n.ephemeral = ephemeral;
+							}
+						}*/
+						(<Activity>item).object = n;
+						addNote(<Activity>item);
+					}
+				}
+			}
+		}
+
+		next = collection.next || null;
+		prev = collection.prev || null;
 	}
 
 	async function loadPosts(handle: string, local: boolean) {
 		console.debug('RESETTING NOTES MAP');
+		console.debug(`Loading posts for ${handle}`);
+
 		notes = new Map<string, DisplayNote>();
 
 		if (!cache && wasm) {
@@ -241,127 +233,26 @@
 		notes = notes;
 	}
 
-	function placeOrphans(recursive: boolean) {
-		let orphans_copy = new Map(orphans);
-		orphans_copy.forEach((orphan, id) => {
-			if (orphan.note.inReplyTo) {
-				if (notes.has(orphan.note.inReplyTo)) {
-					orphans.delete(id);
-					placeNote(orphan);
-				} else if (recursive && orphans.has(orphan.note.inReplyTo)) {
-					placeOrphans(false);
-				}
-			}
-		});
-	}
-
 	async function placeNote(displayNote: DisplayNote) {
 		const note = displayNote.note;
 
-		// if (note.inReplyTo) {
-		// 	// lookup the parent note in the locator to get its traversal path
-		// 	let traversal = locator.get(String(note.inReplyTo));
-
-		// 	if (traversal) {
-		// 		// set the cursor to the first step in the traversal
-		// 		let cursor = notes.get(traversal[0]);
-
-		// 		// traverse through the steps, updating the cursor to find the
-		// 		// deepest point
-		// 		traversal.forEach((id, key, arr) => {
-		// 			if (key > 0) {
-		// 				cursor = cursor?.replies.get(id);
-		// 			}
-		// 		});
-
-		// 		if (cursor?.note.id == note.inReplyTo) {
-		// 			// attch this note to its parent
-		// 			cursor.replies.set(String(note.id), displayNote);
-
-		// 			// copy the traversal path and add this note's id to the end
-		// 			let traversalCopy = [...traversal];
-		// 			traversalCopy.push(String(note.id));
-
-		// 			// update the locator map with the traversal path for this note
-		// 			locator.set(String(note.id), traversalCopy);
-		// 		} else {
-		// 			console.error('TRAVERSAL ENDED SOMEWHERE UNEXPECTED');
-		// 		}
-		// 	} else {
-		// 		// we don't have this note's parent yet; queue it for review later
-		// 		if (displayNote.note.id) {
-		// 			orphans.set(displayNote.note.id, displayNote);
-		// 		}
-		// 	}
-		// } else {
-		// this is a top-level note, add it to the notes and locator maps
-		//let ap_id = await wasm?.get_ap_id();
-		//if (!notes.get(String(note.id)) && actorId && note.attributedTo == actorId) {
 		if (!notes.get(String(note.id))) {
 			notes.set(String(note.id), displayNote);
-			//notes.push(displayNote);
-			locator.set(String(note.id), [String(note.id)]);
 		}
-		//}
-	}
-
-	async function addNote(activity: Activity) {
-		console.log('ADDING ACTIVITY');
-		console.debug(activity);
-
-		let note = activity.object;
-
-		if (note.ephemeral?.actors) {
-			note.ephemeral.actors.forEach((actor) => {
-				if (actor.id) {
-					apCache.set(actor.id, JSON.stringify(actor));
-				}
-			});
-		}
-
-		if (note.ephemeral?.likes) {
-			console.debug('EPHEMERAL LIKES');
-			console.debug(note.ephemeral.likes);
-		}
-
-		console.debug(`NOTE ATTRIBUTED_TO: ${note.attributedTo}`);
-		let actor: UserProfile | UserProfileTerse | null | undefined =
-			note.ephemeral?.attributedTo?.at(0);
-
-		if (actor == undefined || actor == null) {
-			actor = parseProfile(await cachedActor(note.attributedTo));
-		}
-
-		console.debug(`NOTE ACTOR`);
-		console.debug(actor);
-
-		if (actor) {
-			console.debug('PARSED PROFILE');
-			console.debug(actor);
-			const displayNote = new DisplayNote(actor, note, activity);
-
-			console.debug('DISPLAY_NOTE');
-			console.debug(displayNote);
-			await placeNote(displayNote);
-
-			notes = notes;
-		}
-
-		//console.log("NOTE ACTOR");
-		//console.debug(actor);
-
-		// if (actor) {
-		// 	let actorProfile: UserProfile = JSON.parse(actor);
-		// 	const displayNote = new DisplayNote(actorProfile, note);
-
-		// 	if (!notes.get(String(note.id))) {
-		// 		notes.set(String(note.id), displayNote);
-		// 		locator.set(String(note.id), [String(note.id)]);
-		// 	}
-		// }
 
 		notes = notes;
 	}
+
+	const addNote = async (activity: Activity) => {
+		if (activity.object.attributedTo) {
+			const actor = activity.object.ephemeral?.attributedTo?.at(0);
+
+			if (actor) {
+				const displayNote = new DisplayNote(actor, activity.object, activity);
+				await placeNote(displayNote);
+			}
+		}
+	};
 
 	async function senderFunction(
 		replyToActor: UserProfile | UserProfileTerse | null,
@@ -418,7 +309,7 @@
 		}
 	}
 
-	async function replyToHeader(note: Note | ApArticle | Question): Promise<string | null> {
+	/* async function replyToHeader(note: Note | ApArticle | Question): Promise<string | null> {
 		if (note.inReplyTo) {
 			const replyNote = await cachedNote(note.inReplyTo);
 
@@ -428,24 +319,30 @@
 
 				//console.debug(`ATTRIBUTED_TO: ${note.attributedTo}`);
 				//const reply_actor = await cachedActor(note.attributedTo);
-				const replyActor =
-					note.ephemeral?.attributedTo?.at(0) ?? parseProfile(await cachedActor(note.attributedTo));
 
-				//console.debug(`REPLY_ACTOR: ${replyActor}`);
-				//const sender: UserProfile | null = parseProfile(reply_actor);
+				if (note.attributedTo) {
+					const replyActor =
+						note.ephemeral?.attributedTo?.at(0) ??
+						parseProfile(await cachedActor(note.attributedTo[0]));
 
-				//console.debug(`SENDER: ${sender}`);
+					//console.debug(`REPLY_ACTOR: ${replyActor}`);
+					//const sender: UserProfile | null = parseProfile(reply_actor);
 
-				if (replyActor && wasm) {
-					console.debug(`IN replyActor: ${replyActor.name} | ${replyActor.preferredUsername}`);
-					const name = insertEmojis(
-						wasm,
-						replyActor.name ?? replyActor.preferredUsername,
-						replyActor
-					);
+					//console.debug(`SENDER: ${sender}`);
 
-					console.debug(`NAME: ${name}`);
-					return name;
+					if (replyActor && wasm) {
+						console.debug(`IN replyActor: ${replyActor.name} | ${replyActor.preferredUsername}`);
+						const name = insertEmojis(
+							wasm,
+							replyActor.name ?? replyActor.preferredUsername,
+							replyActor
+						);
+
+						console.debug(`NAME: ${name}`);
+						return name;
+					} else {
+						return null;
+					}
 				} else {
 					return null;
 				}
@@ -455,9 +352,9 @@
 		} else {
 			return null;
 		}
-	}
+	} */
 
-	async function announceHeader(note: Note | ApArticle | Question): Promise<AnnounceParams | null> {
+	/* async function announceHeader(note: Note | ApArticle | Question): Promise<AnnounceParams | null> {
 		if (note.ephemeral?.announces) {
 			const announceActor = note.ephemeral.announces[0];
 			let others = '';
@@ -482,7 +379,7 @@
 		} else {
 			return null;
 		}
-	}
+	} */
 
 	async function cachedActor(id: string) {
 		if (id && wasm && cache) {
@@ -546,6 +443,8 @@
 	let next: string | null = null;
 	let prev: string | null = null;
 	let moreDisabled = true;
+
+	let articleRefs: any[] = [];
 </script>
 
 {#if wasm}
@@ -554,36 +453,22 @@
 
 <div>
 	{#if wasm}
-		{#each Array.from(notes.values()) as note}
+		{#each Array.from(notes.values()) as note, i}
 			{#if note.note}
-				{#await replyToHeader(note.note) then replyTo}
-					{#await announceHeader(note.note) then announce}
-						<Article
-							{remove}
-							{refresh}
-							{note}
-							{username}
-							on:replyTo={composeComponent.handleReplyToMessage}
-							on:noteSelect={handleNoteSelect}
-							renderAction={observeNote}
-							{cachedNote}
-						/>
-					{/await}
-				{/await}
-
-				{#if note.note.id == focusNote && note.replies?.size}
-					<div class="replies">
-						{#each Array.from(note.replies.values()).sort(compare) as reply}
-							<Reply
-								{remove}
-								note={reply}
-								{username}
-								on:replyTo={composeComponent.handleReplyToMessage}
-								on:noteSelect={handleNoteSelect}
-							/>
-						{/each}
-					</div>
-				{/if}
+				<!-- 				{#await replyToHeader(note.note) then replyTo}
+					{#await announceHeader(note.note) then announce} -->
+				<Article
+					bind:this={articleRefs[i]}
+					parentArticle={articleRefs[i]}
+					{remove}
+					{note}
+					on:replyTo={composeComponent.handleReplyToMessage}
+					on:noteSelect={handleNoteSelect}
+					{cachedNote}
+					{composeComponent}
+				/>
+				<!-- 					{/await}
+				{/await} -->
 			{/if}
 		{/each}
 		{#if next}

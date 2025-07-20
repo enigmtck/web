@@ -5,6 +5,7 @@
 	export let object: string;
     export let owner: boolean;
 	export let remove: (note: string) => void;
+	export let reload: () => void;
 
     $: wasm = $enigmatickWasm;
     
@@ -50,6 +51,9 @@
             <li data-object={object} on:click|preventDefault={handleDelete}>Delete</li>
             <li>Edit</li>
         {/if}
+		<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+		<li on:click|preventDefault={reload}>Reload Replies</li>
         <li>Mute Author</li>
         <li>Block Author</li>
         <li>Block Instance</li>

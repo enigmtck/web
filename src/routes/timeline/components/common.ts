@@ -1,4 +1,7 @@
-export { replyCount, ComposeDispatch, TimelineDispatch };
+import { writable } from 'svelte/store';
+export const parentArticleStore = writable<any>(null);
+
+export { replyCount, TimelineDispatch };
 
 import type { Activity, DisplayNote, Note, UserProfile, UserProfileTerse } from '../../../common';
 
@@ -14,13 +17,12 @@ function replyCount(note: DisplayNote): number {
 	return count;
 }
 
-interface ComposeDispatch {
-	replyToActor: UserProfile | UserProfileTerse;
+export type ComposeDispatch = {
 	replyToNote: DisplayNote;
+	replyToActor: UserProfile | UserProfileTerse;
 	openAside: boolean;
-}
-
-class ComposeDispatch {}
+	parentArticle?: any;
+};
 
 interface TimelineDispatch {
 	activity: Activity

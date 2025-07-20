@@ -1,21 +1,23 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import type {
-		UserProfile,
-		Note,
-		Tag,
-		Attachment,
+	import {
+		type UserProfile,
+		type Note,
+		type Tag,
+		type Attachment,
 		DisplayNote,
-		AnnounceParams,
-		Ephemeral,
-		UserProfileTerse,
-		Activity,
-		Question,
-		Article
+		type AnnounceParams,
+		type Ephemeral,
+		type UserProfileTerse,
+		type Activity,
+		type Question,
+		type Article,
+		type Collection
 	} from '../../../common';
 	import { onDestroy, onMount, getContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { get, writable } from 'svelte/store';
+	import { fade } from 'svelte/transition';
 	import {
 		insertEmojis,
 		timeSince,
@@ -30,7 +32,7 @@
 		isQuestion,
 		compare
 	} from '../../../common';
-	import { replyCount, ComposeDispatch } from './common';
+	import { replyCount, type ComposeDispatch } from './common';
 	import { enigmatickWasm, appData } from '../../../stores';
 	import TimeAgo from './TimeAgo.svelte';
 	import FediHandle from './FediHandle.svelte';
@@ -49,21 +51,49 @@
 
 	$: wasm = $enigmatickWasm;
 
+	let article_id = '';
+	let articleComponent: any = null;
+
+	let showReplies: boolean = false;
+
 	onMount(() => {
 		if (wasm && note && note.note && note.note.id) {
 			article_id = wasm.get_url_safe_base64(note.note.id);
 		}
+
+		// Set up intersection observer
+		const observer = new IntersectionObserver(
+			(entries) => {
+				entries.forEach((entry) => {
+					if (entry.isIntersecting) {
+						// Call loadReplies directly when this article comes into view
+						loadReplies();
+						// Show nav gradually when article comes into view
+					}
+				});
+			},
+			{ threshold: 0.1 } // Trigger when 10% of article is visible
+		);
+
+		if (articleComponent) {
+			observer.observe(articleComponent);
+		}
+
+		return () => {
+			if (articleComponent) {
+				observer.unobserve(articleComponent);
+			}
+		};
 	});
 
 	let username = $appData.username;
 
 	export let composeComponent: Compose;
 	export let note: DisplayNote;
-	export let renderAction: (node: any) => void;
+
 	export let remove: (note: string) => void;
 	export let cachedNote: (id: string) => Promise<string | undefined>;
-
-	let showReplies: boolean = false;
+	export let parentArticle: any = null;
 
 	const replyToHeader = async (note: Note | Article | Question): Promise<string | null> => {
 		if (note.inReplyTo) {
@@ -216,12 +246,112 @@
 
 	const handleReplyTo = (note: DisplayNote, actor: UserProfile | UserProfileTerse) => {
 		console.log('DISPATCHING REPLY_TO');
+		console.log('PARENT ELEMENT');
+		console.log(articleComponent);
+		console.log('PARENT COMPONENT');
+		console.log(parentArticle);
 
 		replyToDispatch('replyTo', {
 			replyToNote: note,
 			replyToActor: actor,
-			openAside: true
+			openAside: true,
+			parentArticle
 		});
+	};
+
+	function handleReplyToFromReply(event: CustomEvent<any>) {
+		console.log('DISPATCHING REPLY_TO from REPLY');
+		console.log('PARENT ELEMENT');
+		console.log(articleComponent);
+		console.log('PARENT COMPONENT');
+		console.log(parentArticle);
+		event.stopPropagation();
+		const { replyToNote, replyToActor, openAside } = event.detail;
+		replyToDispatch('replyTo', {
+			replyToNote,
+			replyToActor,
+			openAside,
+			parentArticle
+		});
+	}
+
+	// WIP - moving reply loading here
+	export async function loadReplies() {
+		console.debug('Loading replies...');
+		if (wasm && note.note?.id) {
+			let id = note.note.id;
+			const result = await wasm.get_conversation(encodeURIComponent(id), 50);
+			if (!result) {
+				return;
+			}
+
+			const collection: Collection = JSON.parse(result);
+			await processCollectionItems(collection);
+			// Force reactivity by reassigning the note
+			note = note;
+		}
+	}
+
+	// WIP - moving reply loading here
+	const processCollectionItems = async (collection: Collection) => {
+		if (!collection.orderedItems) {
+			return;
+		}
+
+		note.replies.clear();
+		for (const item of collection.orderedItems) {
+			console.debug(item);
+			if (item.object.inReplyTo) {
+				await addNote(item);
+			}
+		}
+	};
+
+	// WIP - moving reply loading here
+	const addNote = async (activity: Activity) => {
+		if (activity.object.attributedTo) {
+			const actor = activity.object.ephemeral?.attributedTo?.at(0);
+
+			if (actor) {
+				const displayNote = new DisplayNote(actor, activity.object, activity);
+				await placeNote(displayNote);
+			}
+		}
+	};
+
+	// WIP - moving reply loading here
+	const placeNote = async (displayNote: DisplayNote) => {
+		console.debug('Placing note...');
+		console.debug(displayNote);
+
+		if (displayNote.note.id && displayNote.note.inReplyTo == note.note.id) {
+			console.debug('Top level...');
+			note.replies.set(displayNote.note.id, displayNote);
+			return;
+		}
+
+		const findAndAddReply = (map: Map<string, DisplayNote>): boolean => {
+			for (const [, parentDisplayNote] of map.entries()) {
+				if (parentDisplayNote.note.id === displayNote.note.inReplyTo && displayNote.note.id) {
+					// Add the reply to the 'replies' Map of the matching DisplayNote
+					if (!parentDisplayNote.replies.has(displayNote.note.id)) {
+						parentDisplayNote.replies.set(displayNote.note.id, displayNote);
+					}
+					return true;
+				}
+
+				// Recursively search in the replies
+				if (findAndAddReply(parentDisplayNote.replies)) {
+					return true;
+				}
+			}
+			return false;
+		};
+
+		if (displayNote.note.inReplyTo && findAndAddReply(note.replies)) {
+			console.debug('Found parent...');
+			return;
+		}
 	};
 
 	const handleArticleExpand = (event: Event) => {
@@ -239,8 +369,6 @@
 		target = '_blank';
 		rel = 'noreferrer';
 	}
-
-	let article_id = '';
 
 	let selectedOption: number | null = null;
 	let selectedOptions: number[] = [];
@@ -288,9 +416,17 @@
 			: note.note && isArticle(note.note) && note.note.summary
 			? note.note.summary
 			: null;
+
+	// Add reactive reply count to ensure it updates when replies are loaded
+	$: currentReplyCount = replyCount(note);
 </script>
 
-<article use:renderAction data-conversation={note.note.id} id={article_id}>
+<article 
+	bind:this={articleComponent}
+
+	data-conversation={note.note.id} 
+	id={article_id}
+>
 	{#if wasm}
 		{#await replyToHeader(note.note) then header}
 			{#if header}
@@ -445,7 +581,7 @@
 			<span class="comments" on:click|preventDefault={() => (showReplies = !showReplies)}>
 				<i class="fa-solid fa-comments" />
 				{#if note.replies?.size}
-					{replyCount(note)}
+					{currentReplyCount}
 				{/if}
 			</span>
 
@@ -505,20 +641,25 @@
 
 			{#if note.note.id}
 				{#await wasm?.get_ap_id() then ap_id}
-					<Menu {remove} object={note.note.id} owner={ap_id == note.note.attributedTo} />
+					<Menu
+						{remove}
+						reload={loadReplies}
+						object={note.note.id}
+						owner={ap_id == note.note.attributedTo}
+					/>
 				{/await}
 			{/if}
 		</nav>
 	{/if}
 
 	{#if showReplies && note.replies?.size}
-		<div class="replies">
+		<div class="replies" in:fade={{ duration: 300, delay: 100 }}>
 			{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
 				<Reply
 					{remove}
 					note={reply}
 					{username}
-					on:replyTo={composeComponent.handleReplyToMessage}
+					on:replyTo={handleReplyToFromReply}
 				/>
 			{/each}
 		</div>
@@ -829,15 +970,17 @@
 		height: 2em;
 		background: #f0f0f0;
 		overflow: hidden;
+		border-radius: 1em;
 	}
 	.bar {
 		background: linear-gradient(90deg, darkgoldenrod, goldenrod);
 		height: 100%;
 		transition: width 0.4s;
+		border-radius: 1em;
 	}
 	.option-label {
 		position: absolute;
-		left: 2.5em;
+		left: 1em;
 		z-index: 1;
 		color: #222;
 		font-weight: 600;
@@ -877,7 +1020,7 @@
 		padding: 0.5em 2em;
 		font-size: 1em;
 		font-weight: 600;
-		margin: 1em auto 1.5em auto;
+		margin: 0 auto 1.5em auto;
 		display: block;
 		cursor: pointer;
 		transition: background 0.2s, color 0.2s, box-shadow 0.2s;
@@ -898,21 +1041,18 @@
 		cursor: not-allowed;
 		box-shadow: none;
 	}
-	.total-voters {
-		text-align: right;
-		color: #222;
-	}
 
 	.poll-bars {
 		position: relative;
 	}
 	.total-voters {
 		display: block;
+		text-align: right;
 		font-size: 0.8em;
 		color: #222;
 		margin-top: 0.2em;
 		text-align: right;
-		font-style: italic;
+		margin-right: 5px;
 		opacity: 0.85;
 	}
 
@@ -1016,7 +1156,31 @@
 		}
 
 		.total-voters {
-			color: #aaa;
+			color: #ddd;
+		}
+
+		.bar-container {
+			background: #333;
+		}
+
+		.bar {
+			background: darkred;
+		}
+
+		.votes-label {
+			color: white;
+		}
+
+		.option-label {
+			color: white;
+		}
+
+		.bar-container.selected .bar {
+			box-shadow: 0 0 0 3px darkgoldenrod, 0 2px 8px #ffd70055;
+		}
+		
+		.bar-container.selected {
+			outline: 2px solid darkgoldenrod;
 		}
 	}
 </style>

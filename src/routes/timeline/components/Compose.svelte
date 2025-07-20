@@ -13,8 +13,9 @@
 		type Attachment,
 		type Note,
 		type UserProfile,
-		type UserProfileTerse
+		type UserProfileTerse,
 	} from '../../../common';
+	import { parentArticleStore } from './common';
 	import type { ComposeDispatch, TimelineDispatch } from './common';
 	import Reply from './Reply.svelte';
 	import { tick } from 'svelte';
@@ -38,9 +39,14 @@
 
 	export let direct: boolean;
 
+	let parentArticle: any = null;
+
 	async function handleReplyToMessage(message: CustomEvent<ComposeDispatch>) {
 		console.log('IN COMPOSE');
 		console.log(message);
+
+		// Use parentArticle directly from the event detail
+		parentArticle = message.detail.parentArticle;
 
 		replyToActor = message.detail.replyToActor;
 		replyToNote = message.detail.replyToNote;
@@ -64,6 +70,9 @@
 		if (composeDiv) {
 			annotate(true);
 		}
+
+		console.debug('Compose parentArticle');
+		console.debug(parentArticle);
 	}
 
 	function openAside() {
@@ -153,7 +162,7 @@
 			),
 			Array.from(hashtags),
 			direct
-		).then((x: any) => {
+		).then(async (x: any) => {
 			if (x) {
 				resetCompose();
 				closeAside();
@@ -166,6 +175,13 @@
 
 				console.log(activity);
 				console.log('send successful');
+
+				console.log('parentArticle in senderFunction');
+				console.log(parentArticle);
+				// After successful publish, reload replies on parentArticle
+				if (parentArticle && typeof parentArticle.loadReplies === 'function') {
+					await parentArticle.loadReplies();
+				}
 			} else {
 				console.log('send unsuccessful');
 			}
