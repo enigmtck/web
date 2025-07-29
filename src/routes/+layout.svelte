@@ -148,19 +148,6 @@
 	{#if $page.url.pathname !== '/' && $page.url.pathname !== '/login' && $page.url.pathname !== '/signup'}
 		<slot />
 
-		<!-- <div class="context">
-			<ul>
-				<li>
-					<div class="toggle">
-						<label>
-							<input type="checkbox" id="theme" on:change|preventDefault={darkMode} />
-							<span class="slider" />
-						</label>
-					</div>
-				</li>
-			</ul>
-		</div> -->
-
 		<footer>
 			{#if username}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -246,11 +233,6 @@
 		text-decoration: none;
 	}
 
-	:global(a:hover) {
-		color: red;
-		transition-duration: 0.5s;
-	}
-
 	:root {
 		--light: white;
 		--dark: #28292c;
@@ -317,10 +299,6 @@
 					border-radius: 20px;
 				}
 
-				a:hover {
-					color: red;
-				}
-
 				a > i {
 					padding: 0 15px;
 				}
@@ -332,10 +310,6 @@
 					a {
 						font-size: 24px;
 						color: darkred;
-					}
-
-					a:hover {
-						color: red;
 					}
 				}
 
@@ -512,10 +486,6 @@
 					padding: 0 15px;
 				}
 
-				a:hover i {
-					color: red;
-				}
-
 				.selected {
 					background: #eee;
 				}
@@ -532,10 +502,6 @@
 					a {
 						border-radius: 20px;
 						color: #aaa;
-					}
-
-					a:hover {
-						color: red;
 					}
 
 					.selected {

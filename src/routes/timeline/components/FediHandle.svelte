@@ -61,7 +61,6 @@
 
 	.username {
 		flex-direction: row;
-		font-weight: bold;
 		display: inline-block;
         margin-right: 10px;
         padding-bottom: 0.1rem;

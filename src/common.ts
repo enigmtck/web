@@ -292,6 +292,7 @@ interface Article {
 	cc?: string[] | string;
 	url?: string;
 	attributedTo: string;
+	name?: string | null;
 	preview?: Note | string | null
 	content?: string | null;
 	summary?: string | null;
@@ -303,8 +304,8 @@ interface Article {
 	ephemeral?: Ephemeral;
 }
 
-const isArticle = (attr: string | Question | Article | Note): attr is Article => {
-	return typeof attr === 'object' && attr !== null;
+const isArticle = (attr: string | Question | Article | Note): attr is Article & { type: 'Article' } => {
+	return typeof attr === 'object' && attr !== null && attr.type === 'Article';
 };
 
 interface QuestionCollection {

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { enigmatickWasm, wasmState } from '../../stores';
+	import { enigmatickWasm } from '../../stores';
 	import { get } from 'svelte/store';
 	import { goto } from '$app/navigation';
 

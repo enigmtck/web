@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { DisplayNote, Ephemeral } from '../../../common';
+	import type { DisplayNote, Ephemeral, UserProfileTerse } from '../../../common';
 	import {
 		insertEmojis,
 		compare,
@@ -90,22 +90,43 @@
 			openAside: true
 		});
 	}
+
+	const findMatchingProfile = (profiles: UserProfileTerse[], noteAttributedTo: string | string[] | null | undefined): UserProfileTerse => {
+		// If noteAttributedTo is null, undefined, or an array, fall back to first profile
+		if (!noteAttributedTo || Array.isArray(noteAttributedTo)) {
+			return profiles[0];
+		}
+		
+		// First try to find an exact match by ID
+		const exactMatch = profiles.find(profile => profile.id === noteAttributedTo);
+		if (exactMatch) {
+			return exactMatch;
+		}
+		
+		// If no exact match, fall back to the first profile
+		return profiles[0];
+	};
+
+	let profiles = note.note.ephemeral?.attributedTo ?? [note.actor];
+	let actorTerseProfile = findMatchingProfile(profiles, note.note.attributedTo);
+	let actorIcon = actorTerseProfile.icon?.url;
+	let actorName = actorTerseProfile.name ?? actorTerseProfile.preferredUsername;
 </script>
 
 <div class="container">
 	<article>
 		<div class="avatar">
 			<div>
-				{#if note.actor && note.actor.icon}
-					<img src={cachedContent(wasm, note.actor.icon.url)} alt="Sender" />
+				{#if actorIcon}
+					<img src={cachedContent(wasm, actorIcon)} alt="Sender" />
 				{/if}
 			</div>
 		</div>
 		<address>
-			{#if note.actor}
+			{#if actorName}
 				<a href="/{getWebFingerFromId(note.actor)}">
-					{@html insertEmojis(wasm, note.actor.name || note.actor.preferredUsername, note.actor)} &bull;
-					<span class="url">{getWebFingerFromId(note.actor)}</span>
+					{@html insertEmojis(wasm, actorName, actorTerseProfile)} &bull;
+					<span class="url">{getWebFingerFromId(actorTerseProfile)}</span>
 				</a>
 			{/if}
 		</address>

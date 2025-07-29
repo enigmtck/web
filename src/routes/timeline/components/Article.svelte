@@ -88,7 +88,6 @@
 
 	let username = $appData.username;
 
-	export let composeComponent: Compose;
 	export let note: DisplayNote;
 
 	export let remove: (note: string) => void;
@@ -151,11 +150,31 @@
 		}
 	};
 
-	let profile = note.note.ephemeral?.attributedTo ?? [note.actor];
-	let actorIcon = profile[0].icon?.url;
-	let actorName = profile[0].name ?? profile[0].preferredUsername;
-	let actorId = profile[0].id;
-	let actorTerseProfile = profile[0];
+	// Helper function to find the correct profile entry that matches the Note's attributedTo
+	const findMatchingProfile = (
+		profiles: UserProfileTerse[],
+		noteAttributedTo: string | string[] | null | undefined
+	): UserProfileTerse => {
+		// If noteAttributedTo is null, undefined, or an array, fall back to first profile
+		if (!noteAttributedTo || Array.isArray(noteAttributedTo)) {
+			return profiles[0];
+		}
+
+		// First try to find an exact match by ID
+		const exactMatch = profiles.find((profile) => profile.id === noteAttributedTo);
+		if (exactMatch) {
+			return exactMatch;
+		}
+
+		// If no exact match, fall back to the first profile
+		return profiles[0];
+	};
+
+	let profiles = note.note.ephemeral?.attributedTo ?? [note.actor];
+	let actorTerseProfile = findMatchingProfile(profiles, note.note.attributedTo);
+	let actorIcon = actorTerseProfile.icon?.url;
+	let actorName = actorTerseProfile.name ?? actorTerseProfile.preferredUsername;
+	let actorId = actorTerseProfile.id;
 	const messageTime = new Date(note.published || note.created_at);
 
 	const handleUnlike = async (event: any) => {
@@ -294,13 +313,15 @@
 
 	// WIP - moving reply loading here
 	const processCollectionItems = async (collection: Collection) => {
+		console.debug('Processing collection items...');
+		console.debug(collection);
+
 		if (!collection.orderedItems) {
 			return;
 		}
 
 		note.replies.clear();
 		for (const item of collection.orderedItems) {
-			console.debug(item);
 			if (item.object.inReplyTo) {
 				await addNote(item);
 			}
@@ -309,6 +330,9 @@
 
 	// WIP - moving reply loading here
 	const addNote = async (activity: Activity) => {
+		console.debug('Adding note...');
+		console.debug(activity);
+
 		if (activity.object.attributedTo) {
 			const actor = activity.object.ephemeral?.attributedTo?.at(0);
 
@@ -354,12 +378,25 @@
 		}
 	};
 
+	let showExpansion = false;
+
 	const handleArticleExpand = (event: Event) => {
 		console.debug(event);
+		showExpansion = !showExpansion;
 	};
 
-	const handleArticleNavigate = (event: Event) => {
+	const handleExpansionClose = (event: Event) => {
+		// Only close if clicking the mask, not the content
+		if (event.target === event.currentTarget) {
+			showExpansion = false;
+		}
+	};
+
+	const handleNavigate = (event: Event) => {
 		console.debug(event);
+		if (note.note.url) {
+			window.open(note.note.url, '_blank');
+		}
 	};
 
 	let target: string | null = null;
@@ -421,12 +458,7 @@
 	$: currentReplyCount = replyCount(note);
 </script>
 
-<article 
-	bind:this={articleComponent}
-
-	data-conversation={note.note.id} 
-	id={article_id}
->
+<article bind:this={articleComponent} data-conversation={note.note.id} id={article_id}>
 	{#if wasm}
 		{#await replyToHeader(note.note) then header}
 			{#if header}
@@ -467,27 +499,11 @@
 	{#if note.activity && note.note && isEncryptedNote(note.note)}
 		<section>{@html insertEmojis(wasm, decrypt(wasm, note.activity), note.note)}</section>
 	{:else if articlePreviewContent}
-		<section>
-			{@html insertEmojis(wasm, articlePreviewContent || '', note.note)}
-			<nav>
-				<div>
-					<div class="icon-row">
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
-						<i
-							class="fa-solid fa-up-right-and-down-left-from-center"
-							on:click={handleArticleExpand}
-						/>
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
-						<i class="fa-solid fa-arrow-right" on:click={handleArticleNavigate} />
-					</div>
-					<span>Article Actions</span>
-				</div>
-			</nav>
-		</section>
+		<section>{@html insertEmojis(wasm, articlePreviewContent || '', note.note)}</section>
 	{:else if note.note && isNote(note.note) && note.note.content}
-		<section>{@html insertEmojis(wasm, note.note.content, note.note)}</section>
+		<section>
+			{@html insertEmojis(wasm, note.note.content, note.note)}
+		</section>
 	{:else if note.note && isQuestion(note.note) && note.note.content}
 		<section class="question">
 			<div class="question-content">
@@ -515,6 +531,17 @@
 								</div>
 							</label>
 						{/each}
+						{#if note.note.endTime}
+							<span class="end-time">Ends {new Date(note.note.endTime).toLocaleString('en-US', {
+								year: 'numeric',
+								month: 'long',
+								day: 'numeric',
+								hour: 'numeric',
+								minute: '2-digit',
+								hour12: true,
+								timeZoneName: 'short'
+							})}</span>
+						{/if}
 						{#if note.note.votersCount !== undefined}
 							<span class="total-voters">Total voters: {note.note.votersCount}</span>
 						{/if}
@@ -542,6 +569,17 @@
 								</div>
 							</label>
 						{/each}
+						{#if note.note.endTime}
+							<span class="end-time">Ends {new Date(note.note.endTime).toLocaleString('en-US', {
+								year: 'numeric',
+								month: 'long',
+								day: 'numeric',
+								hour: 'numeric',
+								minute: '2-digit',
+								hour12: true,
+								timeZoneName: 'short'
+							})}</span>
+						{/if}
 						{#if note.note.votersCount !== undefined}
 							<span class="total-voters">Total voters: {note.note.votersCount}</span>
 						{/if}
@@ -556,6 +594,62 @@
 		<Attachments note={note.note} />
 	{:else if note.note.ephemeral?.metadata && note.note.ephemeral?.metadata.length}
 		<LinkPreview links={note.note.ephemeral?.metadata} />
+	{/if}
+
+	{#if note.note && isArticle(note.note)}
+		<div class="object-type">
+			<span>Article</span>
+
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<span
+				><i
+					class="fa-solid fa-up-right-and-down-left-from-center"
+					on:click={handleArticleExpand}
+					title="Expand Article"
+				/><i
+					class="fa-solid fa-arrow-right"
+					on:click={handleNavigate}
+					title="Navigate to Article"
+				/>
+			</span>
+		</div>
+	{:else if note.note && isNote(note.note)}
+		<div class="object-type">
+			<span>Note</span>
+
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<span
+				><i class="fa-solid fa-arrow-right" on:click={handleNavigate} title="Navigate to Note" />
+			</span>
+		</div>
+	{:else if note.note && isQuestion(note.note)}
+		<div class="object-type">
+			<span>Question</span>
+
+			<!-- svelte-ignore a11y-click-events-have-key-events -->
+			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<span
+				><!-- svelte-ignore a11y-click-events-have-key-events -->
+				<!-- svelte-ignore a11y-no-static-element-interactions -->
+				<i class="fa-solid fa-arrow-right" on:click={handleNavigate} title="Navigate to Question" />
+			</span>
+		</div>
+	{/if}
+
+	{#if note.note.published}
+		<time datetime={note.note.published}>
+			Published {new Date(note.note.published).toLocaleString('en-US', {
+				year: 'numeric',
+				month: 'long',
+				day: 'numeric',
+				hour: 'numeric',
+				minute: '2-digit',
+				hour12: true,
+				timeZoneName: 'short'
+			})}
+		</time>
 	{/if}
 
 	<div class="visibility">
@@ -655,13 +749,29 @@
 	{#if showReplies && note.replies?.size}
 		<div class="replies" in:fade={{ duration: 300, delay: 100 }}>
 			{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
-				<Reply
-					{remove}
-					note={reply}
-					{username}
-					on:replyTo={handleReplyToFromReply}
-				/>
+				<Reply {remove} note={reply} {username} on:replyTo={handleReplyToFromReply} />
 			{/each}
+		</div>
+	{/if}
+	{#if showExpansion}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y-no-static-element-interactions -->
+		<div class="expansion-mask" on:click={handleExpansionClose} />
+		<div class="expansion" on:click={handleExpansionClose}>
+			<div class="expansion-content">
+				{#if note.note && isArticle(note.note)}
+					{#if note.note.name}
+						<h1 class="expansion-title">{@html insertEmojis(wasm, note.note.name, note.note)}</h1>
+					{/if}
+					{#if note.note.content}
+						{@html insertEmojis(wasm, note.note.content, note.note)}
+					{/if}
+				{:else if note.note && isNote(note.note) && note.note.content}
+					{@html insertEmojis(wasm, note.note.content, note.note)}
+				{:else if note.note && isQuestion(note.note) && note.note.content}
+					{@html insertEmojis(wasm, note.note.content, note.note)}
+				{/if}
+			</div>
 		</div>
 	{/if}
 </article>
@@ -676,7 +786,7 @@
 		margin: 10px auto;
 		border-bottom: 1px solid #ddd;
 		border-radius: 10px;
-		padding: 10px 20px;
+		padding: 15px;
 		font-family: 'Open Sans';
 		background: #fafafa;
 
@@ -712,7 +822,7 @@
 			text-overflow: ellipsis;
 			overflow: hidden;
 			display: block;
-			padding: 0 0 5px 0;
+			margin: 0 0 10px 0;
 			border-radius: 10px;
 			font-weight: 600;
 			font-size: 14px;
@@ -728,8 +838,7 @@
 		}
 
 		header {
-			padding: 10px 0;
-			margin-top: 10px;
+			padding: 0 0 10px 0;
 			color: #222;
 
 			display: flex;
@@ -769,8 +878,8 @@
 			display: flex;
 			flex-direction: row-reverse;
 			position: absolute;
-			top: 10px;
-			right: 10px;
+			top: 15px;
+			right: 15px;
 
 			span {
 				display: inline-block;
@@ -849,60 +958,6 @@
 				max-width: 100%;
 				height: auto;
 			}
-
-			nav {
-				padding: 5px;
-				display: inline-block;
-				text-align: center;
-				margin-top: 10px;
-
-				div {
-					box-sizing: border-box;
-					background: #eee;
-					border-radius: 10px;
-					margin: 10px;
-					display: inline-flex;
-					flex-direction: column;
-					align-items: stretch;
-					text-align: center;
-					padding: 5px;
-
-					.icon-row {
-						display: flex;
-						flex-direction: row;
-						gap: 0.5em;
-						justify-content: center;
-						width: 100%;
-						margin: 0;
-						border: 0;
-					}
-
-					i {
-						font-size: 24px;
-						padding: 10px;
-						margin: 0;
-						background: darkred;
-						color: white;
-						border-radius: 10px;
-					}
-
-					i:hover {
-						cursor: pointer;
-						background: red;
-					}
-
-					span {
-						width: 100%;
-						display: block;
-						margin-top: 0.5em;
-						width: 100%;
-						text-align: center;
-						font-weight: bold;
-						color: #555;
-						padding: 0 10px;
-					}
-				}
-			}
 		}
 
 		:global(section > p) {
@@ -921,16 +976,51 @@
 			vertical-align: middle;
 		}
 
+		.object-type {
+			display: flex;
+			flex-direction: row;
+			align-items: center;
+			color: #aaa;
+			font-size: 13px;
+			font-weight: 600;
+			margin-top: 10px;
+
+			span:last-child {
+				padding: 0 10px;
+				border-radius: 10px;
+				background: #f0f0f0;
+				color: #777;
+				font-weight: 600;
+				margin-left: 10px;
+
+				i {
+					margin: 0 5px;
+				}
+
+				i:hover {
+					cursor: pointer;
+				}
+			}
+		}
+
+		time {
+			display: inline-block;
+			font-size: 13px;
+			color: #aaa;
+			font-weight: 600;
+		}
+
 		nav {
 			width: 100%;
 			position: relative;
 			z-index: unset;
 			background: unset;
-			padding: 10px 0;
-			margin: 0;
+			padding: 10px 0 0 0;
+			margin: 5px 0 0 0;
 			display: flex;
 			flex-direction: row;
 			transition-duration: 300ms;
+			border-top: 1px solid #aaa;
 
 			span {
 				font-size: 14px;
@@ -940,7 +1030,7 @@
 				i {
 					margin-right: 5px;
 					font-size: 14px;
-					color: #444;
+					color: #999;
 				}
 
 				i.selected {
@@ -950,6 +1040,76 @@
 				i:hover {
 					cursor: pointer;
 				}
+			}
+		}
+
+		.expansion-mask {
+			width: 100dvw;
+			height: 100dvh;
+			position: fixed;
+			top: 0;
+			left: 0;
+			z-index: 1000;
+			background: #000;
+			opacity: 0.9;
+		}
+
+		.expansion {
+			width: 100dvw;
+			height: 100dvh;
+			position: fixed;
+			top: 0;
+			left: 0;
+			z-index: 1001;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.expansion-content {
+			width: 95%;
+			max-width: 1000px;
+			height: 100vh;
+			background: #fff;
+			padding: 0 20px;
+			overflow-y: auto;
+			overflow-x: hidden;
+			box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+			word-wrap: break-word;
+			overflow-wrap: break-word;
+			border-color: #ddd;
+			border-style: solid;
+			border-width: 0 1px;
+
+			:global(img) {
+				max-width: 100%;
+				height: auto;
+			}
+
+			:global(figure) {
+				text-align: center;
+				margin: 1em 0;
+			}
+
+			:global(figure img) {
+				display: block;
+				margin: 0 auto;
+			}
+
+			:global(pre) {
+				white-space: pre-wrap;
+				word-break: break-word;
+				max-width: 100%;
+				overflow-x: auto;
+			}
+
+			:global(code) {
+				white-space: pre-wrap;
+				word-break: break-word;
+			}
+
+			:global(h1), :global(h2), :global(h3), :global(h4), :global(h5), :global(h6) {
+				color: #aaa;
 			}
 		}
 	}
@@ -1045,15 +1205,24 @@
 	.poll-bars {
 		position: relative;
 	}
-	.total-voters {
+
+	.end-time {
 		display: block;
-		text-align: right;
+		text-align: left;
 		font-size: 0.8em;
 		color: #222;
 		margin-top: 0.2em;
-		text-align: right;
+		font-weight: 600;
+	}
+	
+	.total-voters {
+		display: block;
+		font-size: 0.8em;
+		color: #222;
+		margin-top: 0.2em;
+		text-align: left;
 		margin-right: 5px;
-		opacity: 0.85;
+		font-weight: 600;
 	}
 
 	:global(body.dark) {
@@ -1065,6 +1234,16 @@
 			color: red;
 		}
 
+		.expansion-content {
+			background: #111;
+			color: #ccc;
+			border-color: #222;
+
+			:global(h1), :global(h2), :global(h3), :global(h4), :global(h5), :global(h6) {
+				color: #555;
+			}
+		}
+
 		article {
 			background: #1a1a1a;
 			color: #fff;
@@ -1074,6 +1253,8 @@
 				a {
 					color: inherit;
 				}
+
+				color: #777;
 			}
 
 			.visibility {
@@ -1104,31 +1285,26 @@
 					background: unset;
 				}
 			}
-			section {
-				nav {
-					div {
-						background: #151515;
 
-						i {
-							color: white;
-						}
+			.object-type {
+				color: #777;
 
-						span {
-							color: #aaa;
-						}
-					}
+				span:last-child {
+					background: #333;
+					color: #777;
 				}
 			}
 
 			nav {
 				background: unset;
+				border-top: 1px solid #333;
 
-				h3 {
-					color: #aaa;
+				span {
+					color: #777;
 				}
 
 				i {
-					color: #aaa;
+					color: #777;
 				}
 
 				i.selected {
@@ -1138,6 +1314,8 @@
 		}
 
 		.replies {
+			margin-top: 10px;
+
 			article {
 				address {
 					a {
@@ -1147,17 +1325,13 @@
 			}
 		}
 
-		nav {
-			background: #000;
-
-			i {
-				color: #ccc;
-			}
-		}
-
 		.total-voters {
-			color: #ddd;
+			color: #777;
 		}
+
+		.end-time {
+			color: #777;
+		}	
 
 		.bar-container {
 			background: #333;
@@ -1178,7 +1352,7 @@
 		.bar-container.selected .bar {
 			box-shadow: 0 0 0 3px darkgoldenrod, 0 2px 8px #ffd70055;
 		}
-		
+
 		.bar-container.selected {
 			outline: 2px solid darkgoldenrod;
 		}

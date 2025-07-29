@@ -13,9 +13,8 @@
 		type Attachment,
 		type Note,
 		type UserProfile,
-		type UserProfileTerse,
+		type UserProfileTerse
 	} from '../../../common';
-	import { parentArticleStore } from './common';
 	import type { ComposeDispatch, TimelineDispatch } from './common';
 	import Reply from './Reply.svelte';
 	import { tick } from 'svelte';
@@ -57,19 +56,15 @@
 			direct = false;
 		}
 
+		if (message.detail.openAside) {
+			openAside();
+		}
+
 		let webfinger = await wasm?.get_webfinger_from_id(replyToActor.id as string);
 		markdownNote = `${webfinger} `;
 		htmlNote = convertToHtml(markdownNote);
 
 		await tick();
-
-		if (message.detail.openAside) {
-			openAside();
-		}
-
-		if (composeDiv) {
-			annotate(true);
-		}
 
 		console.debug('Compose parentArticle');
 		console.debug(parentArticle);
@@ -124,19 +119,25 @@
 		preview = !preview;
 
 		await tick();
-
-		if (composeDiv) {
-			annotate(true);
-		}
 	}
 
 	function resetCompose() {
 		cancelReplyTo();
 		preview = false;
+		showDrawerContent = false;
+		activeTab = 'attachments';
 		markdownNote = '';
 		htmlNote = '';
 		mentions.clear();
 		hashtags.clear();
+	}
+
+	function toggleDrawerContent() {
+		showDrawerContent = !showDrawerContent;
+	}
+
+	function switchTab(tab: string) {
+		activeTab = tab;
 	}
 
 	function cancelReplyTo() {
@@ -336,128 +337,79 @@
 	const mentionRegex = /@(\w+)@([\w-]+\.[\w-]+(?:\.[\w-]+)*)/;
 	const hashtagRegex = /#\w+/;
 
-	const annotate = async (full: boolean) => {
-		if (!full) {
-			let text = getTextBeforeCursor(composeDiv);
-			if (!text.match(mentionRegex) && !text.match(hashtagRegex)) {
-				return;
-			}
+	let detectionTimeout: ReturnType<typeof setTimeout> | null = null;
+	let resolvedMentions = new Map<string, UserProfile | null>(); // Cache for already resolved mentions
+
+	const detectTagsAndMentions = async (event: Event) => {
+		const text = composeDiv?.innerText || '';
+		
+		// Immediately detect hashtags (no network calls needed)
+		hashtags.clear();
+		const hashtagMatches = text.matchAll(/#\w+/g);
+		for (const match of hashtagMatches) {
+			hashtags.add(match[0]);
+		}
+		// Force reactivity
+		hashtags = hashtags;
+		
+		// Clear existing timeout to debounce mentions (which need network calls)
+		if (detectionTimeout) {
+			clearTimeout(detectionTimeout);
 		}
 
-		const selection = window.getSelection();
-		const range = selection?.getRangeAt(0);
-		const cursorPosition = range?.startOffset || 0;
-
-		// Calculate total offset
-		const currentNode = range?.startContainer;
-		let totalOffset = cursorPosition;
-
-		let previousNode = currentNode?.previousSibling;
-		while (previousNode) {
-			totalOffset += previousNode.textContent?.length || 0;
-			previousNode = previousNode.previousSibling;
-		}
-
-		// Parse content with newlines
-		let newValue = '';
-		let isOnFreshLine = true;
-
-		function parseNodes(childNodes: NodeListOf<ChildNode>) {
-			for (let i = 0; i < childNodes.length; i++) {
-				const node = childNodes[i];
-				if (node.nodeName === 'BR') {
-					newValue += '\n';
-					isOnFreshLine = true;
-				} else if (node.nodeName === 'DIV' && !isOnFreshLine) {
-					newValue += '\n';
-					isOnFreshLine = false;
-				}
-
-				if (node.nodeType === 3 && node.textContent) {
-					newValue += node.textContent;
-					isOnFreshLine = false;
-				}
-
-				if (node.childNodes.length > 0) {
-					parseNodes(node.childNodes);
-				}
-			}
-		}
-
-		parseNodes(composeDiv.childNodes);
-
-		// Process content
-		const processedMentions = await annotateMentions(
-			newValue.replace(/</g, '&lt;').replace(/>/g, '&gt;')
-		);
-
-		const processedHashtags = annotateHashtags(processedMentions);
-
-		composeDiv.innerHTML = processedHashtags;
-
-		// Restore cursor position
-		const nodes = Array.from(composeDiv.childNodes);
-		let accumulatedLength = 0;
-		let targetNode = null;
-		let targetOffset = 0;
-
-		for (const node of nodes) {
-			const nodeLength = node.textContent?.length || 0;
-			if (accumulatedLength + nodeLength >= totalOffset) {
-				targetNode = node;
-				targetOffset = totalOffset - accumulatedLength;
-				break;
-			}
-			accumulatedLength += nodeLength;
-		}
-
-		if (selection && targetNode) {
-			const newRange = document.createRange();
-			selection.removeAllRanges();
-			newRange.setStart(targetNode, targetOffset);
-			newRange.collapse(true);
-			selection.addRange(newRange);
-		}
-	};
-
-	const checkForAddresses = async (event: KeyboardEvent) => {
-		switch (event.key) {
-			case ' ':
-				annotate(false);
-				event.preventDefault();
-				break;
-			case 'Backspace':
-				const selection = window.getSelection();
-				if (selection) {
-					const range = selection.getRangeAt(0);
-					if (range) {
-						const node = range.startContainer;
-
-						const currentSpan =
-							node.nodeType === Node.TEXT_NODE
-								? node.parentElement?.closest('span')
-								: node instanceof Element
-								? node.closest('span')
-								: null;
-
-						if (
-							currentSpan &&
-							range.collapsed &&
-							node.textContent &&
-							range.startOffset === node.textContent.length
-						) {
-							event.preventDefault();
-							currentSpan.remove();
+		// Debounce the mention detection to only run after user stops typing
+		detectionTimeout = setTimeout(async () => {
+			const text = composeDiv?.innerText || '';
+			console.log('Detecting mentions in:', text);
+			
+			// Clear existing mentions collection
+			mentions.clear();
+			
+			// Detect mentions - only check new ones
+			const mentionMatches = text.matchAll(/@(\w+)@([\w-]+\.[\w-]+(?:\.[\w-]+)*)/g);
+			for (const match of mentionMatches) {
+				const fullMatch = match[0];
+				console.log('Found mention:', fullMatch);
+				
+				// Only make network request if we haven't resolved this mention before
+				if (!resolvedMentions.has(fullMatch)) {
+					try {
+						const actorData = await wasm?.get_actor_from_webfinger_promise(fullMatch);
+						if (actorData) {
+							const actor: UserProfile = JSON.parse(actorData);
+							mentions.set(fullMatch, actor);
+							resolvedMentions.set(fullMatch, actor); // Cache the successful resolution
+						} else {
+							mentions.set(fullMatch, null);
+							resolvedMentions.set(fullMatch, null); // Cache the failed resolution too
 						}
+					} catch (e) {
+						console.error('Failed to retrieve actor for', fullMatch);
+						mentions.set(fullMatch, null);
+						resolvedMentions.set(fullMatch, null); // Cache the failed resolution
 					}
+				} else {
+					// If we've already resolved this mention, restore from cache
+					const cachedActor = resolvedMentions.get(fullMatch);
+					mentions.set(fullMatch, cachedActor || null);
 				}
-				break;
-		}
+			}
+			
+			console.log('Final hashtags:', Array.from(hashtags));
+			console.log('Final mentions:', Array.from(mentions.keys()));
+			
+			// Force reactivity
+			mentions = mentions;
+		}, 500); // Wait 500ms after user stops typing
 	};
+
+
 
 	$: markdownNote = '';
 	$: htmlNote = '';
 	let preview = false;
+	let showDrawerContent = false;
+	let activeTab = 'attachments'; // 'attachments' or 'tags'
 
 	let webfingerRecipient: string | null = null;
 	let replyToActor: UserProfile | UserProfileTerse | null = null;
@@ -469,6 +421,10 @@
 	let attachments: Map<String, Attachment> = new Map();
 	let mentions: Map<string, UserProfile | null> = new Map();
 	let hashtags: Set<string> = new Set();
+	
+	// Create stable arrays for rendering
+	$: mentionsArray = Array.from(mentions.entries());
+	$: hashtagsArray = Array.from(hashtags);
 	let composeDiv: HTMLDivElement;
 
 	let privacyOpen = false;
@@ -509,33 +465,102 @@
 					class="entry"
 					bind:this={composeDiv}
 					contenteditable="true"
-					on:keyup={checkForAddresses}
-					on:focusout={(e) => {
-						annotate(true);
-					}}
+					on:input={detectTagsAndMentions}
 					bind:innerText={markdownNote}
 				/>
-			</div>
 
-			{#if preview}
-				<div class="preview">{@html htmlNote}</div>
-			{/if}
-
-			<section>
-				{#each Array.from(attachments.values()) as attachment}
-					<!-- svelte-ignore a11y-missing-attribute -->
-					<div>
-						<img src={attachment.url} width={attachment.width} height={attachment.height} />
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
-						<i
-							class="fa-solid fa-xmark"
-							data-url={attachment.url}
-							on:click|preventDefault={removeAttachment}
-						/>
+				<div class="drawer">
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<div class="pull{showDrawerContent ? ' open' : ''}" on:click={toggleDrawerContent}>
+						<i class="fa-solid fa-caret-up" />
 					</div>
-				{/each}
-			</section>
+
+									<div class="drawer-content{showDrawerContent ? ' open' : ''}">
+							<div class="tabs">
+								<!-- svelte-ignore a11y-click-events-have-key-events -->
+								<!-- svelte-ignore a11y-no-static-element-interactions -->
+								<span
+									class={activeTab === 'attachments' ? 'selected' : ''}
+									on:click={() => switchTab('attachments')}
+								>
+									Attachments
+								</span>
+								<!-- svelte-ignore a11y-click-events-have-key-events -->
+								<!-- svelte-ignore a11y-no-static-element-interactions -->
+								<span
+									class={activeTab === 'tags' ? 'selected' : ''}
+									on:click={() => switchTab('tags')}
+								>
+									Tags
+								</span>
+							</div>
+							{#if activeTab === 'attachments'}
+								<div class="attachments">
+									{#if Array.from(attachments.values()).length > 0}
+										{#each Array.from(attachments.values()) as attachment}
+											<!-- svelte-ignore a11y-missing-attribute -->
+											<div>
+												<img
+													src={attachment.url}
+													width={attachment.width}
+													height={attachment.height}
+												/>
+												<!-- svelte-ignore a11y-click-events-have-key-events -->
+												<!-- svelte-ignore a11y-no-static-element-interactions -->
+												<i
+													class="fa-solid fa-xmark"
+													data-url={attachment.url}
+													on:click|preventDefault={removeAttachment}
+												/>
+											</div>
+										{/each}
+									{:else}
+										<p class="no-attachments">No attachments added yet.</p>
+									{/if}
+								</div>
+							{:else if activeTab === 'tags'}
+								<div class="tags">
+									{#if hashtagsArray.length > 0 || mentionsArray.length > 0}
+										{#if hashtagsArray.length > 0}
+											<div class="hashtags-section">
+												<h4>Hashtags</h4>
+												<div>
+													{#each hashtagsArray as hashtag (hashtag)}
+														<span class="hashtag-item">{hashtag}</span>
+													{/each}
+												</div>
+											</div>
+										{/if}
+										
+										{#if mentionsArray.length > 0}
+											<div class="mentions-section">
+												<h4>Mentions</h4>
+												<div>
+													{#each mentionsArray as [mention, actor] (mention)}
+														<div class="mention-item">
+															{#if actor}
+																<span class="mention-text">{mention}</span>
+																{#if actor.capabilities?.enigmatickEncryption}
+																	<i class="fa-solid fa-lock" title="Supports encryption"></i>
+																{/if}
+															{:else}
+																<span class="mention-text error">{mention}</span>
+																<i class="fa-solid fa-exclamation-triangle" title="User not found"></i>
+															{/if}
+														</div>
+													{/each}
+												</div>
+											</div>
+										{/if}
+									{:else}
+										<p class="no-tags">No hashtags or mentions detected yet.</p>
+									{/if}
+								</div>
+							{/if}
+						</div>
+				</div>
+			</div>
 
 			<form method="POST" on:submit|preventDefault={handleComposeSubmit}>
 				<div>
@@ -664,8 +689,8 @@
 	dialog {
 		margin: 0;
 		position: fixed;
-		min-height: 220px;
-		min-width: 400px;
+		min-height: 70dvh;
+		min-width: 60dvw;
 		max-height: 100%;
 		top: 50%;
 		left: 50%;
@@ -679,7 +704,7 @@
 
 		i.fa-xmark {
 			position: absolute;
-			right: 10px;
+			right: 5px;
 			top: 5px;
 			cursor: pointer;
 		}
@@ -689,8 +714,6 @@
 			display: flex;
 			flex-direction: column;
 			height: 100%;
-			width: 100%;
-			max-width: 700px;
 			margin: 0;
 			padding: 25px 10px 0 10px;
 			border-radius: 10px;
@@ -743,7 +766,7 @@
 				width: 100%;
 				margin: 0;
 				background: white;
-				min-height: 150px;
+				min-height: calc(70dvh - 70px);
 				max-height: 80vh;
 				border: 1px solid #eee;
 				font-family: 'Open Sans';
@@ -799,7 +822,7 @@
 
 				> div.entry {
 					flex-grow: 2;
-					height: 100%;
+					height: calc(100% - 20px);
 					width: 100%;
 					padding: 10px;
 					bottom: 0;
@@ -865,27 +888,6 @@
 				display: flex;
 				flex-direction: row;
 				flex-wrap: wrap;
-
-				div {
-					display: block;
-					position: relative;
-					border-radius: 5px;
-					padding: 0;
-					margin: 5px;
-					border: 0;
-					min-height: unset;
-					width: 80px;
-					height: 80px;
-					min-width: 80px;
-					overflow: hidden;
-
-					img {
-						width: auto;
-						height: auto;
-						object-fit: fill;
-						opacity: 0.8;
-					}
-				}
 			}
 
 			form {
@@ -985,6 +987,248 @@
 			}
 		}
 
+		.compose-container {
+			.drawer {
+				position: absolute;
+				bottom: 0;
+				width: 100%;
+				display: block;
+				text-align: center;
+				max-height: 100%;
+				overflow-x: scroll;
+
+				.pull {
+					padding: 0;
+					margin: 0;
+					height: 18px;
+					line-height: 18px;
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					width: 100%;
+
+					i {
+						color: white;
+						font-size: 18px;
+						cursor: pointer;
+						line-height: 1;
+						text-align: center;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						height: 100%;
+						padding: 0px 10px;
+						transition: transform 0.2s ease;
+
+						&:hover {
+							background: red;
+						}
+					}
+
+					&.open i {
+						transform: rotate(180deg);
+					}
+				}
+
+				.drawer-content {
+					display: block;
+					transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+					max-height: 0;
+					opacity: 0;
+					overflow: hidden;
+
+					&.open {
+						max-height: 300px;
+						opacity: 1;
+					}
+
+					.tabs {
+						width: 100%;
+						padding: 0;
+						margin: 2px 0 0 0;
+						display: flex;
+						flex-direction: row;
+						justify-content: space-evenly;
+
+						span {
+							cursor: pointer;
+							font-size: 12px;
+							padding: 5px;
+							width: 50%;
+							border: 0;
+							background: #fff;
+							color: #777;
+							font-weight: 600;
+
+							&:hover {
+								background: #eee;
+							}
+
+							&.selected {
+								background: #fafafa;
+								border-top: 1px solid #ddd;
+							}
+
+							&:first-child {
+								border-bottom: 1px solid #ddd;
+								border-top-right-radius: 10px;
+							}
+
+							&:first-child.selected {
+								border-right: 1px solid #ddd;
+								border-bottom: 0;
+							}
+
+							&:last-child {
+								border-bottom: 1px solid #ddd;
+								border-top-left-radius: 10px;
+							}
+
+							&:last-child.selected {
+								border-left: 1px solid #ddd;
+								border-bottom: 0;
+							}
+						}
+					}
+
+					.attachments,
+					.tags {
+						background: #fafafa;
+						width: 100%;
+						height: 100%;
+						min-height: 50px;
+						padding: 10px;
+						overflow-y: auto;
+					}
+
+					.tags {
+						.hashtags-section,
+						.mentions-section {
+							margin-bottom: 15px;
+
+							h4 {
+								margin: 0 0 8px 0;
+								font-size: 12px;
+								color: #666;
+								font-weight: 600;
+							}
+
+							// Container for mention items
+							> div {
+								display: flex;
+								flex-wrap: wrap;
+								gap: 4px;
+								justify-content: center;
+							}
+						}
+
+						.hashtag-item {
+							display: inline-block;
+							background: #f0f0f0;
+							color: #333;
+							padding: 4px 8px;
+							border-radius: 12px;
+							font-size: 12px;
+							font-weight: 600;
+							margin: 2px;
+						}
+
+						.mention-item {
+							display: inline-flex;
+							align-items: center;
+							background: #f0f0f0;
+							padding: 4px 8px;
+							border-radius: 12px;
+							font-size: 12px;
+							margin: 4px 6px 4px 0;
+
+							.mention-text {
+								color: #333;
+								font-weight: 600;
+								margin-right: 4px;
+
+								&.error {
+									color: #d32f2f;
+								}
+							}
+
+							i {
+								font-size: 10px;
+								margin-left: 4px;
+							}
+
+							i.fa-lock {
+								color: #4caf50;
+							}
+
+							i.fa-exclamation-triangle {
+								color: #ff9800;
+							}
+						}
+
+						.no-tags {
+							color: #777;
+							font-style: italic;
+							text-align: center;
+							margin: 20px 0;
+						}
+					}
+
+					.attachments {
+						display: flex;
+						flex-direction: row;
+						flex-wrap: nowrap;
+						justify-content: space-evenly;
+						align-items: center;
+						width: 100%;
+						height: 100%;
+						overflow: scroll;
+
+						div {
+							display: block;
+							position: relative;
+							border-radius: 5px;
+							padding: 0;
+							margin: 5px;
+							border: 0;
+							min-height: unset;
+							width: 80px;
+							height: 80px;
+							min-width: 80px;
+							overflow: hidden;
+
+							img {
+								width: 100%;
+								height: 100%;
+								object-fit: cover;
+								object-position: center;
+								opacity: 0.8;
+							}
+
+							i {
+								padding: 3px;
+								background: #ddd;
+								color: #777;
+								opacity: 0.5;
+
+								&:hover {
+									background: #ccc;
+									color: #555;
+								}
+							}
+						}
+
+						.no-attachments {
+							color: #777;
+							font-style: italic;
+							text-align: center;
+							margin: 20px 0;
+						}
+					}
+				}
+			}
+		}
+
 		@media screen and (max-width: 600px) {
 			top: 0;
 			left: 0;
@@ -1016,17 +1260,17 @@
 
 				form {
 					> div.privacy {
-					background: #efefef;
-					outline: 1px solid #aaa;
+						background: #efefef;
+						outline: 1px solid #aaa;
 
-					> div {
-						display: unset;
-						position: fixed;
-						left: calc(50dvw - 200px);
-						top: calc(50dvh - 75px);
-						transform: unset;
+						> div {
+							display: unset;
+							position: fixed;
+							left: calc(50dvw - 200px);
+							top: calc(50dvh - 75px);
+							transform: unset;
+						}
 					}
-				}
 				}
 
 				> i.fa-xmark {
@@ -1145,6 +1389,83 @@
 
 					span {
 						background: unset;
+					}
+				}
+
+				section {
+					div {
+						i {
+							background: #444;
+							color: #aaa;
+
+							&:hover {
+								background: #333;
+								color: #bbb;
+							}
+						}
+					}
+				}
+
+				.compose-container {
+					.drawer {
+						background: #222;
+						border-top: 1px solid #333;
+						
+						.drawer-content {
+							.tabs {
+								span {
+									color: #ccc;
+									background: inherit;
+									border-color: #555;
+
+									&:hover {
+										background: #777;
+									}
+
+									&.selected {
+										background: #444;
+										color: #fff;
+										border-color: #555;
+									}
+								}
+							}
+
+							.attachments,
+							.tags {
+								background: #444;
+							}
+
+							.tags {
+								.hashtag-item {
+									background: #555;
+									color: #ccc;
+								}
+
+								.mention-item {
+									background: #555;
+
+									.mention-text {
+										color: #ccc;
+
+										&.error {
+											color: #ff6b6b;
+										}
+									}
+
+									i.fa-lock {
+										color: #4caf50;
+									}
+
+									i.fa-exclamation-triangle {
+										color: #ff9800;
+									}
+								}
+
+								.no-tags {
+									color: #777;
+								}
+							}
+						}
 					}
 				}
 			}

@@ -1,17 +1,13 @@
 <svelte:options accessors />
 
 <script lang="ts">
-	import Reply from '../../timeline/components/Reply.svelte';
 	import Article from '../../timeline/components/Article.svelte';
 	import Compose from '../../timeline/components/Compose.svelte';
 
-	import { onDestroy, onMount, tick } from 'svelte';
 	import { appData, enigmatickWasm } from '../../../stores';
 	import type {
 		UserProfile,
 		Note,
-		StreamConnect,
-		AnnounceParams,
 		Attachment,
 		Activity,
 		UserProfileTerse,
@@ -19,9 +15,6 @@
 		Question
 	} from '../../../common';
 	import {
-		insertEmojis,
-		compare,
-		sleep,
 		DisplayNote,
 		type Collection,
 		extractMaxMin,
@@ -34,16 +27,6 @@
 	export let local: boolean;
 	export let handle: string;
 
-	onMount(async () => {
-		// Commenting this out until I have time to think about how to add comments to top-level notes
-		// in this context (i.e., adding comments to notes that are not direct ancestors, but are in the
-		// same conversation). Timeline relies on the inReplyTo to manage these relationships.
-		// observer = new IntersectionObserver(onIntersection, {
-		// 	root: null, // default is the viewport
-		// 	threshold: 0.3 // percentage of target's visible area. Triggers "onIntersection"
-		// });
-	});
-
 	console.debug(`HANDLE ${handle}`);
 
 	$: wasm = $enigmatickWasm;
@@ -52,46 +35,6 @@
 		console.debug('RELOADED POSTS');
 	});
 
-	/* 	async function processCollection(collection: Collection) {
-		const items = collection.orderedItems;
-		console.debug(items);
-
-		if (items) {
-			for (const item of items) {
-				if (item.type === 'Create') {
-					addNote(<Activity>item);
-				} else if (item.type === 'Announce') {
-					console.debug('PROCESSING ANNOUNCE');
-					if (isNote(item.object) || isArticle(item.object) || isQuestion(item.object)) {
-						addNote(<Activity>item);
-					} else {
-						let note = await wasm?.get_note(String(item.object));
-						console.debug('ANNOUNCED NOTE');
-						console.debug(note);
-
-						if (note) {
-							const n: Note | ApArticle | Question = JSON.parse(note);
-							console.debug(n);
-							if (item.actor) {
-								let actor = parseProfile(await cachedActor(item.actor));
-								if (actor) {
-									let ephemeral = n.ephemeral || {};
-									ephemeral.announces = [actor];
-									n.ephemeral = ephemeral;
-								}
-							}
-							(<Activity>item).object = n;
-							addNote(<Activity>item);
-						}
-					}
-				}
-			}
-		}
-
-		next = collection.next || null;
-		prev = collection.prev || null;
-	} */
-
 	async function processCollection(collection: Collection) {
 		const items = collection.orderedItems;
 		console.debug(items);
@@ -99,7 +42,6 @@
 		if (items) {
 			for (const item of items) {
 				if (item.type === 'Create' || item.type === 'Announce') {
-					console.debug('PROCESSING ACTIVITY');
 					let noteId = '';
 
 					if (
@@ -111,24 +53,18 @@
 						noteId = String(item.object);
 					}
 
-					let note = await wasm?.get_note(noteId);
-					console.debug('RETRIEVED NOTE');
-					console.debug(note);
+					// Locally retrieved notes via the full webfinger (e.g., @jdt@enigmatick.social) already
+					// have Ephemeral objects with public data. But they don't have user context 
+					// (e.g., 'liked', 'announced', etc.)
 
-					if (note) {
-						const n: Note | ApArticle | Question = JSON.parse(note);
-						console.debug(n);
-/* 						if (item.actor) {
-							let actor = parseProfile(await cachedActor(item.actor));
-							if (actor) {
-								let ephemeral = n.ephemeral || {};
-								ephemeral.announces = [actor];
-								n.ephemeral = ephemeral;
-							}
-						}*/
+					let retrieved = await wasm?.get_note(noteId);
+
+					if (retrieved) {
+						const n: Note | ApArticle | Question = JSON.parse(retrieved);
 						(<Activity>item).object = n;
-						addNote(<Activity>item);
 					}
+
+					addNote(<Activity>item);
 				}
 			}
 		}
@@ -193,11 +129,11 @@
 		if (url) {
 			moreDisabled = true;
 
-			if (local && username) {
+			if (local && handle) {
 				let maxMin = extractMaxMin(url);
 				console.debug(`maxMin: ${maxMin}`);
 				if (maxMin && maxMin.type && maxMin.value) {
-					wasm?.get_outbox(username, maxMin.type, maxMin.value).then((x) => {
+					wasm?.get_outbox(handle, maxMin.type, maxMin.value).then((x) => {
 						if (x) {
 							const collection: Collection = JSON.parse(x);
 							processCollection(collection).then(() => {
@@ -238,6 +174,7 @@
 
 		if (!notes.get(String(note.id))) {
 			notes.set(String(note.id), displayNote);
+			apCache.set(String(note.id), JSON.stringify(note));
 		}
 
 		notes = notes;
@@ -292,114 +229,10 @@
 		}
 	}
 
-	function parseProfile(text: string | null | undefined): UserProfile | null {
-		console.debug(`IN parseProfile: ${text}`);
-
-		if (text) {
-			try {
-				return JSON.parse(text);
-			} catch (e) {
-				console.error('UNABLE TO PARSE PROFILE');
-				console.debug(text);
-				return null;
-			}
-		} else {
-			console.error('UNABLE TO PARSE NULL OR UNDEFINED');
-			return null;
-		}
-	}
-
-	/* async function replyToHeader(note: Note | ApArticle | Question): Promise<string | null> {
-		if (note.inReplyTo) {
-			const replyNote = await cachedNote(note.inReplyTo);
-
-			if (replyNote) {
-				//console.debug(`REPLY_NOTE: ${replyNote}`);
-				const note: Note = JSON.parse(String(replyNote));
-
-				//console.debug(`ATTRIBUTED_TO: ${note.attributedTo}`);
-				//const reply_actor = await cachedActor(note.attributedTo);
-
-				if (note.attributedTo) {
-					const replyActor =
-						note.ephemeral?.attributedTo?.at(0) ??
-						parseProfile(await cachedActor(note.attributedTo[0]));
-
-					//console.debug(`REPLY_ACTOR: ${replyActor}`);
-					//const sender: UserProfile | null = parseProfile(reply_actor);
-
-					//console.debug(`SENDER: ${sender}`);
-
-					if (replyActor && wasm) {
-						console.debug(`IN replyActor: ${replyActor.name} | ${replyActor.preferredUsername}`);
-						const name = insertEmojis(
-							wasm,
-							replyActor.name ?? replyActor.preferredUsername,
-							replyActor
-						);
-
-						console.debug(`NAME: ${name}`);
-						return name;
-					} else {
-						return null;
-					}
-				} else {
-					return null;
-				}
-			} else {
-				return null;
-			}
-		} else {
-			return null;
-		}
-	} */
-
-	/* async function announceHeader(note: Note | ApArticle | Question): Promise<AnnounceParams | null> {
-		if (note.ephemeral?.announces) {
-			const announceActor = note.ephemeral.announces[0];
-			let others = '';
-
-			if (note.ephemeral?.announces.length == 2) {
-				others = ` and ${note.ephemeral.announces.length - 1} other`;
-			} else if (note.ephemeral.announces.length > 2) {
-				others = ` and ${note.ephemeral.announces.length - 1} others`;
-			}
-
-			if (announceActor) {
-				const name = insertEmojis(
-					wasm,
-					announceActor.name || announceActor.preferredUsername,
-					announceActor
-				);
-
-				return <AnnounceParams>{ url: announceActor.url, name, others };
-			} else {
-				return null;
-			}
-		} else {
-			return null;
-		}
-	} */
-
-	async function cachedActor(id: string) {
-		if (id && wasm && cache) {
-			try {
-				console.debug(`RETRIEVING ${id} FROM CACHE`);
-				return await wasm.get_actor_cached(cache, id);
-			} catch (e) {
-				console.error(`FAILED TO RETRIEVE: ${handle}`);
-				return null;
-			}
-		}
-
-		return null;
-	}
-
 	async function cachedNote(id: string) {
-		console.debug(`RETRIEVING NOTE: ${id}`);
-
 		if (wasm && !apCache.has(id)) {
-			apCache.set(id, await wasm.get_note(id));
+			let note = await wasm.get_note(id);
+			apCache.set(id, note);
 		}
 
 		return apCache.get(id);
@@ -409,36 +242,14 @@
 		console.debug('NOT IMPLEMENTED');
 	}
 
-	// controls whether messages from EventSource are immediately displayed or queued
-	let liveLoading = true;
-	let infiniteScrollDisabled = false;
-
-	// the queue used when the page is not scrolled to the top
-	let noteQueue: Note[] = [];
-
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
 	let notes = new Map<string, DisplayNote>();
-
-	// this is a map to locate a note within the nested notes structure;
-	// the list is an ordered set of steps to access a note's location
-	let locator = new Map<string, string[]>();
-	//let orphans: Set<DisplayNote> = new Set<DisplayNote>();
-	let orphans: Map<string, DisplayNote> = new Map<string, DisplayNote>();
-
-	// used very temporarily to control requests to the API for new data
-	let loading = false;
-
-	// the offset sent to the API for new data; adjusted when Notes are added by EventSource
-	let offset = 0;
 
 	// used to reduce calls to the API for Actor data
 	let apCache = new Map<string, string | undefined>();
 	let cache: any = null;
 
 	let username = $appData.username;
-
-	let focusNote: string | null = null;
-	let focusConversation: string | null = null;
 
 	let next: string | null = null;
 	let prev: string | null = null;
@@ -455,8 +266,6 @@
 	{#if wasm}
 		{#each Array.from(notes.values()) as note, i}
 			{#if note.note}
-				<!-- 				{#await replyToHeader(note.note) then replyTo}
-					{#await announceHeader(note.note) then announce} -->
 				<Article
 					bind:this={articleRefs[i]}
 					parentArticle={articleRefs[i]}
@@ -465,10 +274,7 @@
 					on:replyTo={composeComponent.handleReplyToMessage}
 					on:noteSelect={handleNoteSelect}
 					{cachedNote}
-					{composeComponent}
 				/>
-				<!-- 					{/await}
-				{/await} -->
 			{/if}
 		{/each}
 		{#if next}
@@ -481,7 +287,7 @@
 
 <style lang="scss">
 	div {
-		padding: 10px 10px 60px 10px;
+		padding: 10px 10px 150px 10px;
 
 		button {
 			border: 0;

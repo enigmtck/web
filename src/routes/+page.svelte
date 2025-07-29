@@ -52,11 +52,6 @@
 				font-family: 'Open Sans';
 				font-size: 24px;
 			}
-
-			a:hover {
-				color: red;
-				transition-duration: 0.5s;
-			}
 		}
 
 		li:last-child {
@@ -75,10 +70,6 @@
 
 				a {
 					color: #ddd;
-				}
-
-				a:hover {
-					color: red;
 				}
 			}
 

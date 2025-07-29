@@ -6,7 +6,6 @@
 	import { onDestroy, onMount, tick, afterUpdate } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { appData, enigmatickWasm } from '../../stores';
-	//import { appData, wasmState } from '../../stores';
 	import { useMediaQuery } from 'svelte-breakpoints';
 	//import init from 'wasm/enigmatick_wasm_bg.wasm?init';
 
@@ -308,10 +307,14 @@
 		if (!loading && !infiniteScrollDisabled && !focusNote) {
 			loading = true;
 
+			console.debug('SCROLL TOP: ' + scrollable.scrollTop);
+			console.debug('OFFSET HEIGHT: ' + scrollable.offsetHeight);
+			console.debug('SCROLL HEIGHT: ' + scrollable.scrollHeight + '\n\n');
+
 			let results = 1;
 			while (
 				!infiniteScrollDisabled &&
-				scrollable.scrollTop + scrollable.offsetHeight >= scrollable.scrollHeight * 0.8 &&
+				scrollable.scrollTop + scrollable.offsetHeight >= (scrollable.scrollHeight * 0.9) &&
 				results > 0
 			) {
 				results = (await loadTimelineData()) || 0;
@@ -404,7 +407,6 @@
 		clearNoteSelect();
 		noteQueue = [];
 		notes = new Map<string, DisplayNote>();
-		published = new Array<DisplayNote>();
 		await scrollToTop();
 		maxValue = undefined;
 		minValue = undefined;
@@ -427,23 +429,6 @@
 		}
 	};
 
-	const handlePublishMessage = async (message: CustomEvent<TimelineDispatch>) => {
-		console.debug('Handling dispatched Publish in Timeline');
-		console.debug(message);
-
-		const activity = message.detail.activity;
-
-		if (activity.object.attributedTo) {
-			const actor = activity.object.ephemeral?.attributedTo?.at(0);
-
-			if (actor) {
-				const displayNote = new DisplayNote(actor, activity.object, activity);
-				published.unshift(displayNote);
-				published = published;
-			}
-		}
-	};
-
 	let cache: any = null;
 
 	let hashtags: Set<string> = new Set();
@@ -459,7 +444,6 @@
 	//$: notes = new Array<DisplayNote>();
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
 	$: notes = new Map<string, DisplayNote>();
-	$: published = new Array<DisplayNote>();
 
 	// used very temporarily to control requests to the API for new data
 	let loading = false;
@@ -492,7 +476,7 @@
 
 <Compose
 	{senderFunction}
-	on:publish={handlePublishMessage}
+	on:publish
 	bind:this={composeComponent}
 	direct={view === 'direct'}
 />
@@ -519,18 +503,6 @@
 		</header>
 
 		<div class="scrollable" on:scroll={updateScrollPosition} bind:this={scrollable}>
-			{#each published as note, i}
-				<Article
-					bind:this={articleRefs[i]}
-					parentArticle={articleRefs[i]}
-					{remove}
-					{note}
-					{composeComponent}
-					on:replyTo={composeComponent.handleReplyToMessage}
-					{cachedNote}
-				/>
-			{/each}
-
 			{#each Array.from(notes.values()) as note, i}
 				{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeral?.announces?.length)) || note.note.id == focusNote)}
 					<Article
@@ -538,7 +510,6 @@
 						parentArticle={articleRefs[i]}
 						{remove}
 						{note}
-						{composeComponent}
 						on:replyTo={composeComponent.handleReplyToMessage}
 						{cachedNote}
 					/>
