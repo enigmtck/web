@@ -27,7 +27,7 @@
 	let selectedIndex: number = 0;
 
 	const imgError = (error: Event) => {
-		console.log(error.target);
+		console.error(error.target);
 		let target = <HTMLElement>error.target;
 
 		if (target) {

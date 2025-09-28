@@ -5,7 +5,8 @@
 		compare,
 		getWebFingerFromId,
 		cachedContent,
-		decrypt
+		decrypt,
+		getFirstValue
 	} from '../../../common';
 	import { type ComposeDispatch, replyCount } from './common';
 	import { enigmatickWasm } from '../../../stores';
@@ -28,14 +29,14 @@
 	}
 
 	function handleAnnounce(displayNote: DisplayNote) {
-		console.debug('Handling Announce');
+		//console.debug('Handling Announce');
 
 		if (displayNote.note.id) {
 			const object: string = displayNote.note.id;
 
 			if (object) {
 				wasm?.send_announce(object).then((id) => {
-					console.debug('Announce sent');
+					//console.debug('Announce sent');
 					let ephemeral: Ephemeral = displayNote.note.ephemeral || {};
 					ephemeral.announced = id;
 					displayNote.note.ephemeral = ephemeral;
@@ -48,32 +49,34 @@
 	}
 
 	function handleLike(displayNote: DisplayNote) {
-		console.debug('Handling Like');
+		//console.debug('Handling Like');
 
 		if (displayNote.note.id && displayNote.note.attributedTo) {
-			const actor: string = displayNote.note.attributedTo[0];
+			const to: string | null = getFirstValue(displayNote.note.attributedTo);
 			const object: string = displayNote.note.id;
 
-			wasm?.send_like(actor, object).then((id) => {
-				console.debug('Like sent');
-				let ephemeral: Ephemeral = displayNote.note.ephemeral || {};
-				ephemeral.liked = id;
-				displayNote.note.ephemeral = ephemeral;
-				note = displayNote;
-			});
+			if (to) {
+				wasm?.send_like(to, object).then((id) => {
+					//console.debug('Like sent');
+					let ephemeral: Ephemeral = displayNote.note.ephemeral || {};
+					ephemeral.liked = id;
+					displayNote.note.ephemeral = ephemeral;
+					note = displayNote;
+				});
+			}
 		}
 	}
 
 	function handleUnlike(displayNote: DisplayNote) {
-		console.debug('Handling Unike');
+		//console.debug('Handling Unike');
 
 		if (displayNote.note.id && displayNote.note.attributedTo) {
-			const actor: string = displayNote.note.attributedTo[0];
+			const actor: string | null = getFirstValue(displayNote.note.attributedTo);
 			const object: string = displayNote.note.id;
 
-			if (displayNote.note.ephemeral && displayNote.note.ephemeral.liked) {
+			if (actor && displayNote.note.ephemeral && displayNote.note.ephemeral.liked) {
 				wasm?.send_unlike(actor, object, displayNote.note.ephemeral.liked).then((uuid) => {
-					console.debug('Unlike sent');
+					//console.debug('Unlike sent');
 					let ephemeral: Ephemeral = displayNote.note.ephemeral || {};
 					ephemeral.liked = null;
 					displayNote.note.ephemeral = ephemeral;

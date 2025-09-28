@@ -18,7 +18,8 @@ export type {
 	QueueItem,
 	VaultedMessage,
 	Ephemeral,
-	Question
+	Question,
+	Link
 };
 export {
 	insertEmojis,
@@ -40,7 +41,11 @@ export {
 	isNote,
 	isArticle,
 	isEncryptedNote,
-	isQuestion
+	isQuestion,
+	getAttributedToValue,
+	getFirstValue,
+	toArray,
+	flattenArray
 };
 
 interface DisplayNote {
@@ -93,10 +98,12 @@ class DisplayNote {
 	jsonTo(): string {
 		let ret: string[] = [];
 
-		this.note.to &&
-			(Array.isArray(this.note.to) ? ret.push(...this.note.to) : ret.push(this.note.to));
-		this.note.cc &&
-			(Array.isArray(this.note.cc) ? ret.push(...this.note.cc) : ret.push(this.note.cc));
+		if (this.note.to) {
+			ret.push(...toArray(this.note.to));
+		}
+		if (this.note.cc) {
+			ret.push(...toArray(this.note.cc));
+		}
 
 		return JSON.stringify(ret);
 	}
@@ -114,14 +121,12 @@ class DisplayNote {
 
 		let recipients: string[] = [];
 
-		this.note.to &&
-			(Array.isArray(this.note.to)
-				? recipients.push(...this.note.to)
-				: recipients.push(this.note.to));
-		this.note.cc &&
-			(Array.isArray(this.note.cc)
-				? recipients.push(...this.note.cc)
-				: recipients.push(this.note.cc));
+		if (this.note.to) {
+			recipients.push(...toArray(this.note.to));
+		}
+		if (this.note.cc) {
+			recipients.push(...toArray(this.note.cc));
+		}
 
 		return recipients.some((recipient) => publicIdentifiers.includes(recipient));
 	}
@@ -230,7 +235,7 @@ interface Tag {
 }
 
 interface Attachment {
-	type: 'PropertyValue' | 'Document' | 'IdentityProof' | 'Image';
+	type: 'PropertyValue' | 'Document' | 'IdentityProof' | 'Image' | 'Video';
 	name?: string | null;
 	value?: string | null;
 	hash?: string | null;
@@ -240,6 +245,15 @@ interface Attachment {
 	blurhash?: string | null;
 	width?: number | null;
 	height?: number | null;
+}
+
+interface Link {
+	type: 'Link' | 'Article';
+	href?: string | null;
+	mediaType?: string | null;
+	name?: string | null;
+	rel?: string[] | string | null;
+	url?: string | null;
 }
 
 interface Metadata {
@@ -264,7 +278,7 @@ interface Note {
 	id?: string;
 	to?: string[] | string;
 	cc?: string[] | string;
-	url?: string;
+	url?: Link[] | Link | string[] | string;
 	attributedTo?: string[] | string | null;
 	content?: string | null;
 	summary?: string | null;
@@ -290,7 +304,7 @@ interface Article {
 	id?: string;
 	to?: string[] | string;
 	cc?: string[] | string;
-	url?: string;
+	url?: Link[] | Link | string[] | string;
 	attributedTo: string;
 	name?: string | null;
 	preview?: Note | string | null
@@ -327,7 +341,7 @@ interface Question {
 	id?: string | null;
 	to?: string[] | string;
 	cc?: string[] | string;
-	url?: string | null;
+	url?: Link[] | Link | string[] | string;
 	attributedTo: string;
 	oneOf?: QuestionNote[] | QuestionNote | null;
 	anyOf?: QuestionNote[] | QuestionNote | null;
@@ -503,13 +517,7 @@ function insertEmojis(
 	profile: UserProfile | Note | UserProfileTerse | Article | Question
 ) {
 	if (wasm && profile.tag) {
-		let tags: Tag[] = [];
-		
-		if (Array.isArray(profile.tag)) {
-			tags = [...profile.tag];
-		} else {
-			tags.push(profile.tag);
-		}
+		const tags = toArray(profile.tag);
 
 		tags.forEach((tag) => {
 			if (tag.type === 'Emoji') {
@@ -602,14 +610,7 @@ function domainMatch(site1: string, site2: string): boolean {
 	return site1_match !== null && site2_match !== null && site1_match[1] == site2_match[1];
 }
 
-// After several iterations, I'm using base64 here even though it's really invonvenient (i.e., I have
-// to add a bunch of dependencies and fiddle with Vite to make it work). I tried just URI encoding the
-// URL, but that causes problems when the URL already includes URI encoding (i.e., I'm not the only one
-// who's had that idea). The resultant decoded URL ends up broken because the original URI decoding also
-// gets decoded at the core server.
-//function cachedContent(wasm: typeof import('enigmatick_wasm') | null, url: string): string {
 function cachedContent(wasm: any, url: string): string {
-	//if (buffer) {
 	if (wasm) {
 		let encoded = wasm.get_url_safe_base64(url);
 		return '/api/cache?url=' + encoded;
@@ -646,4 +647,56 @@ const removeTags = (str: string | null | undefined): string => {
 	} else {
 		return '';
 	}
+};
+
+/**
+ * Get the first value from a field that could be a single value or an array
+ * @param value - The value that could be a single item or an array
+ * @returns The first value, or null if the input is null/undefined/empty array
+ */
+const getFirstValue = <T>(value: T | T[] | null | undefined): T | null => {
+	if (!value) {
+		return null;
+	}
+	
+	// If it's an array, return the first element
+	if (Array.isArray(value)) {
+		return value[0] || null;
+	}
+	
+	// If it's a single value, return it directly
+	return value;
+};
+
+/**
+ * Convert a value that could be a single item or an array into an array
+ * @param value - The value that could be a single item or an array
+ * @returns An array containing the value(s)
+ */
+const toArray = <T>(value: T | T[] | null | undefined): T[] => {
+	if (value == null) {
+		return [];
+	}
+	return Array.isArray(value) ? value : [value];
+};
+
+/**
+ * Flatten an array of arrays or single values into a single array
+ * @param values - Array of values that could be single items or arrays
+ * @returns A flattened array
+ */
+const flattenArray = <T>(values: (T | T[])[]): T[] => {
+	return values.reduce((acc: T[], val) => {
+		if (Array.isArray(val)) {
+			acc.push(...val);
+		} else {
+			acc.push(val);
+		}
+		return acc;
+	}, []);
+};
+
+// Legacy function for backward compatibility
+const getAttributedToValue = (attributedTo: string | string[] | null | undefined): string | null => {
+	return getFirstValue(attributedTo);
 };

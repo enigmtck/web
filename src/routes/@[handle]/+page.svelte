@@ -27,11 +27,11 @@
 	onMount(async () => {});
 
 	async function loadProfile(handle: string) {
-		console.debug(`INSTANCE DOMAIN: ${$appData.domain}`);
-		console.log(`GETTING ${handle}`);
+		//console.debug(`INSTANCE DOMAIN: ${$appData.domain}`);
+		//console.log(`GETTING ${handle}`);
 
 		if (handle.includes('@')) {
-			console.debug('REQUEST FOR REMOTE PROFILE');
+			//console.debug('REQUEST FOR REMOTE PROFILE');
 			local = false;
 
 			// The '@' below is the prepended one; the '@' above is the one in the middle
@@ -42,7 +42,7 @@
 			// });
 
 			profile = JSON.parse(p);
-			console.debug(profile);
+			//console.debug(profile);
 
 			if (postsComponent && profile) {
 				postsComponent.local = local;
@@ -64,15 +64,15 @@
 				}
 			});
 		} else {
-			console.debug('REQUEST FOR LOCAL PROFILE');
+			//console.debug('REQUEST FOR LOCAL PROFILE');
 			local = true;
 
 			wasm?.get_profile_by_username(handle).then((x) => {
-				console.log('IN get_profile_by_username');
+				//console.log('IN get_profile_by_username');
 				if (x) {
-					console.log(x);
+					//console.log(x);
 					profile = JSON.parse(x);
-					console.debug(profile);
+					//console.debug(profile);
 					if (postsComponent && profile) {
 						postsComponent.local = local;
 						postsComponent.handle = handle;
@@ -87,7 +87,7 @@
 	async function cachedActor(id: string, cache: any) {
 		if (cache) {
 			try {
-				console.debug(`RETRIEVING ${id} FROM CACHE`);
+				//console.debug(`RETRIEVING ${id} FROM CACHE`);
 				return await wasm?.get_actor_cached(cache, id);
 			} catch (e) {
 				console.error(`FAILED TO RETRIEVE: ${id}`);
@@ -144,7 +144,7 @@
 	function handleSaveSummary() {
 		if (profile && profile.summary) {
 			wasm?.update_summary(profile.summary, summaryMarkdown).then((x: any) => {
-				console.log(x);
+				//console.log(x);
 				summaryChanged = false;
 			});
 		}
@@ -160,7 +160,7 @@
 			reader.onload = (e: ProgressEvent<FileReader>) => {
 				if (e.target !== null) {
 					avatar = e.target.result !== null ? e.target.result : null;
-					console.log(avatar);
+					//console.log(avatar);
 					let bytes = new Uint8Array(avatar as ArrayBuffer);
 
 					wasm?.upload_avatar(bytes, (avatar as ArrayBuffer).byteLength, extension).then(() => {
@@ -181,7 +181,7 @@
 			reader.onload = (e: ProgressEvent<FileReader>) => {
 				if (e.target !== null) {
 					banner = e.target.result !== null ? e.target.result : null;
-					console.log(banner);
+					//console.log(banner);
 					let bytes = new Uint8Array(banner as ArrayBuffer);
 
 					wasm?.upload_banner(bytes, (banner as ArrayBuffer).byteLength, extension).then(() => {
@@ -194,42 +194,42 @@
 
 	function handleFollow(event: Event) {
 		if (profile && profile.id) {
-			console.log('Following: ' + profile.id);
+			//console.log('Following: ' + profile.id);
 
 			wasm?.send_follow(profile.id).then((x) => {
 				if (x && profile) {
 					let activity: Activity = JSON.parse(x);
-					console.debug(`Follow sent: ${activity.id}`);
+					//console.debug(`Follow sent: ${activity.id}`);
 					let ephemeral = profile.ephemeral || {};
 					ephemeral.following = true;
 					profile.ephemeral = ephemeral;
 				}
 			});
 		} else {
-			console.log('no profile loaded');
+			//console.log('no profile loaded');
 		}
 	}
 
 	function handleUnfollow(activity: string | undefined) {
 		if (activity && profile && profile.id) {
-			console.log('Unfollowing: ' + profile.id);
+			//console.log('Unfollowing: ' + profile.id);
 
 			wasm?.send_unfollow(profile.id, activity).then((x) => {
 				if (x && profile) {
 					let activity: Activity = JSON.parse(x);
-					console.debug(`Unfollow sent: ${activity.id}`);
+					//console.debug(`Unfollow sent: ${activity.id}`);
 					let ephemeral = profile.ephemeral || {};
 					ephemeral.following = false;
 					profile.ephemeral = ephemeral;
 				}
 			});
 		} else {
-			console.log('no profile loaded');
+			//console.log('no profile loaded');
 		}
 	}
 
 	async function handleKexInit(event: any) {
-		console.log(event);
+		//console.log(event);
 	}
 
 	const Views = {
@@ -264,7 +264,7 @@
 	beforeNavigate(async (navigation) => {
 		currentView = Views.Posts;
 
-		console.debug(navigation);
+		//console.debug(navigation);
 		if (navigation.to) {
 			if (navigation.to.route.id === null) {
 				let actor = navigation.to.url.href;
@@ -278,7 +278,7 @@
 					let webfinger = convertMastodonUrlToWebfinger(actor);
 
 					if (webfinger) {
-						console.log(`WEBFINGER: ${webfinger}`);
+						//console.log(`WEBFINGER: ${webfinger}`);
 						navigation.cancel();
 
 						await goto(`/${webfinger}`);

@@ -36,14 +36,14 @@
 	let imageContainer: HTMLDivElement;
 
 	const cancelSelect = (event: Event) => {
-		console.log(event);
+		//console.log(event);
 		fullscreenImage.src = '#';
 		imageContainer.classList.add('hidden');
 		fullscreenMask.classList.add('hidden');
 	};
 
 	const selectImage = (event: Event) => {
-		console.log(event);
+		//console.log(event);
 
 		if (event.target && (<HTMLImageElement>event.target).src) {
 			fullscreenImage.src = (<HTMLImageElement>event.target).src;
@@ -78,14 +78,14 @@
 						on:error={(e) => console.log(e)}
 					/>
 				</div>
-			{:else if x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType))}
+			{:else if (x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType)) || x.type == 'Video')}
 				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
 				<div class={placement.getPlacement()} tabindex="0">
 					<!-- svelte-ignore a11y-media-has-caption -->
-					<video width={x.width} height={x.height} controls on:error={(e) => console.log(e)}
+					<video width={x.width || undefined} height={x.height || undefined} controls on:error={(e) => console.log(e)}
 						><source
 							src={cachedContent(wasm, String(x.url))}
-							type={x.mediaType}
+							type={x.mediaType || undefined}
 							on:error={(e) => console.log(e)}
 						/></video
 					>

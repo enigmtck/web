@@ -12,7 +12,8 @@
 		type Activity,
 		type Question,
 		type Article,
-		type Collection
+		type Collection,
+		type Link
 	} from '../../../common';
 	import { onDestroy, onMount, getContext } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
@@ -30,7 +31,9 @@
 		isArticle,
 		isEncryptedNote,
 		isQuestion,
-		compare
+		compare,
+		getFirstValue,
+		toArray
 	} from '../../../common';
 	import { replyCount, type ComposeDispatch } from './common';
 	import { enigmatickWasm, appData } from '../../../stores';
@@ -100,7 +103,7 @@
 
 			if (replyNote) {
 				const note: Note = JSON.parse(String(replyNote));
-				const replyActor = note.ephemeral?.attributedTo?.at(0);
+				const replyActor = getFirstValue(note.ephemeral?.attributedTo);
 
 				if (replyActor && wasm) {
 					const name = insertEmojis(
@@ -170,6 +173,8 @@
 		return profiles[0];
 	};
 
+
+
 	let profiles = note.note.ephemeral?.attributedTo ?? [note.actor];
 	let actorTerseProfile = findMatchingProfile(profiles, note.note.attributedTo);
 	let actorIcon = actorTerseProfile.icon?.url;
@@ -182,11 +187,11 @@
 		const actor: string = String(event.target.dataset.actor);
 		const activity: string = String(event.target.dataset.activity);
 
-		console.debug(`UNDOING ${activity}`);
+		//console.debug(`UNDOING ${activity}`);
 
 		if (wasm) {
 			wasm.send_unlike(actor, object, activity).then((uuid) => {
-				console.debug('UNLIKE SENT');
+				//console.debug('UNLIKE SENT');
 				let ephemeral: Ephemeral = note.note.ephemeral || {};
 				ephemeral.liked = null;
 				note.note.ephemeral = ephemeral;
@@ -201,11 +206,11 @@
 
 		if (wasm) {
 			wasm.send_like(actor, object).then((x) => {
-				console.debug(x);
+				//console.debug(x);
 
 				if (x) {
 					let activity: Activity = JSON.parse(x);
-					console.debug(`Like sent: ${activity.id}`);
+					//console.debug(`Like sent: ${activity.id}`);
 					let ephemeral: Ephemeral = note.note.ephemeral || {};
 					ephemeral.liked = activity.id;
 					note.note.ephemeral = ephemeral;
@@ -221,7 +226,7 @@
 
 		if (wasm && object) {
 			wasm.send_unannounce(object, activity).then((id) => {
-				console.debug(`Undo Announce sent: ${id}`);
+				//console.debug(`Undo Announce sent: ${id}`);
 				let ephemeral: Ephemeral = note.note.ephemeral || {};
 				ephemeral.announced = null;
 				note.note.ephemeral = ephemeral;
@@ -237,11 +242,11 @@
 
 		if (wasm && object) {
 			wasm.send_announce(object).then((x) => {
-				console.debug(x);
+				//console.debug(x);
 
 				if (x) {
 					let activity: Activity = JSON.parse(x);
-					console.debug(`Announce sent: ${activity.id}`);
+					//console.debug(`Announce sent: ${activity.id}`);
 					let ephemeral: Ephemeral = note.note.ephemeral || {};
 					ephemeral.announced = activity.id;
 					note.note.ephemeral = ephemeral;
@@ -253,22 +258,12 @@
 		}
 	};
 
-	const handleNoteSelect = (note: DisplayNote, actor: UserProfile | UserProfileTerse) => {
-		console.log('DISPATCHING NOTE_SELECT');
-
-		noteSelectDispatch('noteSelect', {
-			replyToNote: note,
-			replyToActor: actor,
-			openAside: false
-		});
-	};
-
 	const handleReplyTo = (note: DisplayNote, actor: UserProfile | UserProfileTerse) => {
-		console.log('DISPATCHING REPLY_TO');
-		console.log('PARENT ELEMENT');
-		console.log(articleComponent);
-		console.log('PARENT COMPONENT');
-		console.log(parentArticle);
+		//console.log('DISPATCHING REPLY_TO');
+		//console.log('PARENT ELEMENT');
+		//console.log(articleComponent);
+		//console.log('PARENT COMPONENT');
+		//console.log(parentArticle);
 
 		replyToDispatch('replyTo', {
 			replyToNote: note,
@@ -279,11 +274,11 @@
 	};
 
 	function handleReplyToFromReply(event: CustomEvent<any>) {
-		console.log('DISPATCHING REPLY_TO from REPLY');
-		console.log('PARENT ELEMENT');
-		console.log(articleComponent);
-		console.log('PARENT COMPONENT');
-		console.log(parentArticle);
+		//console.log('DISPATCHING REPLY_TO from REPLY');
+		//console.log('PARENT ELEMENT');
+		//console.log(articleComponent);
+		//console.log('PARENT COMPONENT');
+		//console.log(parentArticle);
 		event.stopPropagation();
 		const { replyToNote, replyToActor, openAside } = event.detail;
 		replyToDispatch('replyTo', {
@@ -296,7 +291,7 @@
 
 	// WIP - moving reply loading here
 	export async function loadReplies() {
-		console.debug('Loading replies...');
+		//console.debug('Loading replies...');
 		if (wasm && note.note?.id) {
 			let id = note.note.id;
 			const result = await wasm.get_conversation(encodeURIComponent(id), 50);
@@ -313,8 +308,8 @@
 
 	// WIP - moving reply loading here
 	const processCollectionItems = async (collection: Collection) => {
-		console.debug('Processing collection items...');
-		console.debug(collection);
+		//console.debug('Processing collection items...');
+		//console.debug(collection);
 
 		if (!collection.orderedItems) {
 			return;
@@ -330,11 +325,11 @@
 
 	// WIP - moving reply loading here
 	const addNote = async (activity: Activity) => {
-		console.debug('Adding note...');
-		console.debug(activity);
+		//console.debug('Adding note...');
+		//console.debug(activity);
 
 		if (activity.object.attributedTo) {
-			const actor = activity.object.ephemeral?.attributedTo?.at(0);
+			const actor = getFirstValue(activity.object.ephemeral?.attributedTo);
 
 			if (actor) {
 				const displayNote = new DisplayNote(actor, activity.object, activity);
@@ -345,11 +340,11 @@
 
 	// WIP - moving reply loading here
 	const placeNote = async (displayNote: DisplayNote) => {
-		console.debug('Placing note...');
-		console.debug(displayNote);
+		//console.debug('Placing note...');
+		//console.debug(displayNote);
 
 		if (displayNote.note.id && displayNote.note.inReplyTo == note.note.id) {
-			console.debug('Top level...');
+			//console.debug('Top level...');
 			note.replies.set(displayNote.note.id, displayNote);
 			return;
 		}
@@ -373,7 +368,7 @@
 		};
 
 		if (displayNote.note.inReplyTo && findAndAddReply(note.replies)) {
-			console.debug('Found parent...');
+			//console.debug('Found parent...');
 			return;
 		}
 	};
@@ -381,7 +376,7 @@
 	let showExpansion = false;
 
 	const handleArticleExpand = (event: Event) => {
-		console.debug(event);
+		//console.debug(event);
 		showExpansion = !showExpansion;
 	};
 
@@ -393,16 +388,18 @@
 	};
 
 	const handleNavigate = (event: Event) => {
-		console.debug(event);
-		if (note.note.url) {
-			window.open(note.note.url, '_blank');
+		//console.debug(event);
+		const url = extractUrl(note.note.url);
+		if (url) {
+			window.open(url, '_blank');
 		}
 	};
 
 	let target: string | null = null;
 	let rel: string | null = null;
 
-	if (note && note.note && note.note.url && !domainMatch($page.url.toString(), note.note.url)) {
+	const noteUrl = extractUrl(note.note.url);
+	if (note && note.note && noteUrl && !domainMatch($page.url.toString(), noteUrl)) {
 		target = '_blank';
 		rel = 'noreferrer';
 	}
@@ -411,16 +408,66 @@
 	let selectedOptions: number[] = [];
 	let hasVoted = false;
 
-	function handleVote() {
+	async function handleVote() {
 		// For oneOf: selectedOption is the index of the chosen option
 		// For anyOf: selectedOptions is an array of indices
-		// TODO: Send vote to backend here
-		hasVoted = true;
+		
+		if (!wasm || !note.note.id) {
+			return;
+		}
+
+		const questionAuthor = getFirstValue(note.note.attributedTo);
+		if (!questionAuthor) {
+			return;
+		}
+
+		try {
+			if (isQuestion(note.note) && note.note.oneOf && selectedOption !== null) {
+				// Single choice question
+				const option = pollOptions[selectedOption];
+				if (option) {
+					await wasm.send_vote(option.name, note.note.id, questionAuthor);
+				}
+			} else if (isQuestion(note.note) && note.note.anyOf && selectedOptions.length > 0) {
+				// Multiple choice question - send a vote for each selected option
+				for (const optionIndex of selectedOptions) {
+					const option = pollOptions[optionIndex];
+					if (option) {
+						await wasm.send_vote(option.name, note.note.id, questionAuthor);
+					}
+				}
+			}
+			
+			hasVoted = true;
+		} catch (error) {
+			console.error('Error sending vote:', error);
+		}
 	}
 
-	// Helper to normalize oneOf/anyOf to arrays
-	function toArray<T>(val: T | T[] | undefined | null): T[] {
-		return val == null ? [] : Array.isArray(val) ? val : [val];
+
+
+	// Helper to extract URL from url field (supports Link objects and strings)
+	function extractUrl(urlField: Link[] | Link | string[] | string | undefined | null): string | null {
+		if (!urlField) return null;
+		
+		if (Array.isArray(urlField)) {
+			// If it's an array, take the first item
+			const firstItem = urlField[0];
+			if (typeof firstItem === 'string') {
+				return firstItem;
+			} else if (firstItem && typeof firstItem === 'object' && 'href' in firstItem) {
+				return firstItem.href || null;
+			}
+			return null;
+		} else if (typeof urlField === 'string') {
+			// If it's a string, return it directly
+			return urlField;
+		} else if (typeof urlField === 'object' && 'href' in urlField) {
+			// If it's a Link object, return the href
+			return urlField.href || null;
+		}
+		
+		return null;
 	}
 
 	// Precompute poll options and votes only if note.note is a Question
@@ -490,7 +537,7 @@
 				<span>{@html insertEmojis(wasm, actorName, actorTerseProfile)}</span>
 				<a href="/{getWebFingerFromId(actorTerseProfile)}">
 					<!--{getWebFingerFromId(actorTerseProfile)}-->
-					<FediHandle handle={note.note.ephemeral?.attributedTo?.[0].webfinger || ''} />
+					<FediHandle handle={getFirstValue(note.note.ephemeral?.attributedTo)?.webfinger || ''} />
 				</a>
 			{/if}
 		</address>
@@ -662,7 +709,7 @@
 		{/if}
 
 		<time datetime={note.published}>
-			<a href={note.note.url} {target} {rel}>
+			<a href={extractUrl(note.note.url)} {target} {rel}>
 				<!-- {timeSince(new Date(String(note.published)).getTime())} -->
 				<TimeAgo timestamp={messageTime} />
 			</a>
@@ -707,7 +754,7 @@
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i
 						class="fa-solid fa-star selected"
-						data-actor={note.note.attributedTo}
+						data-actor={getFirstValue(note.note.attributedTo)}
 						data-object={note.note.id}
 						data-activity={note.note.ephemeral?.liked}
 						on:click|preventDefault={handleUnlike}
@@ -717,7 +764,7 @@
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
 					<i
 						class="fa-solid fa-star"
-						data-actor={note.note.attributedTo}
+						data-actor={getFirstValue(note.note.attributedTo)}
 						data-object={note.note.id}
 						on:click|preventDefault={handleLike}
 					/>

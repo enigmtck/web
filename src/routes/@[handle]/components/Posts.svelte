@@ -20,34 +20,35 @@
 		extractMaxMin,
 		isNote,
 		isArticle,
-		isQuestion
+		isQuestion,
+		getFirstValue
 	} from '../../../common';
 
 	let composeComponent: Compose;
 	export let local: boolean;
 	export let handle: string;
 
-	console.debug(`HANDLE ${handle}`);
+	//console.debug(`HANDLE ${handle}`);
 
 	$: wasm = $enigmatickWasm;
 
 	$: loadPosts(handle, local).then(() => {
-		console.debug('RELOADED POSTS');
+		//console.debug('RELOADED POSTS');
 	});
 
 	async function processCollection(collection: Collection) {
 		const items = collection.orderedItems;
-		console.debug(items);
+		//console.debug(items);
 
 		if (items) {
 			for (const item of items) {
 				if (item.type === 'Create' || item.type === 'Announce') {
 					let noteId = '';
 
-					if (
-						(isNote(item.object) || isArticle(item.object) || isQuestion(item.object)) &&
-						item.object.id
-					) {
+					if  (item.object.id)
+					//((isNote(item.object) || isArticle(item.object) || isQuestion(item.object)) &&
+						//item.object.id) 
+						{
 						noteId = item.object.id;
 					} else {
 						noteId = String(item.object);
@@ -57,7 +58,8 @@
 					// have Ephemeral objects with public data. But they don't have user context 
 					// (e.g., 'liked', 'announced', etc.)
 
-					let retrieved = await wasm?.get_note(noteId);
+					let retrieved = await cachedNote(noteId);
+					//let retrieved = await wasm?.get_note(noteId);
 
 					if (retrieved) {
 						const n: Note | ApArticle | Question = JSON.parse(retrieved);
@@ -74,8 +76,8 @@
 	}
 
 	async function loadPosts(handle: string, local: boolean) {
-		console.debug('RESETTING NOTES MAP');
-		console.debug(`Loading posts for ${handle}`);
+		//console.debug('RESETTING NOTES MAP');
+		//console.debug(`Loading posts for ${handle}`);
 
 		notes = new Map<string, DisplayNote>();
 
@@ -92,7 +94,7 @@
 
 				if (outbox) {
 					const collection: Collection = JSON.parse(outbox);
-					console.debug(collection);
+					//console.debug(collection);
 					processCollection(collection).then(() => {
 						moreDisabled = false;
 					});
@@ -124,14 +126,14 @@
 			url = prev;
 		}
 
-		console.debug(`loadMore URL: ${url}`);
+		//console.debug(`loadMore URL: ${url}`);
 
 		if (url) {
 			moreDisabled = true;
 
 			if (local && handle) {
 				let maxMin = extractMaxMin(url);
-				console.debug(`maxMin: ${maxMin}`);
+				//console.debug(`maxMin: ${maxMin}`);
 				if (maxMin && maxMin.type && maxMin.value) {
 					wasm?.get_outbox(handle, maxMin.type, maxMin.value).then((x) => {
 						if (x) {
@@ -156,11 +158,11 @@
 	}
 
 	function refresh() {
-		console.debug('REFRESH');
+		//console.debug('REFRESH');
 
 		notes.clear();
 		loadPosts(handle, local).then((x) => {
-			console.log('LOADED');
+			//console.log('LOADED');
 		});
 	}
 
@@ -181,8 +183,10 @@
 	}
 
 	const addNote = async (activity: Activity) => {
+		//console.debug(`ADDING NOTE ${activity.object.type} ${activity.object.id}`)
+		//console.debug(activity);
 		if (activity.object.attributedTo) {
-			const actor = activity.object.ephemeral?.attributedTo?.at(0);
+			const actor = getFirstValue(activity.object.ephemeral?.attributedTo);
 
 			if (actor) {
 				const displayNote = new DisplayNote(actor, activity.object, activity);
@@ -231,22 +235,28 @@
 
 	async function cachedNote(id: string) {
 		if (wasm && !apCache.has(id)) {
-			let note = await wasm.get_note(id);
-			apCache.set(id, note);
+			apCache.set(id, wasm.get_note(id));
 		}
 
-		return apCache.get(id);
+		const cached = apCache.get(id);
+		
+		// Check if the cached value is a Promise that needs to be awaited
+		if (cached instanceof Promise) {
+			return await cached;
+		}
+		
+		return cached;
 	}
 
 	function handleNoteSelect() {
-		console.debug('NOT IMPLEMENTED');
+		//console.debug('NOT IMPLEMENTED');
 	}
 
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
 	let notes = new Map<string, DisplayNote>();
 
 	// used to reduce calls to the API for Actor data
-	let apCache = new Map<string, string | undefined>();
+	let apCache = new Map<string, Promise<string | undefined> | string | undefined>();
 	let cache: any = null;
 
 	let username = $appData.username;

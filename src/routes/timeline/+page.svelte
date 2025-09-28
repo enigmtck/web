@@ -28,7 +28,8 @@
 		DisplayNote,
 		extractMaxMin,
 		getWebFingerFromId,
-		convertMastodonUrlToWebfinger
+		convertMastodonUrlToWebfinger,
+		getFirstValue
 	} from '../../common';
 
 	import { goto } from '$app/navigation';
@@ -60,6 +61,8 @@
 	});
 
 	const placeNote = async (displayNote: DisplayNote) => {
+		console.debug(`Placing ${displayNote.note.id}`);
+		
 		if (!displayNote.note.inReplyTo && displayNote.note.id) {
 			// If 'inReplyTo' is blank or no matching DisplayNote found, add it to the top level
 			if (!notes.has(displayNote.note.id)) {
@@ -99,7 +102,7 @@
 	const updateDOM = async (fixScroll: boolean, ticks?: number) => {
 		try {
 			let beforeScroll = scrollPosition;
-			console.log(`SCROLL TOP ${beforeScroll}`);
+			//console.log(`SCROLL TOP ${beforeScroll}`);
 
 			notes = notes;
 
@@ -107,18 +110,23 @@
 				for (let t = 0; t < ticks; t++) {
 					await tick();
 				}
-				console.log(`SCROLLING TO ${beforeScroll}`);
+				//console.log(`SCROLLING TO ${beforeScroll}`);
 				scrollable.scrollTo({ top: beforeScroll, left: 0, behavior: 'instant' });
 			}
 		} catch (e) {
-			console.debug('Error updating notes');
+			//console.debug('Error updating notes');
 			console.error(e);
 		}
 	};
 
 	const addNote = async (activity: Activity) => {
+		console.debug(`Adding ${activity.object.id}`);
+		console.debug(activity.object);
+
 		if (activity.object.attributedTo) {
-			const actor = activity.object.ephemeral?.attributedTo?.at(0);
+			console.debug(`Attributed to ${activity.object.ephemeral?.attributedTo}`);
+
+			const actor = getFirstValue(activity.object.ephemeral?.attributedTo);
 
 			if (actor) {
 				const displayNote = new DisplayNote(actor, activity.object, activity);
@@ -141,7 +149,7 @@
 				// if loadTimelineData returns 0, that means it's reached the end
 				// of what is available and we should stop
 				let results = await loadTimelineData();
-				console.debug('TIMELINE LENGTH: ' + results);
+				//console.debug('TIMELINE LENGTH: ' + results);
 				if (results && results > 0) {
 					await loadMinimum();
 				}
@@ -157,19 +165,19 @@
 
 		if (wasm && view && scrollable) {
 			if (!cache) {
-				console.debug('INSTANTIATING CACHE');
+				//console.debug('INSTANTIATING CACHE');
 				cache = new wasm.EnigmatickCache();
-				console.debug('Cache instantiated');
+				//console.debug('Cache instantiated');
 			}
 
 			let x = await wasm.get_timeline(maxValue, undefined, pageSize, view, hashtags);
 
-			console.debug('X!');
-			console.debug(x);
+			//console.debug('X!');
+			//console.debug(x);
 			try {
 				let collection: Collection = JSON.parse(String(x));
-				console.debug('RETRIEVED TIMELINE DATA');
-				console.debug(collection);
+				//console.debug('RETRIEVED TIMELINE DATA');
+				//console.debug(collection);
 
 				if (collection.next) {
 					const result = extractMaxMin(collection.next);
@@ -190,7 +198,7 @@
 				return length;
 			} catch (e) {
 				console.error(e);
-				console.debug(x);
+				//console.debug(x);
 				// this will stop execution on a parsing error, but the alternative is an infinite loop in the wasm
 				// module if the server becomes unavailable
 				//throw e;
@@ -200,18 +208,18 @@
 				while (attempts++ < 10) {
 					await sleep(1000);
 					await loadTimelineData();
-					console.debug('RETRYING TIMELINE');
+					//console.debug('Retrying timeline');
 				}
 			}
 		} else {
-			console.error('NO WASM OR VIEW YET');
+			//console.error('No wasm or view yet');
 			await sleep(500);
 			await loadTimelineData();
 		}
 	};
 
 	beforeNavigate(async (navigation) => {
-		console.log(navigation);
+		//console.log(navigation);
 
 		if (navigation.to) {
 			if (navigation.to.route.id === null) {
@@ -232,7 +240,7 @@
 					let webfinger = convertMastodonUrlToWebfinger(url);
 
 					if (webfinger) {
-						console.log(`WEBFINGER: ${webfinger}`);
+						//console.log(`WEBFINGER: ${webfinger}`);
 						navigation.cancel();
 						goto(`/${webfinger}`);
 					}
@@ -248,11 +256,11 @@
 			}
 		}
 
-		console.log(hashtags);
+		//console.log(hashtags);
 	});
 
 	const handleView = async (event: Event) => {
-		console.log(event);
+		//console.log(event);
 		if (event.target) {
 			let selected = (<HTMLElement>event.target).dataset.view;
 			if (selected) {
@@ -291,14 +299,14 @@
 	const scrollToTop = async (): Promise<number> => {
 		let current: number = scrollable.scrollTop;
 
-		console.debug(`CURRENT: ${current}`);
+		//console.debug(`CURRENT: ${current}`);
 
 		await tick();
 		await tick();
 		await tick();
 		scrollable.scrollTo({ top: 0, left: 0, behavior: 'instant' });
 
-		console.debug('SCROLLED TO TOP');
+		//console.debug('SCROLLED TO TOP');
 
 		return current;
 	};
@@ -307,9 +315,9 @@
 		if (!loading && !infiniteScrollDisabled && !focusNote) {
 			loading = true;
 
-			console.debug('SCROLL TOP: ' + scrollable.scrollTop);
-			console.debug('OFFSET HEIGHT: ' + scrollable.offsetHeight);
-			console.debug('SCROLL HEIGHT: ' + scrollable.scrollHeight + '\n\n');
+			// console.debug('SCROLL TOP: ' + scrollable.scrollTop);
+			// console.debug('OFFSET HEIGHT: ' + scrollable.offsetHeight);
+			// console.debug('SCROLL HEIGHT: ' + scrollable.scrollHeight + '\n\n');
 
 			let results = 1;
 			while (
@@ -337,10 +345,10 @@
 	const cachedActor = async (id: string) => {
 		if (id && wasm && cache) {
 			try {
-				console.debug(`RETRIEVING ${id} FROM CACHE`);
+				//console.debug(`RETRIEVING ${id} FROM CACHE`);
 				return await wasm.get_actor_cached(cache, id);
 			} catch (e) {
-				console.error(`FAILED TO RETRIEVE: ${id}`);
+				console.error(`Failed to retrieve actor: ${id}`);
 				return null;
 			}
 		}
@@ -350,10 +358,17 @@
 
 	const cachedNote = async (id: string): Promise<string | undefined> => {
 		if (wasm && !apCache.has(id)) {
-			apCache.set(id, await wasm.get_note(id));
+			apCache.set(id, wasm.get_note(id));
 		}
 
-		return apCache.get(id);
+		const cached = apCache.get(id);
+		
+		// Check if the cached value is a Promise that needs to be awaited
+		if (cached && cached instanceof Promise) {
+			return await cached;
+		}
+		
+		return cached;
 	};
 
 	const senderFunction = async (
@@ -388,7 +403,7 @@
 				params.set_conversation(String(replyToNote.note.conversation));
 			}
 
-			console.log(params);
+			//console.log(params);
 			return await wasm.send_note(params);
 		} else {
 			return null;
@@ -396,11 +411,11 @@
 	};
 
 	const refresh = () => {
-		console.debug('REFRESH');
+		//console.debug('Refreshing timeline');
 	};
 
 	const remove = () => {
-		console.debug('REMOVE');
+		//console.debug('Removing note');
 	};
 
 	const resetData = async () => {
@@ -421,7 +436,7 @@
 			event.preventDefault();
 		}
 
-		console.debug('Toggling Filters');
+		//console.debug('Toggling Filters');
 		if (context.style.display === 'none') {
 			context.style.display = 'flex';
 		} else {
@@ -452,7 +467,7 @@
 	let minValue: string | undefined = undefined;
 
 	// used to reduce calls to the API for Actor data
-	let apCache = new Map<string, string | undefined>();
+	let apCache = new Map<string, Promise<string | undefined> | string | undefined>();
 
 	let username = $appData.username;
 
@@ -532,7 +547,7 @@
 			<Filters {hashtags} {resetData} />
 		</div>
 		<div class="handle" bind:this={filterHandle}>
-			<a href="#filters" on:click={handleMinimizeContext}>&nbsp;</a>
+			<a href="#filters" on:click={handleMinimizeContext}>&nbsp</a>
 		</div>
 	</div>
 </main>
@@ -734,7 +749,7 @@
 				left: 0;
 				width: 100%;
 				padding: 0;
-				z-index: 30;
+				z-index: 25;
 				background: #eee;
 
 				div {

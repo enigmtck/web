@@ -12,13 +12,17 @@
 		type Activity,
 		type Attachment,
 		type Note,
+		type Question,
 		type UserProfile,
-		type UserProfileTerse
+		type UserProfileTerse,
+		type Tag,
+		isNote
 	} from '../../../common';
 	import type { ComposeDispatch, TimelineDispatch } from './common';
 	import Reply from './Reply.svelte';
 	import { tick } from 'svelte';
 	import { createEventDispatcher } from 'svelte';
+	import Article from './Article.svelte';
 	const publishDispatch = createEventDispatcher<{ publish: TimelineDispatch }>();
 
 	$: wasm = $enigmatickWasm;
@@ -41,8 +45,8 @@
 	let parentArticle: any = null;
 
 	async function handleReplyToMessage(message: CustomEvent<ComposeDispatch>) {
-		console.log('IN COMPOSE');
-		console.log(message);
+		//console.log('IN COMPOSE');
+		//console.log(message);
 
 		// Use parentArticle directly from the event detail
 		parentArticle = message.detail.parentArticle;
@@ -66,29 +70,38 @@
 
 		await tick();
 
-		console.debug('Compose parentArticle');
-		console.debug(parentArticle);
+		//console.debug('Compose parentArticle');
+		//console.debug(parentArticle);
 	}
 
-	function openAside() {
-		const dialog = document.getElementsByTagName('dialog')[0];
-		dialog.showModal();
+	async function openAside() {
+		dialogOpen = true;
+		await tick();
+		if (dialogElement) {
+			dialogElement.showModal();
+		}
 
 		const mask = document.getElementsByClassName('mask')[0];
 		mask.classList.remove('closed');
 	}
 
 	function closeAside() {
+		//console.log('closeAside called');
 		resetCompose();
-		const dialog = document.getElementsByTagName('dialog')[0];
-		dialog.close();
+		dialogOpen = false;
+		if (dialogElement) {
+			//console.log('Closing dialog element');
+			dialogElement.close();
+		} else {
+			//console.log('No dialog element found');
+		}
 
 		const mask = document.getElementsByClassName('mask')[0];
 		mask.classList.add('closed');
 	}
 
 	function handleComposeSubmit(event: any) {
-		console.log(event);
+		//console.log(event);
 	}
 
 	function convertToHtml(data: string) {
@@ -130,6 +143,14 @@
 		htmlNote = '';
 		mentions.clear();
 		hashtags.clear();
+		
+		// Reset Question fields
+		composeMode = 'note';
+		questionContent = '';
+		pollType = 'oneOf';
+		pollOptions = ['', ''];
+		endDate = '';
+		endTime = '';
 	}
 
 	function toggleDrawerContent() {
@@ -146,47 +167,80 @@
 	}
 
 	async function handlePublish() {
-		captureChanges();
+		if (composeMode === 'note') {
+			captureChanges();
 
-		let noteText = linkMentions(htmlNote);
-		noteText = linkHashtags(noteText);
+			let noteText = linkMentions(htmlNote);
+			noteText = linkHashtags(noteText);
 
-		senderFunction(
-			replyToActor,
-			replyToNote,
-			noteText,
-			Array.from(attachments.values()),
-			new Map(
-				Array.from(mentions.entries())
-					.filter(([_, value]) => value !== null && value.id !== undefined)
-					.map(([key, value]) => [key, value as UserProfile])
-			),
-			Array.from(hashtags),
-			direct
-		).then(async (x: any) => {
-			if (x) {
-				resetCompose();
-				closeAside();
+			senderFunction(
+				replyToActor,
+				replyToNote,
+				noteText,
+				Array.from(attachments.values()),
+				new Map(
+					Array.from(mentions.entries())
+						.filter(([_, value]) => value !== null && value.id !== undefined)
+						.map(([key, value]) => [key, value as UserProfile])
+				),
+				Array.from(hashtags),
+				direct
+			).then(async (x: any) => {
+				if (x) {
+					resetCompose();
+					closeAside();
 
-				let activity: Activity = JSON.parse(x);
+					let activity: Activity = JSON.parse(x);
 
-				publishDispatch('publish', {
-					activity
-				});
+					publishDispatch('publish', {
+						activity
+					});
 
-				console.log(activity);
-				console.log('send successful');
-
-				console.log('parentArticle in senderFunction');
-				console.log(parentArticle);
-				// After successful publish, reload replies on parentArticle
-				if (parentArticle && typeof parentArticle.loadReplies === 'function') {
-					await parentArticle.loadReplies();
+					// After successful publish, reload replies on parentArticle
+					if (parentArticle && typeof parentArticle.loadReplies === 'function') {
+						await parentArticle.loadReplies();
+					}
 				}
-			} else {
-				console.log('send unsuccessful');
+			});
+		} else {
+			// Handle Question creation
+			const filteredOptions = pollOptions.filter(option => option.trim() !== '');
+			
+			if (questionContent.trim() === '') {
+				alert('Please enter a question description');
+				return;
 			}
-		});
+			
+			if (filteredOptions.length < 2) {
+				alert('Please add at least 2 poll options');
+				return;
+			}
+			
+			if (!endDate || !endTime) {
+				alert('Please set an end date and time');
+				return;
+			}
+			
+			// Create Question object
+			const questionData = {
+				content: questionContent,
+				pollType: pollType,
+				options: filteredOptions,
+				endDateTime: `${endDate}T${endTime}:00Z`,
+				attachments: Array.from(attachments.values()),
+				mentions: new Map(
+					Array.from(mentions.entries())
+						.filter(([_, value]) => value !== null && value.id !== undefined)
+						.map(([key, value]) => [key, value as UserProfile])
+				),
+				hashtags: Array.from(hashtags),
+				direct: direct
+			};
+			
+			// TODO: Implement Question sending function
+			console.log('Question data:', questionData);
+			alert('Question creation not yet implemented');
+		}
 	}
 
 	const onImageSelected = (e: Event) => {
@@ -202,13 +256,13 @@
 					let bytes = new Uint8Array(imageBuffer as ArrayBuffer);
 
 					wasm?.upload_image(bytes, (imageBuffer as ArrayBuffer).byteLength).then((x) => {
-						console.log('IMAGE UPLOADED');
+						//console.log('IMAGE UPLOADED');
 						if (x) {
 							let attachment: Attachment = JSON.parse(x);
 							if (attachment.url) {
 								attachments.set(attachment.url, attachment);
 								attachments = attachments;
-								console.debug(attachments);
+								//console.debug(attachments);
 							}
 						}
 					});
@@ -341,7 +395,8 @@
 	let resolvedMentions = new Map<string, UserProfile | null>(); // Cache for already resolved mentions
 
 	const detectTagsAndMentions = async (event: Event) => {
-		const text = composeDiv?.innerText || '';
+		// Determine which text to analyze based on compose mode
+		const text = composeMode === 'note' ? markdownNote : questionContent;
 		
 		// Immediately detect hashtags (no network calls needed)
 		hashtags.clear();
@@ -359,8 +414,8 @@
 
 		// Debounce the mention detection to only run after user stops typing
 		detectionTimeout = setTimeout(async () => {
-			const text = composeDiv?.innerText || '';
-			console.log('Detecting mentions in:', text);
+			const text = composeMode === 'note' ? markdownNote : questionContent;
+			//console.log('Detecting mentions in:', text);
 			
 			// Clear existing mentions collection
 			mentions.clear();
@@ -369,7 +424,7 @@
 			const mentionMatches = text.matchAll(/@(\w+)@([\w-]+\.[\w-]+(?:\.[\w-]+)*)/g);
 			for (const match of mentionMatches) {
 				const fullMatch = match[0];
-				console.log('Found mention:', fullMatch);
+				//console.log('Found mention:', fullMatch);
 				
 				// Only make network request if we haven't resolved this mention before
 				if (!resolvedMentions.has(fullMatch)) {
@@ -395,8 +450,8 @@
 				}
 			}
 			
-			console.log('Final hashtags:', Array.from(hashtags));
-			console.log('Final mentions:', Array.from(mentions.keys()));
+			//console.log('Final hashtags:', Array.from(hashtags));
+			//console.log('Final mentions:', Array.from(mentions.keys()));
 			
 			// Force reactivity
 			mentions = mentions;
@@ -405,7 +460,7 @@
 
 
 
-	$: markdownNote = '';
+	let markdownNote = '';
 	$: htmlNote = '';
 	let preview = false;
 	let showDrawerContent = false;
@@ -429,10 +484,195 @@
 
 	let privacyOpen = false;
 	$: username = $appData.username;
+
+	let dialogOpen = false;
+	let dialogElement: HTMLDialogElement;
+	
+	// Question creation mode
+	let composeMode: 'note' | 'question' = 'note';
+	let questionContent = '';
+	let pollType: 'anyOf' | 'oneOf' = 'oneOf';
+	let pollOptions: string[] = ['', '']; // Start with 2 empty options
+	let endDate = '';
+	let endTime = '';
+
+	// Function to create a preview Note object from compose data
+	function createPreviewNote(): Note {
+		const currentTime = new Date();
+		const content = markdownNote;
+		
+		// Convert mentions and hashtags to proper format for preview
+		const processedContent = linkMentions(linkHashtags(convertToHtml(content)));
+		
+		// Create tags array from mentions and hashtags
+		const tags: Tag[] = [];
+		
+		// Add hashtags as tags
+		hashtags.forEach(hashtag => {
+			tags.push({
+				type: 'Hashtag',
+				name: hashtag,
+				href: `${wasm?.get_state().get_server_url()}/tags/${hashtag.replace('#', '')}`
+			});
+		});
+		
+		// Add mentions as tags
+		mentions.forEach((actor, mention) => {
+			if (actor) {
+				tags.push({
+					type: 'Mention',
+					name: mention,
+					href: `https://${mention.split('@')[2]}/@${mention.split('@')[1]}`
+				});
+			}
+		});
+
+		// Create the Note object
+		const note: Note = {
+			type: direct ? 'EncryptedNote' : 'Note',
+			id: 'preview-note-id',
+			content: processedContent,
+			attributedTo: $appData.username ? `${$appData.username}@${window.location.hostname}` : 'preview-user',
+			published: currentTime.toISOString(),
+			url: '',
+			attachment: Array.from(attachments.values()),
+			tag: tags.length > 0 ? tags : undefined,
+			to: direct ? [] : ['https://www.w3.org/ns/activitystreams#Public'],
+			cc: direct ? [] : [],
+			ephemeral: {
+				timestamp: currentTime.toISOString(),
+				attributedTo: [createPreviewActor()]
+			}
+		};
+
+		return note;
+	}
+
+	// Function to create a preview Question object from compose data
+	function createPreviewQuestion(): Question {
+		const currentTime = new Date();
+		const filteredOptions = pollOptions.filter(option => option.trim() !== '');
+		
+		// Create tags array from mentions and hashtags
+		const tags: Tag[] = [];
+		
+		// Add hashtags as tags
+		hashtags.forEach(hashtag => {
+			tags.push({
+				type: 'Hashtag',
+				name: hashtag,
+				href: `${wasm?.get_state().get_server_url()}/tags/${hashtag.replace('#', '')}`
+			});
+		});
+		
+		// Add mentions as tags
+		mentions.forEach((actor, mention) => {
+			if (actor) {
+				tags.push({
+					type: 'Mention',
+					name: mention,
+					href: `https://${mention.split('@')[2]}/@${mention.split('@')[1]}`
+				});
+			}
+		});
+
+		// Convert mentions and hashtags to proper format for preview
+		const processedContent = linkMentions(linkHashtags(convertToHtml(questionContent)));
+		
+		// Create the Question object
+		const question: Question = {
+			type: 'Question',
+			id: 'preview-question-id',
+			content: processedContent,
+			attributedTo: $appData.username ? `${$appData.username}@${window.location.hostname}` : 'preview-user',
+			published: currentTime.toISOString(),
+			url: '',
+			attachment: Array.from(attachments.values()),
+			tag: tags.length > 0 ? tags : undefined,
+			to: direct ? [] : ['https://www.w3.org/ns/activitystreams#Public'],
+			cc: direct ? [] : [],
+			oneOf: pollType === 'oneOf' ? filteredOptions.map(option => ({ 
+				type: 'Note',
+				name: option,
+				attributedTo: $appData.username ? `${$appData.username}@${window.location.hostname}` : 'preview-user',
+				replies: { totalItems: 0 }
+			})) : undefined,
+			anyOf: pollType === 'anyOf' ? filteredOptions.map(option => ({ 
+				type: 'Note',
+				name: option,
+				attributedTo: $appData.username ? `${$appData.username}@${window.location.hostname}` : 'preview-user',
+				replies: { totalItems: 0 }
+			})) : undefined,
+			endTime: endDate && endTime ? `${endDate}T${endTime}:00Z` : undefined,
+			votersCount: 0,
+			ephemeral: {
+				timestamp: currentTime.toISOString(),
+				attributedTo: [createPreviewActor()]
+			}
+		};
+
+		return question;
+	}
+
+	// Function to create a preview actor from appData
+	function createPreviewActor(): UserProfileTerse {
+		//console.log('Avatar URL:', $appData.avatar);
+		const serverUrl = wasm?.get_state().get_server_url() || '';
+		const fullAvatarUrl = $appData.avatar ? `${serverUrl}/${$appData.avatar}` : '';
+		//console.log('Full avatar URL:', fullAvatarUrl);
+		
+		return {
+			id: $appData.username ? `${$appData.username}@${window.location.hostname}` : 'preview-user',
+			name: $appData.display_name || 'You',
+			preferredUsername: $appData.username || 'you',
+			icon: { 
+				url: fullAvatarUrl, 
+				type: 'Image' 
+			},
+			webfinger: `${$appData.username || 'you'}@${window.location.hostname}`,
+			url: `${$appData.username || 'you'}@${window.location.hostname}`
+		};
+	}
+
+	// Reactive preview DisplayNote
+	$: previewDisplayNote = (() => {
+		const content = markdownNote;
+		const hashtagsSize = hashtags.size;
+		const mentionsSize = mentions.size;
+		const attachmentsSize = attachments.size;
+		const directValue = direct;
+		const composeModeValue = composeMode;
+		
+		// Add Question field dependencies
+		const questionContentValue = questionContent;
+		const pollTypeValue = pollType;
+		const pollOptionsValue = pollOptions;
+		const endDateValue = endDate;
+		const endTimeValue = endTime;
+		
+		let note;
+		if (composeMode === 'note') {
+			note = createPreviewNote();
+		} else {
+			note = createPreviewQuestion();
+			console.log('Preview Question:', note);
+			console.log('Question content:', note.content);
+			console.log('Question oneOf:', note.oneOf);
+			console.log('Question anyOf:', note.anyOf);
+			console.log('Question endTime:', note.endTime);
+		}
+		
+		const actor = createPreviewActor();
+		//console.log('Preview note content:', note.content);
+		//console.log('Preview note type:', note.type);
+		//console.log('Is note?', isNote(note));
+		return new DisplayNote(actor, note);
+	})();
 </script>
 
 <div class="mask closed" />
-<dialog>
+{#if dialogOpen}
+<dialog bind:this={dialogElement}>
 	{#if username}
 		<div class={direct && !replyToNote ? 'direct' : ''}>
 			<!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -461,13 +701,79 @@
 						<i class="fa-solid fa-xmark" on:click|preventDefault={cancelReplyTo} />
 					</div>
 				{/if}
-				<div
-					class="entry"
-					bind:this={composeDiv}
-					contenteditable="true"
-					on:input={detectTagsAndMentions}
-					bind:innerText={markdownNote}
-				/>
+				{#if composeMode === 'note'}
+					<div
+						class="entry"
+						bind:this={composeDiv}
+						contenteditable="true"
+						on:input={detectTagsAndMentions}
+						bind:innerText={markdownNote}
+					/>
+				{:else}
+					<div class="question-form">
+						<div class="question-content">
+							<label for="question-content">Question Description:</label>
+							<textarea 
+								id="question-content"
+								bind:value={questionContent}
+								placeholder="Enter your question description..."
+								on:input={detectTagsAndMentions}
+							/>
+						</div>
+						
+						<div class="poll-type">
+							<label for="poll-type-group">Poll Type:</label>
+							<div class="radio-group" id="poll-type-group" role="radiogroup" aria-labelledby="poll-type-group">
+								<label for="poll-type-oneof">
+									<input type="radio" bind:group={pollType} value="oneOf" id="poll-type-oneof" />
+									Single Choice
+								</label>
+								<label for="poll-type-anyof">
+									<input type="radio" bind:group={pollType} value="anyOf" id="poll-type-anyof" />
+									Multiple Choice
+								</label>
+							</div>
+						</div>
+						
+						<div class="poll-options">
+							<label for="poll-options-group">Poll Options:</label>
+							<div id="poll-options-group" role="group" aria-labelledby="poll-options-group">
+								{#each pollOptions as option, index}
+									<div class="option-row">
+										<input 
+											type="text" 
+											bind:value={pollOptions[index]} 
+											placeholder="Option {index + 1}"
+										/>
+									{#if pollOptions.length > 2}
+										<button 
+											type="button" 
+											on:click={() => pollOptions = pollOptions.filter((_, i) => i !== index)}
+										>
+											<i class="fa-solid fa-trash"></i>
+										</button>
+									{/if}
+								</div>
+							{/each}
+							<button 
+								type="button" 
+								class="add-option"
+								on:click={() => pollOptions = [...pollOptions, '']}
+							>
+								<i class="fa-solid fa-plus"></i> Add Option
+							</button>
+							</div>
+						</div>
+						
+						<div class="end-date-time">
+							<label for="end-date">End Date:</label>
+							<input type="date" id="end-date" bind:value={endDate} />
+							
+							<label for="end-time">End Time:</label>
+							<input type="time" id="end-time" bind:value={endTime} />
+						</div>
+					</div>
+				{/if}
 
 				<div class="drawer">
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -582,19 +888,22 @@
 						bind:this={imageFileInput}
 					/>
 				</div>
-				{#if preview}
-					<div>
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
-						<i class="fa-solid fa-pen-nib" on:click|preventDefault={handlePreview} />
-					</div>
-				{:else}
-					<div>
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
-						<i class="fa-solid fa-eye" on:click|preventDefault={handlePreview} />
-					</div>
-				{/if}
+				<div class="mode-toggle">
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i 
+						class="fa-solid fa-note-sticky {composeMode === 'note' ? 'active' : ''}" 
+						on:click|preventDefault={() => composeMode = 'note'}
+						title="Create Note"
+					/>
+					<!-- svelte-ignore a11y-click-events-have-key-events -->
+					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<i 
+						class="fa-solid fa-square-poll-horizontal {composeMode === 'question' ? 'active' : ''}" 
+						on:click|preventDefault={() => composeMode = 'question'}
+						title="Create Question"
+					/>
+				</div>
 				<div>
 					<!-- svelte-ignore a11y-click-events-have-key-events -->
 					<!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -658,8 +967,12 @@
 				</div>
 			</form>
 		</div>
+		<div class="compose-preview">
+			<Article note={previewDisplayNote} remove={() => {}} cachedNote={() => Promise.resolve('')} />
+		</div>
 	{/if}
 </dialog>
+{/if}
 
 {#if username}
 	<!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -670,6 +983,56 @@
 {/if}
 
 <style lang="scss">
+	.compose {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		position: fixed;
+		right: 50px;
+		bottom: 50px;
+		background: #bbb;
+		width: 60px;
+		height: 60px;
+		border-radius: 10px;
+		opacity: 0.4;
+		color: #777;
+		transition-duration: 1s;
+		z-index: 15;
+
+		i {
+			font-size: 24px;
+		}
+	}
+
+	.compose:hover {
+		cursor: pointer;
+		color: white;
+		background: darkred;
+		opacity: 1;
+		transition-duration: 1s;
+	}
+
+	@media screen and (max-width: 600px) {
+		.compose {
+			right: 20px;
+			bottom: 60px;
+		}
+	}
+
+	:global(body.dark) {
+		.compose {
+			background: #eee;
+		}
+
+		.compose:hover {
+			cursor: pointer;
+			color: white;
+			background: maroon;
+			opacity: 1;
+			transition-duration: 1s;
+		}
+	}
+
 	.mask {
 		background: #999;
 		opacity: 0.9;
@@ -690,7 +1053,7 @@
 		margin: 0;
 		position: fixed;
 		min-height: 70dvh;
-		min-width: 60dvw;
+		min-width: 80dvw;
 		max-height: 100%;
 		top: 50%;
 		left: 50%;
@@ -699,17 +1062,33 @@
 		text-align: unset;
 		padding: 0;
 		border: 0;
-		border-radius: 10px;
 		overflow: visible;
+		display: flex;
+		flex-direction: row;
+		background: none;
 
 		i.fa-xmark {
 			position: absolute;
 			right: 5px;
 			top: 5px;
 			cursor: pointer;
+
+			@media screen and (max-width: 600px) {
+				right: 10px;
+				top: 10px;
+			}
 		}
 
 		> div {
+			margin: 10px;
+			width: 50%;
+
+			@media screen and (max-width: 800px) {
+				width: 100%;
+			}
+		}
+
+		> div:first-child {
 			position: relative;
 			display: flex;
 			flex-direction: column;
@@ -718,6 +1097,11 @@
 			padding: 25px 10px 0 10px;
 			border-radius: 10px;
 			background: #ddd;
+
+			@media screen and (max-width: 600px) {
+				border-radius: 0;
+				padding: 45px 10px 0 10px;
+			}
 
 			> span {
 				display: inline-block;
@@ -773,6 +1157,10 @@
 				border-radius: 0;
 				outline: 1px solid #aaa;
 
+				@media screen and (max-width: 600px) {
+					max-height: unset;
+				}
+
 				> div.reply {
 					width: calc(100% - 10px);
 					padding: 5px;
@@ -824,7 +1212,7 @@
 					flex-grow: 2;
 					height: calc(100% - 20px);
 					width: 100%;
-					padding: 10px;
+					padding: 10px 10px 20px 10px;
 					bottom: 0;
 					word-wrap: break-word;
 					white-space: pre-wrap;
@@ -855,10 +1243,6 @@
 						font-weight: 600;
 					}
 				}
-			}
-
-			div:has(div:focus, input[type='text']:focus) {
-				outline: 1px solid darkgoldenrod;
 			}
 
 			div:focus,
@@ -987,7 +1371,14 @@
 			}
 		}
 
+		@media screen and (max-width: 800px) {
+			.compose-preview {
+				display: none;
+			}
+		}
+
 		.compose-container {
+			
 			.drawer {
 				position: absolute;
 				bottom: 0;
@@ -1240,7 +1631,7 @@
 			z-index: 21;
 			text-align: unset;
 			background: #ddd;
-			border-radius: unset;
+			border-radius: 0;
 			transform: unset;
 
 			> div {
@@ -1254,7 +1645,6 @@
 				width: 100dvw;
 				max-height: unset;
 				min-height: unset;
-				padding-top: 35px;
 				max-width: unset;
 				min-width: unset;
 
@@ -1267,7 +1657,7 @@
 							display: unset;
 							position: fixed;
 							left: calc(50dvw - 200px);
-							top: calc(50dvh - 75px);
+							top: calc(50dvh + 100px);
 							transform: unset;
 						}
 					}
@@ -1349,11 +1739,10 @@
 		}
 
 		dialog {
-			background: #444;
 
-			> div {
+			> div:first-child {
 				background: #444;
-
+				
 				span {
 					background: #555;
 					color: white;
@@ -1510,53 +1899,208 @@
 		}
 	}
 
-	.compose {
+	.mode-toggle {
 		display: flex;
-		justify-content: center;
-		align-items: center;
-		position: fixed;
-		right: 50px;
-		bottom: 50px;
-		background: #bbb;
-		width: 60px;
-		height: 60px;
-		border-radius: 10px;
-		opacity: 0.4;
-		color: #777;
-		transition-duration: 1s;
-		z-index: 15;
+		gap: 10px;
+		margin-right: 10px;
 
 		i {
-			font-size: 24px;
+			font-size: 18px;
+			padding: 8px;
+			border-radius: 5px;
+			cursor: pointer;
+			transition: all 0.2s ease;
+			color: #777;
+
+			&:hover {
+				color: #333;
+				background: #eee;
+			}
+
+			&.active {
+				color: darkred;
+				background: #f0f0f0;
+			}
 		}
 	}
 
-	.compose:hover {
-		cursor: pointer;
-		color: white;
-		background: darkred;
-		opacity: 1;
-		transition-duration: 1s;
-	}
+	.question-form {
+		max-height: 100%;
+		overflow-y: scroll;
+		padding: 15px;
+		background: #f9f9f9;
+		border-radius: 8px;
+		margin-bottom: 10px;
 
-	@media screen and (max-width: 600px) {
-		.compose {
-			right: 20px;
-			bottom: 60px;
+		.question-content {
+			margin-bottom: 20px;
+
+			label {
+				display: block;
+				margin-bottom: 5px;
+				font-weight: 600;
+				color: #333;
+			}
+
+			textarea {
+				width: 100%;
+				min-height: 80px;
+				padding: 10px;
+				border: 1px solid #ddd;
+				border-radius: 4px;
+				resize: vertical;
+				font-family: inherit;
+			}
+		}
+
+		.poll-type {
+			margin-bottom: 20px;
+
+			label {
+				display: block;
+				margin-bottom: 10px;
+				font-weight: 600;
+				color: #333;
+			}
+
+			.radio-group {
+				display: flex;
+				gap: 20px;
+
+				label {
+					display: flex;
+					align-items: center;
+					gap: 5px;
+					font-weight: normal;
+					cursor: pointer;
+
+					input[type="radio"] {
+						margin: 0;
+					}
+				}
+			}
+		}
+
+		.poll-options {
+			margin-bottom: 20px;
+			
+			label {
+				display: block;
+				margin-bottom: 10px;
+				font-weight: 600;
+				color: #333;
+			}
+
+			.option-row {
+				display: flex;
+				gap: 10px;
+				margin-bottom: 8px;
+				align-items: center;
+
+				input {
+					flex: 1;
+					padding: 8px;
+					border: 1px solid #ddd;
+					border-radius: 4px;
+				}
+
+				button {
+					padding: 8px 12px;
+					background: #ff6b6b;
+					color: white;
+					border: none;
+					border-radius: 4px;
+					cursor: pointer;
+
+					&:hover {
+						background: #ff5252;
+					}
+				}
+			}
+
+			.add-option {
+				padding: 8px 16px;
+				background: #4caf50;
+				color: white;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+				display: flex;
+				align-items: center;
+				gap: 5px;
+
+				&:hover {
+					background: #45a049;
+				}
+			}
+		}
+
+		.end-date-time {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 15px;
+
+			label {
+				display: block;
+				margin-bottom: 5px;
+				font-weight: 600;
+				color: #333;
+			}
+
+			input {
+				padding: 8px;
+				border: 1px solid #ddd;
+				border-radius: 4px;
+			}
 		}
 	}
 
 	:global(body.dark) {
-		.compose {
-			background: #eee;
+		.question-form {
+			background: #333;
+			color: #eee;
+
+			.question-content,
+			.poll-type,
+			.poll-options,
+			.end-date-time {
+				label {
+					color: #eee;
+				}
+
+				input,
+				textarea {
+					background: #444;
+					border-color: #555;
+					color: #eee;
+				}
+			}
+
+			.poll-options {
+				.add-option {
+					background: #4caf50;
+
+					&:hover {
+						background: #45a049;
+					}
+				}
+			}
 		}
 
-		.compose:hover {
-			cursor: pointer;
-			color: white;
-			background: maroon;
-			opacity: 1;
-			transition-duration: 1s;
+		.mode-toggle {
+			i {
+				color: #ccc;
+
+				&:hover {
+					color: #eee;
+					background: #555;
+				}
+
+				&.active {
+					color: #ff6b6b;
+					background: #444;
+				}
+			}
 		}
 	}
 </style>

@@ -1025,7 +1025,6 @@ dependencies = [
  "url",
  "urlencoding",
  "uuid",
- "vodozemac",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -1997,9 +1996,9 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "jdt_activity_pub"
-version = "0.2.60"
+version = "0.2.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8614fdedcc384e16efa4d3f6e0feabe22cdfb7c1f0a008e28aace6a00c22487c"
+checksum = "8161545fe20e1697608dcaa0c8ae98928e3f45e6bbafa3fe8769ee06d4e3876f"
 dependencies = [
  "anyhow",
  "base64",
@@ -2008,6 +2007,7 @@ dependencies = [
  "dateparser",
  "dotenvy",
  "enum_dispatch",
+ "futures",
  "hex",
  "image",
  "infer",
