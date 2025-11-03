@@ -6,7 +6,7 @@
 	import { get } from 'svelte/store';
 	import { appData, enigmatickWasm } from '../../stores';
 
-	$: wasm = $enigmatickWasm;
+	let wasm = $derived($enigmatickWasm);
 
 	onMount(async () => {
 		if (!wasm) {
@@ -23,7 +23,7 @@
 </script>
 
 <main>
-	<form id="profile" method="POST" on:submit|preventDefault={handleProfile}>
+	<form id="profile" method="POST" onsubmit={(e) => { e.preventDefault(); handleProfile(e); }}>
 		<label>
 			<input type="text" id="address" name="address" placeholder="@address@server.url" />
 		</label>

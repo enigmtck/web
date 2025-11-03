@@ -12,21 +12,28 @@
 	import { enigmatickWasm } from '../../../stores';
 	import Attachments from './Attachments.svelte';
 
-	import { createEventDispatcher, onMount } from 'svelte';
+	import { onMount } from 'svelte';
 	import TimeAgo from './TimeAgo.svelte';
 	import Menu from './Menu.svelte';
-	const replyToDispatch = createEventDispatcher<{ replyTo: ComposeDispatch }>();
+	import Self from './Reply.svelte';
 
-	$: wasm = $enigmatickWasm;
-	export let note: DisplayNote;
-	export let username: string | null;
-	export let remove: (note: string) => void;
-	export let parentArticle: any = null;
+	let {
+		onReplyTo = undefined,
+		note,
+		username,
+		remove,
+		parentArticle = null
+	}: {
+		onReplyTo?: ((dispatch: ComposeDispatch) => void);
+		note: DisplayNote;
+		username: string | null;
+		remove: (note: string) => void;
+		parentArticle?: any;
+	} = $props();
 
-	let content: string;
-	$: {
-		content = (note.note.type == 'Note' ? note.note.content : decrypt(wasm, note.activity)) || '';
-	}
+	let wasm = $derived($enigmatickWasm);
+
+	let content = $derived((note.note.type == 'Note' ? note.note.content : decrypt(wasm, note.activity)) || '');
 
 	function handleAnnounce(displayNote: DisplayNote) {
 		//console.debug('Handling Announce');
@@ -87,7 +94,7 @@
 	}
 
 	function handleReplyTo(displayNote: DisplayNote) {
-		replyToDispatch('replyTo', {
+		onReplyTo?.({
 			replyToNote: displayNote,
 			replyToActor: displayNote.actor,
 			openAside: true
@@ -141,7 +148,7 @@
 
 		{#if note.replies?.size}
 			<span class="comments" data-conversation={note.note.conversation} data-note={note.note.id}
-				><i class="fa-solid fa-comments" />
+				><i class="fa-solid fa-comments"></i>
 				{replyCount(note)}</span
 			>
 		{/if}
@@ -151,32 +158,32 @@
 		{#if username}
 			<nav>
 				{#if note.note.ephemeral?.announced}
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<i
 						class="fa-solid fa-repeat selected"
-						on:click|preventDefault={() => handleAnnounce(note)}
-					/>
+						onclick={(e) => { e.preventDefault(); handleAnnounce(note); }}
+					></i>
 				{:else}
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<i class="fa-solid fa-repeat" on:click|preventDefault={() => handleAnnounce(note)} />
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<i class="fa-solid fa-repeat" onclick={(e) => { e.preventDefault(); handleAnnounce(note); }} ></i>
 				{/if}
 
 				{#if note.note.ephemeral?.liked}
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<i class="fa-solid fa-star selected" on:click|preventDefault={() => handleUnlike(note)} />
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<i class="fa-solid fa-star selected" onclick={(e) => { e.preventDefault(); handleUnlike(note); }} ></i>
 				{:else}
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<i class="fa-solid fa-star" on:click|preventDefault={() => handleLike(note)} />
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<i class="fa-solid fa-star" onclick={(e) => { e.preventDefault(); handleLike(note); }} ></i>
 				{/if}
 
 				{#if note.actor}
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<i class="fa-solid fa-reply" on:click={() => handleReplyTo(note)} />
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<i class="fa-solid fa-reply" onclick={() => handleReplyTo(note)} ></i>
 				{/if}
 
 				{#if note.note.id}
@@ -196,7 +203,7 @@
 	{#if note.replies?.size}
 		<div class="replies">
 			{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
-				<svelte:self note={reply} {username} {remove} on:replyTo parentArticle={parentArticle} />
+				<Self note={reply} {username} {remove} onReplyTo={onReplyTo} {parentArticle} />
 			{/each}
 		</div>
 	{/if}
@@ -287,20 +294,13 @@
 			}
 		}
 
-		section, section pre, section code {
+		section {
 			min-width: 0;
 			max-width: 100%;
 			box-sizing: border-box;
 			word-break: break-word;
 			padding-right: 10px;
 			font-size: 14px;
-		}
-		section pre {
-			overflow-x: auto;
-			white-space: pre-wrap;
-		}
-		section code {
-			white-space: pre-wrap;
 		}
 
 		:global(time) {
@@ -409,14 +409,6 @@
 
 		.replies {
 			background: #000;
-
-			article {
-				address {
-					a {
-						color: #ddd;
-					}
-				}
-			}
 		}
 
 		nav {

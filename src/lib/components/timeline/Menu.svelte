@@ -2,12 +2,19 @@
     import { enigmatickWasm } from '../../../stores';
     import { onDestroy, onMount, getContext } from 'svelte';
 
-	export let object: string;
-    export let owner: boolean;
-	export let remove: (note: string) => void;
-	export let reload: () => void;
+	let {
+		object,
+		owner,
+		remove,
+		reload
+	}: {
+		object: string;
+		owner: boolean;
+		remove: (note: string) => void;
+		reload: () => void;
+	} = $props();
 
-    $: wasm = $enigmatickWasm;
+    let wasm = $derived($enigmatickWasm);
     
     onMount(async () => {
         if (wasm) {
@@ -39,21 +46,24 @@
 	let dialog: HTMLDialogElement;
 </script>
 
-<!-- svelte-ignore a11y-no-static-element-interactions -->
-<!-- svelte-ignore a11y-click-events-have-key-events -->
-<i class="fa-solid fa-ellipsis" data-object={object} on:click={handleMenu} />
+
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<i class="fa-solid fa-ellipsis" data-object={object} onclick={(e) => { e.preventDefault(); handleMenu(e); }}></i>
 
 <dialog bind:this={dialog}>
 	<ul>
         {#if owner}
-			<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-            <!-- svelte-ignore a11y-click-events-have-key-events -->
-            <li data-object={object} on:click|preventDefault={handleDelete}>Delete</li>
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+            <li data-object={object} onclick={(e) => { e.preventDefault(); handleDelete(e); }}>Delete</li>
             <li>Edit</li>
         {/if}
-		<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-        <!-- svelte-ignore a11y-click-events-have-key-events -->
-		<li on:click|preventDefault={reload}>Reload Replies</li>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<li onclick={(e) => { e.preventDefault(); reload(); }}>Reload Replies</li>
         <li>Mute Author</li>
         <li>Block Author</li>
         <li>Block Instance</li>

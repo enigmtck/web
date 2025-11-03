@@ -25,9 +25,9 @@
 
 	} from '../../../common';
 
-	export let profile: UserProfileTerse;
+	let { profile }: { profile: UserProfileTerse } = $props();
 
-	$: wasm = $enigmatickWasm;
+	let wasm = $derived($enigmatickWasm);
 </script>
 
 <div>

@@ -40,9 +40,21 @@
 	import TimeAgo from './TimeAgo.svelte';
 	import FediHandle from './FediHandle.svelte';
 
-	import { createEventDispatcher } from 'svelte';
-	const replyToDispatch = createEventDispatcher<{ replyTo: ComposeDispatch }>();
-	const noteSelectDispatch = createEventDispatcher<{ noteSelect: ComposeDispatch }>();
+	let { 
+		onReplyTo = undefined,
+		onNoteSelect = undefined,
+		note,
+		remove,
+		cachedNote,
+		parentArticle = null
+	}: {
+		onReplyTo?: ((dispatch: ComposeDispatch) => void);
+		onNoteSelect?: ((dispatch: ComposeDispatch) => void);
+		note: DisplayNote;
+		remove: (note: string) => void;
+		cachedNote: (id: string) => Promise<string | undefined>;
+		parentArticle?: any;
+	} = $props();
 
 	import LinkPreview from './LinkPreview.svelte';
 	import Menu from './Menu.svelte';
@@ -52,50 +64,107 @@
 	import Reply from './Reply.svelte';
 	import Compose from './Compose.svelte';
 
-	$: wasm = $enigmatickWasm;
+	let wasm = $derived($enigmatickWasm);
 
-	let article_id = '';
+	let article_id = $state('');
 	let articleComponent: any = null;
 
-	let showReplies: boolean = false;
+	let showReplies = $state(false);
+
+	// Track if replies have been loaded for this specific note to avoid duplicate loads
+	let repliesLoadedNoteId = $state<string | null>(null);
+	let observer: IntersectionObserver | null = null;
+
+	// Get current note ID
+	let currentNoteId = $derived(note?.note?.id);
 
 	onMount(() => {
 		if (wasm && note && note.note && note.note.id) {
 			article_id = wasm.get_url_safe_base64(note.note.id);
 		}
 
-		// Set up intersection observer
-		const observer = new IntersectionObserver(
-			(entries) => {
-				entries.forEach((entry) => {
-					if (entry.isIntersecting) {
-						// Call loadReplies directly when this article comes into view
-						loadReplies();
-						// Show nav gradually when article comes into view
-					}
-				});
-			},
-			{ threshold: 0.1 } // Trigger when 10% of article is visible
-		);
+		// Initialize the tracked map reference
+		repliesMapRef = note.replies;
 
-		if (articleComponent) {
+		// Set up intersection observer when articleComponent is available
+		const setupObserver = async () => {
+			await tick();
+			
+			if (!articleComponent) {
+				// Retry after a short delay if still not available
+				setTimeout(setupObserver, 100);
+				return;
+			}
+
+			// Set up intersection observer
+			observer = new IntersectionObserver(
+				(entries) => {
+					entries.forEach((entry) => {
+						if (entry.isIntersecting) {
+							// Check if we need to load for this note
+							const noteId = note?.note?.id;
+							const currentWasm = wasm;
+							if (currentWasm && noteId && repliesLoadedNoteId !== noteId) {
+								// Call loadReplies directly when this article comes into view
+								loadReplies(false).catch(err => {
+									console.error('Error loading replies from intersection observer:', err);
+								});
+							}
+						}
+					});
+				},
+				{ threshold: 0.1 } // Trigger when 10% of article is visible
+			);
+
 			observer.observe(articleComponent);
-		}
+
+			// Also check if element is already visible and load immediately
+			const rect = articleComponent.getBoundingClientRect();
+			const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
+			const noteId = note?.note?.id;
+			const currentWasm = wasm;
+			if (isVisible && currentWasm && noteId && repliesLoadedNoteId !== noteId) {
+				loadReplies(false).catch(err => {
+					console.error('Error loading replies on mount:', err);
+				});
+			}
+		};
+
+		setupObserver();
 
 		return () => {
-			if (articleComponent) {
+			if (observer && articleComponent) {
 				observer.unobserve(articleComponent);
 			}
 		};
 	});
 
+	// Use $effect to load replies when wasm becomes available and note is visible
+	$effect(() => {
+		// Track wasm availability and note ID
+		const _wasm = wasm;
+		const noteId = currentNoteId;
+		
+		if (_wasm && noteId && repliesLoadedNoteId !== noteId) {
+			// Use a small delay to ensure articleComponent is bound
+			const timeoutId = setTimeout(() => {
+				if (articleComponent) {
+					const rect = articleComponent.getBoundingClientRect();
+					const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
+					
+					if (isVisible && repliesLoadedNoteId !== noteId) {
+						loadReplies(false).catch(err => {
+							console.error('Error loading replies from effect:', err);
+						});
+					}
+				}
+			}, 200);
+			
+			return () => clearTimeout(timeoutId);
+		}
+	});
+
 	let username = $appData.username;
-
-	export let note: DisplayNote;
-
-	export let remove: (note: string) => void;
-	export let cachedNote: (id: string) => Promise<string | undefined>;
-	export let parentArticle: any = null;
 
 	const replyToHeader = async (note: Note | Article | Question): Promise<string | null> => {
 		if (note.inReplyTo) {
@@ -181,6 +250,7 @@
 	let actorName = actorTerseProfile.name ?? actorTerseProfile.preferredUsername;
 	let actorId = actorTerseProfile.id;
 	const messageTime = new Date(note.published || note.created_at);
+	let handleValue = $derived(getFirstValue(note.note.ephemeral?.attributedTo)?.webfinger || '');
 
 	const handleUnlike = async (event: any) => {
 		const object: string = String(event.target.dataset.object);
@@ -265,7 +335,7 @@
 		//console.log('PARENT COMPONENT');
 		//console.log(parentArticle);
 
-		replyToDispatch('replyTo', {
+		onReplyTo?.({
 			replyToNote: note,
 			replyToActor: actor,
 			openAside: true,
@@ -273,61 +343,64 @@
 		});
 	};
 
-	function handleReplyToFromReply(event: CustomEvent<any>) {
+	function handleReplyToFromReply(dispatch: ComposeDispatch) {
 		//console.log('DISPATCHING REPLY_TO from REPLY');
 		//console.log('PARENT ELEMENT');
 		//console.log(articleComponent);
 		//console.log('PARENT COMPONENT');
 		//console.log(parentArticle);
-		event.stopPropagation();
-		const { replyToNote, replyToActor, openAside } = event.detail;
-		replyToDispatch('replyTo', {
-			replyToNote,
-			replyToActor,
-			openAside,
+		onReplyTo?.({
+			...dispatch,
 			parentArticle
 		});
 	}
 
-	// WIP - moving reply loading here
-	export async function loadReplies() {
-		//console.debug('Loading replies...');
-		if (wasm && note.note?.id) {
-			let id = note.note.id;
-			const result = await wasm.get_conversation(encodeURIComponent(id), 50);
+	export async function loadReplies(force = false) {
+		const noteId = note.note?.id;
+		if (!noteId) return;
+		
+		if (force) {
+			repliesLoadedNoteId = null;
+		}
+		
+		// Only load if we haven't loaded for this note ID yet, or if forcing
+		if (wasm && (repliesLoadedNoteId !== noteId || force)) {
+			const result = await wasm.get_conversation(encodeURIComponent(noteId), 50);
 			if (!result) {
 				return;
 			}
 
 			const collection: Collection = JSON.parse(result);
 			await processCollectionItems(collection);
-			// Force reactivity by reassigning the note
-			note = note;
+			repliesLoadedNoteId = noteId;
 		}
 	}
 
-	// WIP - moving reply loading here
 	const processCollectionItems = async (collection: Collection) => {
-		//console.debug('Processing collection items...');
-		//console.debug(collection);
-
 		if (!collection.orderedItems) {
 			return;
 		}
 
-		note.replies.clear();
+		// Create new Map and update the tracked reference directly
+		// This ensures reactivity works properly
+		repliesMapRef = new Map();
+		
+		// Process all items
 		for (const item of collection.orderedItems) {
 			if (item.object.inReplyTo) {
 				await addNote(item);
 			}
 		}
+		
+		// Force reactivity by creating a new Map reference with all current replies
+		// This ensures nested Maps are properly tracked
+		repliesMapRef = new Map(repliesMapRef);
+		// Update note.replies so parent component sees the changes
+		note.replies = repliesMapRef;
+		await tick();
 	};
 
-	// WIP - moving reply loading here
 	const addNote = async (activity: Activity) => {
-		//console.debug('Adding note...');
-		//console.debug(activity);
-
 		if (activity.object.attributedTo) {
 			const actor = getFirstValue(activity.object.ephemeral?.attributedTo);
 
@@ -338,14 +411,12 @@
 		}
 	};
 
-	// WIP - moving reply loading here
 	const placeNote = async (displayNote: DisplayNote) => {
-		//console.debug('Placing note...');
-		//console.debug(displayNote);
-
 		if (displayNote.note.id && displayNote.note.inReplyTo == note.note.id) {
-			//console.debug('Top level...');
-			note.replies.set(displayNote.note.id, displayNote);
+			// Force reactivity by creating new Map instance
+			repliesMapRef = new Map(repliesMapRef).set(displayNote.note.id, displayNote);
+			// Update note.replies so parent component sees the changes
+			note.replies = repliesMapRef;
 			return;
 		}
 
@@ -354,7 +425,12 @@
 				if (parentDisplayNote.note.id === displayNote.note.inReplyTo && displayNote.note.id) {
 					// Add the reply to the 'replies' Map of the matching DisplayNote
 					if (!parentDisplayNote.replies.has(displayNote.note.id)) {
-						parentDisplayNote.replies.set(displayNote.note.id, displayNote);
+						// Force reactivity by creating new Map instance for nested reply
+						parentDisplayNote.replies = new Map(parentDisplayNote.replies).set(displayNote.note.id, displayNote);
+						// Update the main replies Map reference to trigger reactivity for nested changes
+						repliesMapRef = new Map(repliesMapRef);
+						// Update note.replies so parent component sees the changes
+						note.replies = repliesMapRef;
 					}
 					return true;
 				}
@@ -368,12 +444,11 @@
 		};
 
 		if (displayNote.note.inReplyTo && findAndAddReply(note.replies)) {
-			//console.debug('Found parent...');
 			return;
 		}
 	};
 
-	let showExpansion = false;
+	let showExpansion = $state(false);
 
 	const handleArticleExpand = (event: Event) => {
 		//console.debug(event);
@@ -395,8 +470,8 @@
 		}
 	};
 
-	let target: string | null = null;
-	let rel: string | null = null;
+	let target = $state<string | null>(null);
+	let rel = $state<string | null>(null);
 
 	const noteUrl = extractUrl(note.note.url);
 	if (note && note.note && noteUrl && !domainMatch($page.url.toString(), noteUrl)) {
@@ -404,9 +479,9 @@
 		rel = 'noreferrer';
 	}
 
-	let selectedOption: number | null = null;
-	let selectedOptions: number[] = [];
-	let hasVoted = false;
+	let selectedOption = $state<number | null>(null);
+	let selectedOptions = $state<number[]>([]);
+	let hasVoted = $state(false);
 
 	async function handleVote() {
 		// For oneOf: selectedOption is the index of the chosen option
@@ -471,15 +546,15 @@
 	}
 
 	// Precompute poll options and votes only if note.note is a Question
-	$: pollOptions = isQuestion(note.note)
+	let pollOptions = $derived(isQuestion(note.note)
 		? note.note.oneOf
 			? toArray(note.note.oneOf)
 			: note.note.anyOf
 			? toArray(note.note.anyOf)
 			: []
-		: [];
+		: []);
 
-	$: maxVotes =
+	let maxVotes = $derived(
 		pollOptions.length > 0
 			? Math.max(
 					...pollOptions.map((opt) =>
@@ -487,22 +562,77 @@
 					),
 					1 // avoid division by zero
 			  )
-			: 1;
-
-	$: pollVotes = pollOptions.map((opt) =>
-		opt.replies && opt.replies.totalItems ? opt.replies.totalItems : 0
+			: 1
 	);
 
+	let pollVotes = $derived(pollOptions.map((opt) =>
+		opt.replies && opt.replies.totalItems ? opt.replies.totalItems : 0
+	));
+
 	// Replace articlePreview with articlePreviewContent in <script>:
-	$: articlePreviewContent =
+	let articlePreviewContent = $derived(
 		note.note && isArticle(note.note) && note.note.preview && isNote(note.note.preview)
 			? note.note.preview.content
 			: note.note && isArticle(note.note) && note.note.summary
 			? note.note.summary
-			: null;
+			: null
+	);
 
 	// Add reactive reply count to ensure it updates when replies are loaded
-	$: currentReplyCount = replyCount(note);
+	// Use repliesMapRef instead of note.replies to ensure reactivity
+	// Re-implement replyCount logic using repliesMapRef
+	let currentReplyCount = $derived.by(() => {
+		if (!repliesMapRef) return 0;
+		// Track the size to ensure reactivity
+		const map = repliesMapRef;
+		const size = map.size;
+		
+		// Recursively count all replies (including nested)
+		let count = size;
+		const countReplies = (replyMap: Map<string, DisplayNote>): number => {
+			let nestedCount = 0;
+			replyMap.forEach((reply) => {
+				if (reply.replies && reply.replies.size > 0) {
+					nestedCount += reply.replies.size;
+					nestedCount += countReplies(reply.replies);
+				}
+			});
+			return nestedCount;
+		};
+		
+		count += countReplies(map);
+		return count;
+	});
+	
+	// Track the replies Map as reactive state
+	// Initialize from prop, but manage it as internal state for reactivity
+	let repliesMapRef = $state(note.replies);
+	
+	// Sync repliesMapRef with note.replies when the note prop changes
+	$effect(() => {
+		// Only update if the reference actually changed (not just content)
+		if (note.replies !== repliesMapRef) {
+			repliesMapRef = note.replies;
+		}
+	});
+	
+	// Create reactive array from replies Map
+	// Since we update repliesMapRef whenever nested replies change, we just need to track the map reference
+	let repliesArray = $derived.by(() => {
+		const map = repliesMapRef;
+		if (!map) return [];
+		// Track map.size to ensure reactivity when replies are added/removed
+		const _ = map.size;
+		return Array.from(map.values());
+	});
+	
+	// Derived sorted array - don't mutate repliesArray in template
+	let sortedRepliesArray = $derived.by(() => {
+		// Create a copy before sorting to avoid mutating state
+		return [...repliesArray].sort(compare).reverse();
+	});
+	
+	
 </script>
 
 <article bind:this={articleComponent} data-conversation={note.note.id} id={article_id}>
@@ -510,7 +640,7 @@
 		{#await replyToHeader(note.note) then header}
 			{#if header}
 				<span class="reply">
-					<i class="fa-solid fa-reply" /> In
+					<i class="fa-solid fa-reply"></i> In
 					<a href={note.note.inReplyTo} target="_blank" rel="noreferrer">reply</a>
 					to {@html header}
 				</span>
@@ -519,7 +649,7 @@
 		{#await announceHeader(note.note) then header}
 			{#if header}
 				<span class="repost">
-					<i class="fa-solid fa-retweet" /> Reposted by
+					<i class="fa-solid fa-retweet"></i> Reposted by
 					<a href={header.url}>{@html header.name}</a>{header.others}
 				</span>
 			{/if}
@@ -529,15 +659,14 @@
 	<header>
 		<div>
 			{#if actorIcon}
-				<img src={cachedContent(wasm, actorIcon)} alt="Sender" on:error={(e) => console.log(e)} />
+				<img src={cachedContent(wasm, actorIcon)} alt="Sender" onerror={(e) => console.log(e)} />
 			{/if}
 		</div>
 		<address>
 			{#if actorName && actorTerseProfile}
 				<span>{@html insertEmojis(wasm, actorName, actorTerseProfile)}</span>
 				<a href="/{getWebFingerFromId(actorTerseProfile)}">
-					<!--{getWebFingerFromId(actorTerseProfile)}-->
-					<FediHandle handle={getFirstValue(note.note.ephemeral?.attributedTo)?.webfinger || ''} />
+					<FediHandle handle={handleValue} />
 				</a>
 			{/if}
 		</address>
@@ -558,7 +687,7 @@
 			</div>
 			{#if isQuestion(note.note) && note.note.oneOf}
 				<div class="poll-bars">
-					<form on:submit|preventDefault={handleVote} class="poll-form">
+					<form onsubmit={(e) => { e.preventDefault(); handleVote(); }} class="poll-form">
 						{#each toArray(note.note.oneOf) as option, idx (option.name)}
 							<label class="poll-option">
 								<input
@@ -572,7 +701,7 @@
 									<div
 										class="bar"
 										style="width: {Math.round((pollVotes[idx] / maxVotes) * 100)}%;"
-									/>
+									></div>
 									<span class="option-label">{option.name}</span>
 									<span class="votes-label">{pollVotes[idx]} votes</span>
 								</div>
@@ -597,7 +726,7 @@
 				</div>
 			{:else if isQuestion(note.note) && note.note.anyOf}
 				<div class="poll-bars">
-					<form on:submit|preventDefault={handleVote} class="poll-form">
+					<form onsubmit={(e) => { e.preventDefault(); handleVote(); }} class="poll-form">
 						{#each toArray(note.note.anyOf) as option, idx (option.name)}
 							<label class="poll-option">
 								<input
@@ -610,7 +739,7 @@
 									<div
 										class="bar"
 										style="width: {Math.round((pollVotes[idx] / maxVotes) * 100)}%;"
-									/>
+									></div>
 									<span class="option-label">{option.name}</span>
 									<span class="votes-label">{pollVotes[idx]} votes</span>
 								</div>
@@ -647,40 +776,46 @@
 		<div class="object-type">
 			<span>Article</span>
 
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<span
-				><i
+				>				<i
 					class="fa-solid fa-up-right-and-down-left-from-center"
-					on:click={handleArticleExpand}
+					role="button"
+					tabindex="0"
+					onclick={handleArticleExpand}
+					onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleArticleExpand(e); } }}
 					title="Expand Article"
-				/><i
+				></i><i
 					class="fa-solid fa-arrow-right"
-					on:click={handleNavigate}
+					role="button"
+					tabindex="0"
+					onclick={handleNavigate}
+					onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavigate(e); } }}
 					title="Navigate to Article"
-				/>
+				></i>
 			</span>
 		</div>
 	{:else if note.note && isNote(note.note)}
 		<div class="object-type">
 			<span>Note</span>
 
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<span
-				><i class="fa-solid fa-arrow-right" on:click={handleNavigate} title="Navigate to Note" />
+				><i class="fa-solid fa-arrow-right" role="button" tabindex="0" onclick={handleNavigate} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavigate(e); } }} title="Navigate to Note"></i>
 			</span>
 		</div>
 	{:else if note.note && isQuestion(note.note)}
 		<div class="object-type">
 			<span>Question</span>
 
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<span
-				><!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
-				<i class="fa-solid fa-arrow-right" on:click={handleNavigate} title="Navigate to Question" />
+				><!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<i class="fa-solid fa-arrow-right" role="button" tabindex="0" onclick={handleNavigate} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNavigate(e); } }} title="Navigate to Question"></i>
 			</span>
 		</div>
 	{/if}
@@ -701,11 +836,11 @@
 
 	<div class="visibility">
 		{#if note.public}
-			<span><i class="fa-solid fa-globe" /></span>
+			<span><i class="fa-solid fa-globe"></i></span>
 		{:else if note.note.type == 'EncryptedNote'}
-			<span><i class="fa-solid fa-lock" /></span>
+			<span><i class="fa-solid fa-lock"></i></span>
 		{:else}
-			<span><i class="fa-solid fa-at" /></span>
+			<span><i class="fa-solid fa-at"></i></span>
 		{/if}
 
 		<time datetime={note.published}>
@@ -717,66 +852,78 @@
 	</div>
 	{#if username}
 		<nav>
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<span class="comments" on:click|preventDefault={() => (showReplies = !showReplies)}>
-				<i class="fa-solid fa-comments" />
-				{#if note.replies?.size}
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<span class="comments" role="button" tabindex="0" onclick={(e) => { e.preventDefault(); showReplies = !showReplies; }} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showReplies = !showReplies; } }}>
+				<i class="fa-solid fa-comments"></i>
+				{#if currentReplyCount > 0}
 					{currentReplyCount}
 				{/if}
 			</span>
 
 			<span>
 				{#if note.note.ephemeral?.announced}
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<i
 						class="fa-solid fa-repeat selected"
+						role="button"
+						tabindex="0"
 						data-object={note.note.id}
 						data-activity={note.note.ephemeral?.announced}
-						on:click|preventDefault={handleUnannounce}
-					/>
+						onclick={(e) => { e.preventDefault(); handleUnannounce(e); }}
+						onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleUnannounce(e); } }}
+					></i>
 				{:else}
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<i
 						class="fa-solid fa-repeat"
+						role="button"
+						tabindex="0"
 						data-object={note.note.id}
-						on:click|preventDefault={handleAnnounce}
-					/>
+						onclick={(e) => { e.preventDefault(); handleAnnounce(e); }}
+						onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAnnounce(e); } }}
+					></i>
 				{/if}
 				{note.note.ephemeral?.announces?.length || ''}
 			</span>
 
 			<span>
 				{#if note.note.ephemeral?.liked}
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<i
 						class="fa-solid fa-star selected"
+						role="button"
+						tabindex="0"
 						data-actor={getFirstValue(note.note.attributedTo)}
 						data-object={note.note.id}
 						data-activity={note.note.ephemeral?.liked}
-						on:click|preventDefault={handleUnlike}
-					/>
+						onclick={(e) => { e.preventDefault(); handleUnlike(e); }}
+						onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleUnlike(e); } }}
+					></i>
 				{:else}
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<i
 						class="fa-solid fa-star"
+						role="button"
+						tabindex="0"
 						data-actor={getFirstValue(note.note.attributedTo)}
 						data-object={note.note.id}
-						on:click|preventDefault={handleLike}
-					/>
+						onclick={(e) => { e.preventDefault(); handleLike(e); }}
+						onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleLike(e); } }}
+					></i>
 				{/if}
 				{note.note.ephemeral?.likes?.length || ''}
 			</span>
 
 			{#if note.actor}
 				<span>
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<i class="fa-solid fa-reply" on:click={() => handleReplyTo(note, note.actor)} />
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<i class="fa-solid fa-reply" role="button" tabindex="0" onclick={() => handleReplyTo(note, note.actor)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleReplyTo(note, note.actor); } }}></i>
 				</span>
 			{/if}
 
@@ -784,7 +931,7 @@
 				{#await wasm?.get_ap_id() then ap_id}
 					<Menu
 						{remove}
-						reload={loadReplies}
+						reload={() => loadReplies(true)}
 						object={note.note.id}
 						owner={ap_id == note.note.attributedTo}
 					/>
@@ -793,18 +940,20 @@
 		</nav>
 	{/if}
 
-	{#if showReplies && note.replies?.size}
-		<div class="replies" in:fade={{ duration: 300, delay: 100 }}>
-			{#each Array.from(note.replies.values()).sort(compare).reverse() as reply}
-				<Reply {remove} note={reply} {username} on:replyTo={handleReplyToFromReply} />
-			{/each}
-		</div>
+	{#if showReplies}
+		{#if sortedRepliesArray.length > 0}
+			<div class="replies" in:fade={{ duration: 300, delay: 100 }}>
+				{#each sortedRepliesArray as reply}
+					<Reply {remove} note={reply} {username} onReplyTo={handleReplyToFromReply} />
+				{/each}
+			</div>
+		{/if}
 	{/if}
 	{#if showExpansion}
-		<!-- svelte-ignore a11y-click-events-have-key-events -->
-		<!-- svelte-ignore a11y-no-static-element-interactions -->
-		<div class="expansion-mask" on:click={handleExpansionClose} />
-		<div class="expansion" on:click={handleExpansionClose}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="expansion-mask" role="button" tabindex="0" onclick={handleExpansionClose} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpansionClose(e); } }}></div>
+		<div class="expansion" role="button" tabindex="0" onclick={handleExpansionClose} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpansionClose(e); } }}>
 			<div class="expansion-content">
 				{#if note.note && isArticle(note.note)}
 					{#if note.note.name}
@@ -1362,14 +1511,6 @@
 
 		.replies {
 			margin-top: 10px;
-
-			article {
-				address {
-					a {
-						color: #ddd;
-					}
-				}
-			}
 		}
 
 		.total-voters {

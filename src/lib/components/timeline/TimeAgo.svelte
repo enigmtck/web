@@ -1,9 +1,9 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     
-    export let timestamp: Date = new Date();
+    let { timestamp = new Date() }: { timestamp?: Date } = $props();
     
-    let timeAgo = "";
+    let timeAgo = $state("");
     let intervalId: ReturnType<typeof setInterval>;
     
     function formatTimeAgo(date: Date): string {

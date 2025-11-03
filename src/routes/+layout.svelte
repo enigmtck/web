@@ -4,11 +4,17 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount, setContext } from 'svelte';
+	import type { Snippet } from 'svelte';
 
-	$: username = $appData.username;
-	$: display_name = $appData.display_name;
-	$: avatar = $appData.avatar;
-	$: wasm = $enigmatickWasm;
+	type Props = {
+		children?: Snippet;
+	};
+	let { children }: Props = $props();
+
+	let username = $derived($appData.username);
+	let display_name = $derived($appData.display_name);
+	let avatar = $derived($appData.avatar);
+	let wasm = $derived($enigmatickWasm);
 
 	onMount(async () => {
 		const theme = localStorage.getItem('theme');
@@ -146,35 +152,35 @@
 
 <div class="app">
 	{#if $page.url.pathname !== '/' && $page.url.pathname !== '/login' && $page.url.pathname !== '/signup'}
-		<slot />
+		{#if children}
+			{@render children()}
+		{/if}
 
 		<footer>
 			{#if username}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<a class={$page.url.pathname == `/@${username}` ? 'selected' : ''} href={`/@${username}`}
+				<a class={$page.url.pathname == `/@${username}` ? 'selected' : ''} href={`/@${username}`} aria-label="View profile"
 					><i
 						class="fa-solid fa-user {$page.url.pathname == '/@' + username ? 'selected' : ''}"
-					/></a
+					></i></a
 				>
 			{:else}
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<a class={$page.url.pathname == '/login' ? 'selected' : ''} href="/login"
+				<a class={String($page.url.pathname) === '/login' ? 'selected' : ''} href="/login" aria-label="Login"
 					><i
-						class="fa-solid fa-right-to-bracket {$page.url.pathname == '/login' ? 'selected' : ''}"
-					/></a
+						class="fa-solid fa-right-to-bracket {String($page.url.pathname) === '/login' ? 'selected' : ''}"
+					></i></a
 				>
 			{/if}
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
+
+			<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline" aria-label="Timeline"
 				><i
 					class="fa-solid fa-newspaper {$page.url.pathname == '/timeline' ? 'selected' : ''}"
-				/></a
+				></i></a
 			>
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
+
+			<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search" aria-label="Search"
 				><i
 					class="fa-solid fa-magnifying-glass {$page.url.pathname == '/search' ? 'selected' : ''}"
-				/></a
+				></i></a
 			>
 		</footer>
 
@@ -188,7 +194,7 @@
 
 			<div>
 				<a class={$page.url.pathname == '/timeline' ? 'selected' : ''} href="/timeline"
-					><i class="fa-solid fa-newspaper" />Timeline</a
+					><i class="fa-solid fa-newspaper"></i>Timeline</a
 				>
 				<!-- {#if username}
 					<a class={$page.url.pathname == '/message' ? 'selected' : ''} href="/message"
@@ -197,16 +203,16 @@
 				{/if} -->
 				{#if username}
 					<a class={$page.url.pathname == '/search' ? 'selected' : ''} href="/search"
-						><i class="fa-solid fa-magnifying-glass" />Search</a
+						><i class="fa-solid fa-magnifying-glass"></i>Search</a
 					>
 				{/if}
 				{#if username}
 					<a class={$page.url.pathname == '/settings' ? 'selected' : ''} href="/settings"
-						><i class="fa-solid fa-gear" />Settings</a
+						><i class="fa-solid fa-gear"></i>Settings</a
 					>
 				{:else}
-					<a class={$page.url.pathname == '/login' ? 'selected' : ''} href="/login"
-						><i class="fa-solid fa-right-to-bracket" />Login</a
+					<a class={String($page.url.pathname) === '/login' ? 'selected' : ''} href="/login"
+						><i class="fa-solid fa-right-to-bracket"></i>Login</a
 					>
 				{/if}
 				<!-- <a class={$page.url.pathname == '/test' ? 'selected' : ''} href="/test"
@@ -216,13 +222,15 @@
 
 			<div class="toggle">
 				<label>
-					<input type="checkbox" id="theme" on:change|preventDefault={darkMode} />
-					<span class="slider" />
+					<input type="checkbox" id="theme" onchange={(e) => { e.preventDefault(); darkMode(e); }} />
+					<span class="slider"></span>
 				</label>
 			</div>
 		</nav>
 	{:else}
-		<slot />
+		{#if children}
+			{@render children()}
+		{/if}
 	{/if}
 </div>
 
@@ -392,70 +400,6 @@
 			}
 		}
 
-		slot {
-			grid-area: content;
-			position: relative;
-		}
-
-		.context {
-			grid-area: right-aside;
-
-			@media screen and (max-width: 1000px) {
-				display: none;
-			}
-
-			ul {
-				list-style: none;
-				margin: 0;
-				padding: 0;
-				display: flex;
-				flex-direction: row;
-				justify-content: space-evenly;
-				width: 100vw;
-			}
-
-			img:hover {
-				opacity: 0.8;
-			}
-
-			div {
-				margin: 0 10px;
-				border-radius: 10px;
-
-				h1 {
-					font-family: 'Open Sans';
-					color: #999;
-					font-size: 14px;
-					padding: 5px;
-					border-radius: 10px 10px 0 0;
-					font-weight: 500;
-
-					i {
-						padding: 0 10px 0 5px;
-						font-size: 14px;
-					}
-				}
-
-				ul {
-					width: 100%;
-					padding: 0 10px 10px 10px;
-
-					li {
-						font-family: 'Open Sans';
-						font-size: 13px;
-						width: 100%;
-					}
-				}
-			}
-
-			div.notifications h1 i {
-				color: goldenrod;
-			}
-
-			div.trending h1 i {
-				color: lightblue;
-			}
-		}
 
 		footer {
 			display: none;
@@ -522,10 +466,6 @@
 				}
 			}
 
-			.context {
-				color: white;
-				background: #000;
-			}
 
 			footer {
 				background: #000;

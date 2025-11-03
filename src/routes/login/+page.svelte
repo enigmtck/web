@@ -204,11 +204,6 @@
 					outline: 1px solid darkred;
 				}
 			}
-
-			div {
-				text-align: center;
-				margin-top: 10px;
-			}
 		}
 	}
 

@@ -1,5 +1,4 @@
-<script lang="ts">
-	import { onDestroy, onMount } from 'svelte';
+	<script lang="ts">
 	import { appData, enigmatickWasm } from '../../../stores';
 	import type {
 		UserProfile,
@@ -19,19 +18,31 @@
 	} from '../../../common';
 	import Actor from './Actor.svelte';
 
-	export let handle: string;
-	export let local: boolean;
-	export let view: 'Followers' | 'Following';
-	export let cache: any;
-	export let cachedActor: Function;
+	let {
+		handle,
+		local,
+		view,
+		cache,
+		cachedActor
+	}: {
+		handle: string;
+		local: boolean;
+		view: 'Followers' | 'Following';
+		cache: any;
+		cachedActor: Function;
+	} = $props();
 
-	let next: string | undefined = undefined;
-	let moreDisabled = false;
+	let next = $state<string | undefined>(undefined);
+	let moreDisabled = $state(false);
 
-	$: wasm = $enigmatickWasm;
+	let wasm = $derived($enigmatickWasm);
 
-	$: loadData(handle, local).then(() => {
-		console.debug('RELOADED FOLLOWS');
+	$effect(() => {
+		if (wasm) {
+			loadData(handle, local).then(() => {
+				console.debug('RELOADED FOLLOWS');
+			});
+		}
 	});
 
 	const getFirstPageUrl = async (
@@ -114,9 +125,7 @@
 		}
 	};
 
-	let profiles: UserProfileTerse[] = [];
-
-	onMount(async () => {});
+	let profiles = $state<UserProfileTerse[]>([]);
 </script>
 
 <div>
@@ -125,8 +134,8 @@
 	{/each}
 
 	{#if next !== undefined}
-		<button on:click|preventDefault={() => loadMore()} disabled={moreDisabled}
-			><i class="fa-solid fa-ellipsis" /></button
+		<button onclick={(e) => { e.preventDefault(); loadMore(); }} disabled={moreDisabled} aria-label="Load more"
+			><i class="fa-solid fa-ellipsis"></i></button
 		>
 	{/if}
 </div>
@@ -141,11 +150,6 @@
 		flex-wrap: wrap;
 		justify-content: center;
 		padding: 10px 10px 60px 10px;
-
-		Actor {
-			width: 170px;
-			margin: 20px;
-		}
 
 		button {
 			position: relative;

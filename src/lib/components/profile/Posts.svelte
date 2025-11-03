@@ -1,8 +1,6 @@
-<svelte:options accessors />
-
 <script lang="ts">
-	import Article from '../../timeline/components/Article.svelte';
-	import Compose from '../../timeline/components/Compose.svelte';
+	import Article from '../timeline/Article.svelte';
+	import Compose from '../timeline/Compose.svelte';
 
 	import { appData, enigmatickWasm } from '../../../stores';
 	import type {
@@ -24,16 +22,19 @@
 		getFirstValue
 	} from '../../../common';
 
-	let composeComponent: Compose;
-	export let local: boolean;
-	export let handle: string;
+	let composeComponent = $state<Compose | undefined>(undefined);
+	let { local, handle }: { local: boolean; handle: string } = $props();
 
 	//console.debug(`HANDLE ${handle}`);
 
-	$: wasm = $enigmatickWasm;
+	let wasm = $derived($enigmatickWasm);
 
-	$: loadPosts(handle, local).then(() => {
-		//console.debug('RELOADED POSTS');
+	$effect(() => {
+		if (wasm) {
+			loadPosts(handle, local).then(() => {
+				//console.debug('RELOADED POSTS');
+			});
+		}
 	});
 
 	async function processCollection(collection: Collection) {
@@ -160,7 +161,7 @@
 	function refresh() {
 		//console.debug('REFRESH');
 
-		notes.clear();
+		notes = new Map();
 		loadPosts(handle, local).then((x) => {
 			//console.log('LOADED');
 		});
@@ -168,18 +169,17 @@
 
 	function remove(note: string) {
 		notes.delete(note);
-		notes = notes;
+		// Force reactivity by creating new Map reference
+		notes = new Map(notes);
 	}
 
 	async function placeNote(displayNote: DisplayNote) {
 		const note = displayNote.note;
 
 		if (!notes.get(String(note.id))) {
-			notes.set(String(note.id), displayNote);
+			notes = new Map(notes).set(String(note.id), displayNote);
 			apCache.set(String(note.id), JSON.stringify(note));
 		}
-
-		notes = notes;
 	}
 
 	const addNote = async (activity: Activity) => {
@@ -253,7 +253,11 @@
 	}
 
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
-	let notes = new Map<string, DisplayNote>();
+	let notes = $state(new Map<string, DisplayNote>());
+	let notesArray = $derived.by(() => {
+		const _ = notes.size; // Force reactivity tracking
+		return Array.from(notes.values());
+	});
 
 	// used to reduce calls to the API for Actor data
 	let apCache = new Map<string, Promise<string | undefined> | string | undefined>();
@@ -261,9 +265,9 @@
 
 	let username = $appData.username;
 
-	let next: string | null = null;
-	let prev: string | null = null;
-	let moreDisabled = true;
+	let next = $state<string | null>(null);
+	let prev = $state<string | null>(null);
+	let moreDisabled = $state(true);
 
 	let articleRefs: any[] = [];
 </script>
@@ -274,22 +278,22 @@
 
 <div>
 	{#if wasm}
-		{#each Array.from(notes.values()) as note, i}
+		{#each notesArray as note, i}
 			{#if note.note}
 				<Article
 					bind:this={articleRefs[i]}
 					parentArticle={articleRefs[i]}
 					{remove}
 					{note}
-					on:replyTo={composeComponent.handleReplyToMessage}
-					on:noteSelect={handleNoteSelect}
+					onReplyTo={composeComponent?.handleReplyToMessage}
+					onNoteSelect={handleNoteSelect}
 					{cachedNote}
 				/>
 			{/if}
 		{/each}
 		{#if next}
-			<button on:click|preventDefault={() => loadMore()} disabled={moreDisabled}
-				><i class="fa-solid fa-ellipsis" /></button
+			<button onclick={(e) => { e.preventDefault(); loadMore(); }} disabled={moreDisabled} aria-label="Load more"
+				><i class="fa-solid fa-ellipsis"></i></button
 			>
 		{/if}
 	{/if}

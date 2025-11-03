@@ -18,9 +18,28 @@
 		domainMatch
 	} from '../../../common';
 
-	export let resetData: Function;
-	export let hashtags: Set<string>;
+	let { 
+		resetData, 
+		hashtags,
+		onHashtagRemove,
+		onHashtagAdd
+	}: { 
+		resetData: Function; 
+		hashtags: Set<string>;
+		onHashtagRemove?: (tag: string) => void;
+		onHashtagAdd?: (tag: string) => void;
+	} = $props();
 	let filterForm: HTMLFormElement;
+
+	// Create reactive array from hashtags Set to ensure component re-renders when prop changes
+	// Track the Set reference and size to ensure reactivity when the prop changes
+	let hashtagsArray = $derived.by(() => {
+		// Track the hashtags prop reference itself to detect when parent reassigns it
+		const currentHashtags = hashtags;
+		// Also track size to ensure reactivity
+		const _ = currentHashtags.size;
+		return Array.from(currentHashtags);
+	});
 
 	const handleSubmit = (event: SubmitEvent) => {
 		event.preventDefault();
@@ -30,9 +49,15 @@
 		let statement;
 		if ((statement = formData.get('statement')?.toString().trim())) {
 			statement = statement.startsWith('#') ? statement.slice(1) : statement;
+			const tag = statement.toString().toLowerCase();
 
-			hashtags.add(statement.toString().toLowerCase());
-			hashtags = hashtags;
+			// Use callback if provided, otherwise mutate directly
+			if (onHashtagAdd) {
+				onHashtagAdd(tag);
+			} else {
+				// Fallback: mutate directly (should work with $state in parent)
+				hashtags.add(tag);
+			}
 			resetData();
 		}
 
@@ -41,12 +66,19 @@
 
 	const handleRemove = (event: MouseEvent) => {
 		event.preventDefault();
-		let el = event.target as HTMLElement;
-		let tag = el.dataset['tag'];
+		// event.currentTarget is the element with the event handler (the <a> tag)
+		// event.target might be a child element (like text node)
+		let el = (event.currentTarget || event.target) as HTMLElement;
+		let tag = el?.dataset['tag'];
 
 		if (tag) {
-			hashtags.delete(tag);
-            hashtags = hashtags;
+			// Use callback if provided, otherwise mutate directly
+			if (onHashtagRemove) {
+				onHashtagRemove(tag);
+			} else {
+				// Fallback: mutate directly (should work with $state in parent)
+				hashtags.delete(tag);
+			}
 			resetData();
 		}
 	};
@@ -54,13 +86,13 @@
 
 <div class="filters">
 	<div>
-		{#each hashtags as tag}
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<a href="#filters" on:click={handleRemove} title="Delete" data-tag={tag}>#{tag}</a>
+		{#each hashtagsArray as tag}
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<a href="#filters" onclick={handleRemove} title="Delete" data-tag={tag}>#{tag}</a>
 		{/each}
 	</div>
-	<form on:submit={handleSubmit} bind:this={filterForm}>
+	<form onsubmit={handleSubmit} bind:this={filterForm}>
 		<input type="text" name="statement" placeholder="Filter Statement (e.g., #Enigmatick)" />
 	</form>
 </div>
@@ -93,6 +125,13 @@
 				color: #fff;
 				border-radius: 5px;
                 cursor: pointer;
+				text-decoration: none;
+
+				&:hover,
+				&:visited,
+				&:active {
+					color: #fff;
+				}
 			}
 		}
 

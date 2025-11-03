@@ -4,9 +4,12 @@
 	import { onDestroy, onMount } from 'svelte';
 	import { enigmatickWasm } from '../../../stores';
 
-	export let note: Note | Article | Question;
+	type Props = {
+		note: Note | Article | Question;
+	};
+	let { note }: Props = $props();
 
-	$: wasm = $enigmatickWasm;
+	let wasm = $derived($enigmatickWasm);
 
 	onMount(async () => {});
 
@@ -53,52 +56,44 @@
 	};
 </script>
 
-<div class="mask hidden" bind:this={fullscreenMask} />
+<div class="mask hidden" bind:this={fullscreenMask}></div>
 <div role="img" aria-labelledby="cancel" class="image hidden" bind:this={imageContainer}>
-	<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-missing-attribute -->
-	<img bind:this={fullscreenImage} src="#" on:click={cancelSelect} />
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_missing_attribute -->
+	<img bind:this={fullscreenImage} src="#" alt="" onclick={cancelSelect} />
 </div>
 
 <section>
 	{#if note.attachment}
 		{#each note.attachment as x}
 			{#if ((x.type == 'Document' && /^(?:image)\/.+$/.test(String(x.mediaType))) || x.type == 'Image')}
-				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
-				<div class={placement.getPlacement()} tabindex="0">
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+				<div class={placement.getPlacement()} role="button" tabindex="0" onclick={selectImage} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectImage(e); } }}>
 					<img
 						src={cachedContent(wasm, String(x.url))}
 						width={x.width}
 						height={x.height}
-						alt={x.name}
-						on:click={selectImage}
-						on:error={(e) => console.log(e)}
+						alt={x.name || 'Image attachment'}
+						onerror={(e) => console.log(e)}
 					/>
 				</div>
 			{:else if (x.type == 'Document' && /^(?:video)\/.+$/.test(String(x.mediaType)) || x.type == 'Video')}
-				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
-				<div class={placement.getPlacement()} tabindex="0">
-					<!-- svelte-ignore a11y-media-has-caption -->
-					<video width={x.width || undefined} height={x.height || undefined} controls on:error={(e) => console.log(e)}
-						><source
-							src={cachedContent(wasm, String(x.url))}
-							type={x.mediaType || undefined}
-							on:error={(e) => console.log(e)}
-						/></video
-					>
+				<div class={placement.getPlacement()}>
+				<!-- svelte-ignore a11y_media_has_caption -->
+				<video width={x.width || undefined} height={x.height || undefined} controls onerror={(e) => console.log(e)}
+					><source
+						src={cachedContent(wasm, String(x.url))}
+						type={x.mediaType || undefined}
+					/></video>
 				</div>
 			{:else if x.type == 'Document' && /^(?:audio)\/.+$/.test(String(x.mediaType))}
-				<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
-				<div class={placement.getPlacement()} tabindex="0">
-					<!-- svelte-ignore a11y-media-has-caption -->
-					<audio
-						controls
-						src={cachedContent(wasm, String(x.url))}
-						on:error={(e) => console.log(e)}
-					/>
+				<div class={placement.getPlacement()}>
+				<!-- svelte-ignore a11y_media_has_caption -->
+				<audio
+					controls
+					src={cachedContent(wasm, String(x.url))}
+					onerror={(e) => console.log(e)}
+				></audio>
 				</div>
 			{/if}
 		{/each}

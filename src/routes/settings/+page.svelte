@@ -4,7 +4,7 @@
 	import { get } from 'svelte/store';
 	import { goto } from '$app/navigation';
 
-	$: wasm = $enigmatickWasm;
+	let wasm = $derived($enigmatickWasm);
 
 	onMount(async () => {
 		if (!wasm) {
@@ -44,7 +44,7 @@
 		</form>
 	</dialog>
 
-	<form id="change_password" method="POST" on:submit|preventDefault={handlePasswordChange}>
+	<form id="change_password" method="POST" onsubmit={(e) => { e.preventDefault(); handlePasswordChange(e); }}>
 		<h3>Change Password</h3>
 		<label>
 			Current Password

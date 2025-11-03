@@ -15,14 +15,14 @@
 		abbreviateNumber,
 		type Activity
 	} from '../../common';
-	import Posts from './components/Posts.svelte';
+	import Posts from '$lib/components/profile/Posts.svelte';
 
-	$: wasm = $enigmatickWasm;
-	$: username = $appData.username;
+	let wasm = $derived($enigmatickWasm);
+	let username = $derived($appData.username);
 
 	import { onDestroy, onMount } from 'svelte';
 	import { beforeNavigate, goto } from '$app/navigation';
-	import Follows from './components/Follows.svelte';
+	import Follows from '$lib/components/profile/Follows.svelte';
 
 	onMount(async () => {});
 
@@ -43,12 +43,6 @@
 
 			profile = JSON.parse(p);
 			//console.debug(profile);
-
-			if (postsComponent && profile) {
-				postsComponent.local = local;
-				postsComponent.handle = handle;
-				postsComponent.profile = profile;
-			}
 
 			wasm?.get_remote_followers(`@${handle}`).then((x) => {
 				if (x) {
@@ -73,11 +67,6 @@
 					//console.log(x);
 					profile = JSON.parse(x);
 					//console.debug(profile);
-					if (postsComponent && profile) {
-						postsComponent.local = local;
-						postsComponent.handle = handle;
-						postsComponent.profile = profile;
-					}
 					summaryMarkdown = profile?.ephemeral?.summaryMarkdown || '';
 				}
 			});
@@ -164,7 +153,10 @@
 					let bytes = new Uint8Array(avatar as ArrayBuffer);
 
 					wasm?.upload_avatar(bytes, (avatar as ArrayBuffer).byteLength, extension).then(() => {
-						loadProfile($page.params.handle);
+						const handle = $page.params.handle;
+						if (handle) {
+							loadProfile(handle);
+						}
 					});
 				}
 			};
@@ -185,7 +177,10 @@
 					let bytes = new Uint8Array(banner as ArrayBuffer);
 
 					wasm?.upload_banner(bytes, (banner as ArrayBuffer).byteLength, extension).then(() => {
-						loadProfile($page.params.handle);
+						const handle = $page.params.handle;
+						if (handle) {
+							loadProfile(handle);
+						}
 					});
 				}
 			};
@@ -239,27 +234,35 @@
 		Following: Symbol('following')
 	};
 
-	let avatar: string | ArrayBuffer | null, avatarFileInput: HTMLInputElement;
-	let banner: string | ArrayBuffer | null, bannerFileInput: HTMLInputElement;
-	let currentView = Views.Posts;
-	let summaryChanged = false;
-	let editSummary = false;
-	let summaryMarkdown = '';
+	let avatar = $state<string | ArrayBuffer | null>(null);
+	let avatarFileInput = $state<HTMLInputElement | undefined>(undefined);
+	let banner = $state<string | ArrayBuffer | null>(null);
+	let bannerFileInput = $state<HTMLInputElement | undefined>(undefined);
+	let currentView = $state(Views.Posts);
+	let summaryChanged = $state(false);
+	let editSummary = $state(false);
+	let summaryMarkdown = $state('');
 
-	let followerCount = 0;
-	let followingCount = 0;
+	let followerCount = $state(0);
+	let followingCount = $state(0);
 
-	let followersComponent: Follows | null;
-	let followingComponent: Follows | null;
-	let postsComponent: Posts | null;
-	let profile: UserProfile | null = null;
-	let local = true;
-	let cache: any = null;
+	let followersComponent = $state<Follows | null>(null);
+	let followingComponent = $state<Follows | null>(null);
+	let postsComponent = $state<Posts | null>(null);
+	let profile = $state<UserProfile | null>(null);
+	let local = $state(true);
+	let cache = $state<any>(null);
 
-	$: if ($enigmatickWasm) {
-		cache = new $enigmatickWasm.EnigmatickCache();
-		loadProfile($page.params.handle);
-	}
+	$effect(() => {
+		if ($enigmatickWasm) {
+			cache = new $enigmatickWasm.EnigmatickCache();
+			// Reactively track page params to reload when handle changes
+			const handle = $page.params.handle;
+			if (handle) {
+				loadProfile(handle);
+			}
+		}
+	});
 
 	beforeNavigate(async (navigation) => {
 		currentView = Views.Posts;
@@ -299,7 +302,7 @@
 							style="display:none"
 							type="file"
 							accept=".jpg, .jpeg, .png"
-							on:change={(e) => onBannerSelected(e)}
+							onchange={(e) => onBannerSelected(e)}
 							bind:this={bannerFileInput}
 						/>
 					{/if}
@@ -314,7 +317,7 @@
 								style="display:none"
 								type="file"
 								accept=".jpg, .jpeg, .png"
-								on:change={(e) => onAvatarSelected(e)}
+								onchange={(e) => onAvatarSelected(e)}
 								bind:this={avatarFileInput}
 							/>
 						{/if}
@@ -335,22 +338,21 @@
 						{#if $appData.domain && (!profile.id?.includes($appData.domain) || profile.preferredUsername !== username)}
 							<div>
 								{#if !profile.ephemeral?.following}
-									<button title="Follow" on:click|preventDefault={handleFollow}>
-										<i class="fa-solid fa-user-plus" />
+									<button title="Follow" onclick={(e) => { e.preventDefault(); handleFollow(e); }}>
+										<i class="fa-solid fa-user-plus"></i>
 									</button>
 								{/if}
 								{#if profile.ephemeral?.following !== undefined && profile.ephemeral?.following}
 									<button
 										title="Unfollow"
-										on:click|preventDefault={() =>
-											handleUnfollow(profile?.ephemeral?.followActivityAsId)}
+										onclick={(e) => { e.preventDefault(); handleUnfollow(profile?.ephemeral?.followActivityAsId); }}
 									>
-										<i class="fa-solid fa-user-minus" />
+										<i class="fa-solid fa-user-minus"></i>
 									</button>
 								{/if}
 								{#if profile.capabilities && profile.capabilities.enigmatickEncryption}
-									<button title="Exchange Keys" on:click|preventDefault={handleKexInit}>
-										<i class="fa-solid fa-key" />
+									<button title="Exchange Keys" onclick={(e) => { e.preventDefault(); handleKexInit(e); }}>
+										<i class="fa-solid fa-key"></i>
 									</button>
 								{/if}
 							</div>
@@ -359,33 +361,33 @@
 							<div>
 								<button
 									title="Change Avatar"
-									on:keypress={() => {
-										avatarFileInput.click();
+									onkeypress={() => {
+										avatarFileInput?.click();
 									}}
-									on:click={() => {
-										avatarFileInput.click();
+									onclick={() => {
+										avatarFileInput?.click();
 									}}
 								>
-									<i class="fa-solid fa-image-portrait" />
+									<i class="fa-solid fa-image-portrait"></i>
 								</button>
 								<button
 									title="Change Banner"
-									on:keypress={() => {
-										bannerFileInput.click();
+									onkeypress={() => {
+										bannerFileInput?.click();
 									}}
-									on:click={() => {
-										bannerFileInput.click();
+									onclick={() => {
+										bannerFileInput?.click();
 									}}
 								>
-									<i class="fa-solid fa-panorama" />
+									<i class="fa-solid fa-panorama"></i>
 								</button>
 								{#if !editSummary}
 									<button
 										title="Update Biography"
-										on:click|preventDefault={handleEdit}
-										on:keypress|preventDefault={handleEdit}
+										onclick={(e) => { e.preventDefault(); handleEdit(e); }}
+										onkeypress={(e) => { e.preventDefault(); handleEdit(e); }}
 									>
-										<i class="fa-solid fa-pencil" />
+										<i class="fa-solid fa-pencil"></i>
 									</button>
 								{/if}
 							</div>
@@ -393,22 +395,22 @@
 
 						{#if editSummary}
 							<div>
-								<button title="Cancel" on:click|preventDefault={handleCancel}
-									><i class="fa-solid fa-ban" /></button
+								<button title="Cancel" onclick={(e) => { e.preventDefault(); handleCancel(e); }}
+									><i class="fa-solid fa-ban"></i></button
 								>
-								<button title="Preview" on:click|preventDefault={handlePreview}
-									><i class="fa-solid fa-eye" /></button
+								<button title="Preview" onclick={(e) => { e.preventDefault(); handlePreview(e); }}
+									><i class="fa-solid fa-eye"></i></button
 								>
 								{#if summaryChanged}
-									<button on:click|preventDefault={handleSaveSummary} title="Save"
-										><i class="fa-solid fa-floppy-disk" /></button
+									<button onclick={(e) => { e.preventDefault(); handleSaveSummary(); }} title="Save"
+										><i class="fa-solid fa-floppy-disk"></i></button
 									>
 								{/if}
 							</div>
 						{:else if summaryChanged}
 							<div>
-								<button on:click|preventDefault={handleSaveSummary} title="Save"
-									><i class="fa-solid fa-floppy-disk" /></button
+								<button onclick={(e) => { e.preventDefault(); handleSaveSummary(); }} title="Save"
+									><i class="fa-solid fa-floppy-disk"></i></button
 								>
 							</div>
 						{/if}
@@ -420,8 +422,8 @@
 					{/if}
 
 					{#if username && !editSummary}
-						<!-- svelte-ignore a11y-no-noninteractive-tabindex -->
-						<!-- svelte-ignore a11y-positive-tabindex -->
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+						<!-- svelte-ignore a11y_positive_tabindex -->
 						<div>
 							{@html insertEmojis(wasm, profile.summary || '', profile)}
 						</div>
@@ -439,7 +441,7 @@
 					{#if local || username}
 						<button
 							class={currentView === Views.Posts ? 'selected' : ''}
-							on:click={() => {
+							onclick={() => {
 								currentView = Views.Posts;
 							}}>Posts</button
 						>
@@ -448,7 +450,7 @@
 					{#if username}
 						<button
 							class={currentView === Views.Following ? 'selected' : ''}
-							on:click={() => {
+							onclick={() => {
 								currentView = Views.Following;
 							}}
 							>Following &bull; {abbreviateNumber(
@@ -457,7 +459,7 @@
 						>
 						<button
 							class={currentView === Views.Followers ? 'selected' : ''}
-							on:click={() => {
+							onclick={() => {
 								currentView = Views.Followers;
 							}}
 							>Followers &bull; {abbreviateNumber(
@@ -469,25 +471,31 @@
 			</div>
 			<section>
 				{#if currentView === Views.Posts}
-					<Posts bind:this={postsComponent} handle={$page.params.handle} {local} />
+					{#if $page.params.handle}
+						<Posts bind:this={postsComponent} handle={$page.params.handle} {local} />
+					{/if}
 				{:else if currentView == Views.Followers}
-					<Follows
-						bind:this={followersComponent}
-						handle={$page.params.handle}
-						{local}
-						view="Followers"
-						{cache}
-						{cachedActor}
-					/>
+					{#if $page.params.handle}
+						<Follows
+							bind:this={followersComponent}
+							handle={$page.params.handle}
+							{local}
+							view="Followers"
+							{cache}
+							{cachedActor}
+						/>
+					{/if}
 				{:else if currentView == Views.Following}
-					<Follows
-						bind:this={followingComponent}
-						handle={$page.params.handle}
-						{local}
-						view="Following"
-						{cache}
-						{cachedActor}
-					/>
+					{#if $page.params.handle}
+						<Follows
+							bind:this={followingComponent}
+							handle={$page.params.handle}
+							{local}
+							view="Following"
+							{cache}
+							{cachedActor}
+						/>
+					{/if}
 				{/if}
 			</section>
 		{/if}
@@ -716,15 +724,6 @@
 				> div {
 					padding: 0 10px;
 				}
-				form {
-					width: 100%;
-				}
-			}
-
-			section {
-				width: 100%;
-				height: 20vh;
-				display: block;
 			}
 		}
 
@@ -747,10 +746,6 @@
 
 				.identity {
 					background: inherit;
-
-					span {
-						color: #ccc;
-					}
 
 					a {
 						color: #aaa;

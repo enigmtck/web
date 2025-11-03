@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import Reply from '../timeline/components/Reply.svelte';
-	import Article from '../timeline/components/Article.svelte';
+	import Reply from '$lib/components/timeline/Reply.svelte';
+	import Article from '$lib/components/timeline/Article.svelte';
 	import { onMount, setContext } from 'svelte';
 
 	import { enigmatickWasm } from '../../stores';
@@ -39,14 +39,17 @@
 
 							for (const conversation_note of conversation_notes) {
 								if (conversation_note.id && conversation_note.id != y.id) {
-									let actorStr = await wasm.get_actor(conversation_note.attributedTo);
-									if (actorStr) {
-										const reply_actor: UserProfile = JSON.parse(actorStr);
-										replies.set(
-											String(conversation_note.id),
-											new DisplayNote(reply_actor, conversation_note)
-										);
-										note = new DisplayNote(actor, y, undefined, replies);
+									const attributedTo = conversation_note.attributedTo;
+									if (typeof attributedTo === 'string') {
+										let actorStr = await wasm.get_actor(attributedTo);
+										if (actorStr) {
+											const reply_actor: UserProfile = JSON.parse(actorStr);
+											replies.set(
+												String(conversation_note.id),
+												new DisplayNote(reply_actor, conversation_note)
+											);
+											note = new DisplayNote(actor, y, undefined, replies);
+										}
 									}
 								}
 							}
@@ -94,7 +97,7 @@
 
 <main>
 	{#if wasm && note}
-		<Article {remove} {refresh} {note} username={null} {renderAction} {cachedNote} />
+		<Article {remove} {note} {cachedNote} />
 		{#if note.replies?.size}
 			<div class="replies">
 				{#each Array.from(note.replies.values()).sort(compare) as reply}

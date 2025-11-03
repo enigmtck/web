@@ -1,12 +1,7 @@
 <script lang="ts">
-	export let links: Metadata[];
 	import { cachedContent } from '../../../common';
 	import { onDestroy, onMount } from 'svelte';
 	import { enigmatickWasm } from '../../../stores';
-
-	$: wasm = $enigmatickWasm;
-
-	onMount(async () => {});
 
 	type Metadata = {
 		url?: string | null;
@@ -23,6 +18,15 @@
 		twitterSite?: string | null;
 		ogType?: string | null;
 	};
+
+	type Props = {
+		links: Metadata[];
+	};
+	let { links }: Props = $props();
+
+	let wasm = $derived($enigmatickWasm);
+
+	onMount(async () => {});
 
 	let selectedIndex: number = 0;
 
@@ -44,7 +48,7 @@
 					<img
 						src={cachedContent(wasm, String(links[selectedIndex].ogImage))}
 						alt="Link Preview"
-						on:error={imgError}
+						onerror={(e) => imgError(e)}
 					/>
 				</div>
 			{/if}
@@ -93,6 +97,7 @@
 					overflow: hidden;
 					text-overflow: ellipsis;
 					display: -webkit-box;
+					line-clamp: 2;
 					-webkit-box-orient: vertical;
 					-webkit-line-clamp: 2;
 				}

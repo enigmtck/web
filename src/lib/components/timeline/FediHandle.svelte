@@ -1,10 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-
-	export let handle: string;
-
-	let username = '';
-	let server = '';
+	let { handle }: { handle: string } = $props();
 
 	interface ParsedHandle {
 		username: string;
@@ -24,22 +19,20 @@
 		return null;
 	}
 
-	function parseHandle(fediHandle: string): void {
-		const parsed = parseHandleString(fediHandle);
-
-		if (parsed) {
-			username = parsed.username;
-			server = parsed.server;
+	// Make parsing reactive to handle prop changes
+	const parsed = $derived.by(() => {
+		if (!handle) return { username: '', server: '' };
+		const result = parseHandleString(handle);
+		if (result) {
+			return result;
 		} else {
 			console.error('Invalid Fediverse handle format');
-			username = '';
-			server = '';
+			return { username: '', server: '' };
 		}
-	}
-
-	onMount(() => {
-		parseHandle(handle);
 	});
+
+	const username = $derived(parsed.username);
+	const server = $derived(parsed.server);
 </script>
 
 <div class="fedi-handle">

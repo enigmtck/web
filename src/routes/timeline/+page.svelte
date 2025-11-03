@@ -1,9 +1,9 @@
 <script lang="ts">
-	import Reply from './components/Reply.svelte';
-	import Article from './components/Article.svelte';
-	import Compose from './components/Compose.svelte';
+	import Reply from '$lib/components/timeline/Reply.svelte';
+	import Article from '$lib/components/timeline/Article.svelte';
+	import Compose from '$lib/components/timeline/Compose.svelte';
 
-	import { onDestroy, onMount, tick, afterUpdate } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { appData, enigmatickWasm } from '../../stores';
 	import { useMediaQuery } from 'svelte-breakpoints';
@@ -33,13 +33,13 @@
 	} from '../../common';
 
 	import { goto } from '$app/navigation';
-	import type { ComposeDispatch, TimelineDispatch } from './components/common';
-	import Filters from './components/Filters.svelte';
+	import type { ComposeDispatch, TimelineDispatch } from '$lib/components/timeline/common';
+	import Filters from '$lib/components/timeline/Filters.svelte';
 
-	let composeComponent: Compose;
-	$: view = '';
+	let composeComponent = $state<Compose | undefined>(undefined);
+	let view = $state('');
 
-	$: wasm = $enigmatickWasm;
+	let wasm = $derived($enigmatickWasm);
 
 	let streamUuid: string | null = null;
 	let context: any;
@@ -66,7 +66,7 @@
 		if (!displayNote.note.inReplyTo && displayNote.note.id) {
 			// If 'inReplyTo' is blank or no matching DisplayNote found, add it to the top level
 			if (!notes.has(displayNote.note.id)) {
-				notes.set(displayNote.note.id, displayNote);
+				notes = new Map(notes).set(displayNote.note.id, displayNote);
 			}
 			await updateDOM(true, 0);
 			return;
@@ -92,6 +92,8 @@
 
 		// If 'inReplyTo' exists, try to find the parent note
 		if (displayNote.note.inReplyTo && findAndAddReply(notes)) {
+			// Force reactivity by creating new Map reference
+			notes = new Map(notes);
 			await updateDOM(false);
 			return;
 		}
@@ -248,9 +250,9 @@
 					(matches = url.match(mastodon_tag_url)) ||
 					(matches = url.match(friendica_tag_url))
 				) {
-					hashtags.add(matches[1].toLowerCase());
+					// Create new Set instance to force reactivity
+					hashtags = new Set(hashtags).add(matches[1].toLowerCase());
 					navigation.cancel();
-					hashtags = hashtags;
 					resetData();
 				}
 			}
@@ -282,7 +284,7 @@
 	const clearNoteSelect = async () => {
 		focusConversation = null;
 		focusNote = null;
-		composeComponent.resetCompose();
+		composeComponent?.resetCompose();
 
 		await revertScroll();
 
@@ -418,6 +420,20 @@
 		//console.debug('Removing note');
 	};
 
+	const handleHashtagAdd = (tag: string) => {
+		// Create new Set instance to force reactivity
+		const newHashtags = new Set(hashtags);
+		newHashtags.add(tag);
+		hashtags = newHashtags;
+	};
+
+	const handleHashtagRemove = (tag: string) => {
+		// Create new Set instance to force reactivity
+		const newHashtags = new Set(hashtags);
+		newHashtags.delete(tag);
+		hashtags = newHashtags;
+	};
+
 	const resetData = async () => {
 		clearNoteSelect();
 		noteQueue = [];
@@ -446,7 +462,7 @@
 
 	let cache: any = null;
 
-	let hashtags: Set<string> = new Set();
+	let hashtags = $state(new Set<string>());
 
 	// controls whether messages from EventSource are immediately displayed or queued
 	let liveLoading = true;
@@ -458,7 +474,15 @@
 	// HTML formatted notes to display in the Timeline
 	//$: notes = new Array<DisplayNote>();
 	// ap_id -> [published, note, replies, sender, in_reply_to, conversation]
-	$: notes = new Map<string, DisplayNote>();
+	let notes = $state(new Map<string, DisplayNote>());
+	// Derive array that reacts to Map changes
+	// Access notes.size to ensure reactivity tracking, then convert to array
+	let notesArray = $derived.by(() => {
+		// Access the Map in a way that tracks mutations
+		const size = notes.size;
+		const values = Array.from(notes.values());
+		return values;
+	});
 
 	// used very temporarily to control requests to the API for new data
 	let loading = false;
@@ -471,8 +495,8 @@
 
 	let username = $appData.username;
 
-	let focusNote: string | null = null;
-	let focusConversation: string | null = null;
+	let focusNote = $state<string | null>(null);
+	let focusConversation = $state<string | null>(null);
 
 	let yPosition: number = 0;
 	let filterHandle: HTMLDivElement;
@@ -491,7 +515,7 @@
 
 <Compose
 	{senderFunction}
-	on:publish
+	onPublish={(dispatch ) => addNote(dispatch.activity)}
 	bind:this={composeComponent}
 	direct={view === 'direct'}
 />
@@ -501,31 +525,32 @@
 		<header>
 			<nav>
 				{#if username}
-					<button class="selected" data-view="home" on:click={handleView}
-						><i class="fa-solid fa-house" /></button
-					>
-					<button data-view="local" on:click={handleView}><i class="fa-solid fa-hotel" /></button>
-					<button data-view="direct" on:click={handleView}><i class="fa-solid fa-at" /></button>
+				<button class="selected" data-view="home" onclick={handleView} aria-label="Home view"
+					><i class="fa-solid fa-house"></i></button
+				>
+					<button data-view="local" onclick={handleView} aria-label="Local view"><i class="fa-solid fa-hotel"></i></button>
+					<button data-view="direct" onclick={handleView} aria-label="Direct messages view"><i class="fa-solid fa-at"></i></button>
 				{/if}
-				<button data-view="global" on:click={handleView}><i class="fa-solid fa-globe" /></button>
+				<button data-view="global" onclick={handleView} aria-label="Global view"><i class="fa-solid fa-globe"></i></button>
 			</nav>
 
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<div class="scroll" on:click={scrollToTop}>
-				<i class="fa-solid fa-chevron-up" />
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="scroll" role="button" tabindex="0" onclick={scrollToTop} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scrollToTop(); } }}>
+				<i class="fa-solid fa-chevron-up"></i>
 			</div>
 		</header>
 
-		<div class="scrollable" on:scroll={updateScrollPosition} bind:this={scrollable}>
-			{#each Array.from(notes.values()) as note, i}
-				{#if note.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeral?.announces?.length)) || note.note.id == focusNote)}
+		<div class="scrollable" onscroll={updateScrollPosition} bind:this={scrollable}>
+			<!-- Debug: notes.size={notes.size}, notesArray.length={notesArray.length} -->
+			{#each notesArray as note, i}
+				{#if note?.note && ((!focusNote && (!note.note.inReplyTo || note.note.ephemeral?.announces?.length)) || note.note.id == focusNote)}
 					<Article
 						bind:this={articleRefs[i]}
 						parentArticle={articleRefs[i]}
 						{remove}
 						{note}
-						on:replyTo={composeComponent.handleReplyToMessage}
+						onReplyTo={composeComponent?.handleReplyToMessage}
 						{cachedNote}
 					/>
 				{/if}
@@ -533,10 +558,10 @@
 		</div>
 
 		{#if focusNote || focusConversation}
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<div class="back" on:click|preventDefault={clearNoteSelect}>
-				<i class="fa-solid fa-angles-left" />
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div class="back" role="button" tabindex="0" onclick={(e) => { e.preventDefault(); clearNoteSelect(); }} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); clearNoteSelect(); } }}>
+				<i class="fa-solid fa-angles-left"></i>
 			</div>
 		{/if}
 	</div>
@@ -544,10 +569,10 @@
 	<div class="context">
 		<div bind:this={context} style="display: {$isSmallScreen ? 'none' : 'flex'};">
 			<h1>Filters</h1>
-			<Filters {hashtags} {resetData} />
+			<Filters {hashtags} {resetData} onHashtagAdd={handleHashtagAdd} onHashtagRemove={handleHashtagRemove} />
 		</div>
 		<div class="handle" bind:this={filterHandle}>
-			<a href="#filters" on:click={handleMinimizeContext}>&nbsp</a>
+			<a href="#filters" onclick={handleMinimizeContext} aria-label="Toggle filters">&nbsp</a>
 		</div>
 	</div>
 </main>
@@ -637,13 +662,6 @@
 				height: calc(100% - 41px);
 				scroll-behavior: smooth;
 				padding: 0 10px;
-
-				.replies {
-					padding-bottom: 60px;
-					display: flex;
-					flex-direction: column;
-					align-items: center;
-				}
 
 				@media screen and (max-width: 700px) {
 					height: calc(100% - 91px);

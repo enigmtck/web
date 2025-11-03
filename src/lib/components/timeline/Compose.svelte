@@ -21,38 +21,39 @@
 	import type { ComposeDispatch, TimelineDispatch } from './common';
 	import Reply from './Reply.svelte';
 	import { tick } from 'svelte';
-	import { createEventDispatcher } from 'svelte';
 	import Article from './Article.svelte';
-	const publishDispatch = createEventDispatcher<{ publish: TimelineDispatch }>();
 
-	$: wasm = $enigmatickWasm;
+	let {
+		onPublish = undefined,
+		senderFunction,
+		direct
+	}: {
+		onPublish?: ((dispatch: TimelineDispatch) => void);
+		senderFunction: (
+			replyToActor: UserProfile | UserProfileTerse | null,
+			replyToNote: DisplayNote | null,
+			content: string,
+			attachments: Attachment[],
+			mentions: Map<string, UserProfile>,
+			tags: string[],
+			directed: boolean
+		) => Promise<string | null | undefined>;
+		direct: boolean;
+	} = $props();
 
-	// Exporting the definition of this function is to allow Compose to be used in
-	// different contexts, like for both Notes and EncryptedNotes. The implementation
-	// of the sending function is left up to the container component.
-	export let senderFunction: (
-		replyToActor: UserProfile | UserProfileTerse | null,
-		replyToNote: DisplayNote | null,
-		content: string,
-		attachments: Attachment[],
-		mentions: Map<string, UserProfile>,
-		tags: string[],
-		directed: boolean
-	) => Promise<string | null | undefined>;
-
-	export let direct: boolean;
+	let wasm = $derived($enigmatickWasm);
 
 	let parentArticle: any = null;
 
-	async function handleReplyToMessage(message: CustomEvent<ComposeDispatch>) {
+	async function handleReplyToMessage(dispatch: ComposeDispatch) {
 		//console.log('IN COMPOSE');
-		//console.log(message);
+		//console.log(dispatch);
 
-		// Use parentArticle directly from the event detail
-		parentArticle = message.detail.parentArticle;
+		// Use parentArticle directly from the dispatch
+		parentArticle = dispatch.parentArticle;
 
-		replyToActor = message.detail.replyToActor;
-		replyToNote = message.detail.replyToNote;
+		replyToActor = dispatch.replyToActor;
+		replyToNote = dispatch.replyToNote;
 
 		if (replyToNote.note.type == 'EncryptedNote') {
 			direct = true;
@@ -60,7 +61,7 @@
 			direct = false;
 		}
 
-		if (message.detail.openAside) {
+		if (dispatch.openAside) {
 			openAside();
 		}
 
@@ -74,9 +75,9 @@
 		//console.debug(parentArticle);
 	}
 
-	async function openAside() {
+	// svelte-ignore non_reactive_update - false positive: openAside is a function, not a reactive variable
+	function openAside() {
 		dialogOpen = true;
-		await tick();
 		if (dialogElement) {
 			dialogElement.showModal();
 		}
@@ -157,7 +158,7 @@
 		showDrawerContent = !showDrawerContent;
 	}
 
-	function switchTab(tab: string) {
+	function switchTab(tab: 'attachments' | 'tags') {
 		activeTab = tab;
 	}
 
@@ -192,7 +193,7 @@
 
 					let activity: Activity = JSON.parse(x);
 
-					publishDispatch('publish', {
+					onPublish?.({
 						activity
 					});
 
@@ -261,7 +262,6 @@
 							let attachment: Attachment = JSON.parse(x);
 							if (attachment.url) {
 								attachments.set(attachment.url, attachment);
-								attachments = attachments;
 								//console.debug(attachments);
 							}
 						}
@@ -276,7 +276,6 @@
 			if (event.target.dataset.url) {
 				const url: string = event.target.dataset.url;
 				attachments.delete(url);
-				attachments = attachments;
 			}
 		}
 	};
@@ -404,8 +403,6 @@
 		for (const match of hashtagMatches) {
 			hashtags.add(match[0]);
 		}
-		// Force reactivity
-		hashtags = hashtags;
 		
 		// Clear existing timeout to debounce mentions (which need network calls)
 		if (detectionTimeout) {
@@ -452,49 +449,46 @@
 			
 			//console.log('Final hashtags:', Array.from(hashtags));
 			//console.log('Final mentions:', Array.from(mentions.keys()));
-			
-			// Force reactivity
-			mentions = mentions;
 		}, 500); // Wait 500ms after user stops typing
 	};
 
 
 
-	let markdownNote = '';
-	$: htmlNote = '';
-	let preview = false;
-	let showDrawerContent = false;
-	let activeTab = 'attachments'; // 'attachments' or 'tags'
+	let markdownNote = $state('');
+	let htmlNote = $state('');
+	let preview = $state(false);
+	let showDrawerContent = $state(false);
+	let activeTab = $state<'attachments' | 'tags'>('attachments');
 
-	let webfingerRecipient: string | null = null;
-	let replyToActor: UserProfile | UserProfileTerse | null = null;
-	let replyToNote: DisplayNote | null = null;
+	let webfingerRecipient = $state<string | null>(null);
+	let replyToActor = $state<UserProfile | UserProfileTerse | null>(null);
+	let replyToNote = $state<DisplayNote | null>(null);
 
 	let imageBuffer: string | ArrayBuffer | null;
-	let imageFileInput: HTMLInputElement;
+	let imageFileInput: HTMLInputElement | undefined = $state(undefined);
 
-	let attachments: Map<String, Attachment> = new Map();
-	let mentions: Map<string, UserProfile | null> = new Map();
-	let hashtags: Set<string> = new Set();
+	let attachments = $state(new Map<String, Attachment>());
+	let mentions = $state(new Map<string, UserProfile | null>());
+	let hashtags = $state(new Set<string>());
 	
 	// Create stable arrays for rendering
-	$: mentionsArray = Array.from(mentions.entries());
-	$: hashtagsArray = Array.from(hashtags);
-	let composeDiv: HTMLDivElement;
+	let mentionsArray = $derived(Array.from(mentions.entries()));
+	let hashtagsArray = $derived(Array.from(hashtags));
+	let composeDiv: HTMLDivElement | undefined = $state(undefined);
 
-	let privacyOpen = false;
-	$: username = $appData.username;
+	let privacyOpen = $state(false);
+	let username = $derived($appData.username);
 
-	let dialogOpen = false;
-	let dialogElement: HTMLDialogElement;
+	let dialogOpen = $state(false);
+	let dialogElement: HTMLDialogElement | undefined = $state(undefined);
 	
 	// Question creation mode
-	let composeMode: 'note' | 'question' = 'note';
-	let questionContent = '';
-	let pollType: 'anyOf' | 'oneOf' = 'oneOf';
-	let pollOptions: string[] = ['', '']; // Start with 2 empty options
-	let endDate = '';
-	let endTime = '';
+	let composeMode = $state<'note' | 'question'>('note');
+	let questionContent = $state('');
+	let pollType = $state<'anyOf' | 'oneOf'>('oneOf');
+	let pollOptions = $state<string[]>(['', '']); // Start with 2 empty options
+	let endDate = $state('');
+	let endTime = $state('');
 
 	// Function to create a preview Note object from compose data
 	function createPreviewNote(): Note {
@@ -635,7 +629,7 @@
 	}
 
 	// Reactive preview DisplayNote
-	$: previewDisplayNote = (() => {
+	let previewDisplayNote = $derived((() => {
 		const content = markdownNote;
 		const hashtagsSize = hashtags.size;
 		const mentionsSize = mentions.size;
@@ -667,19 +661,19 @@
 		//console.log('Preview note type:', note.type);
 		//console.log('Is note?', isNote(note));
 		return new DisplayNote(actor, note);
-	})();
+	})());
 </script>
 
-<div class="mask closed" />
+<div class="mask closed"></div>
 {#if dialogOpen}
 <dialog bind:this={dialogElement}>
 	{#if username}
 		<div class={direct && !replyToNote ? 'direct' : ''}>
-			<!-- svelte-ignore a11y-click-events-have-key-events -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
-			<i class="fa-solid fa-xmark" on:click={closeAside} />
+			<!-- svelte-ignore a11y_click_events_have_key_events -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<i class="fa-solid fa-xmark" role="button" tabindex="0" onclick={closeAside} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closeAside(); } }}></i>
 
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="compose-container">
 				{#if replyToNote && replyToActor}
 					<div class="reply">
@@ -696,9 +690,9 @@
 							</span>
 						</div>
 						<span>{removeTags(replyToNote.note.content)}</span>
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
-						<i class="fa-solid fa-xmark" on:click|preventDefault={cancelReplyTo} />
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<i class="fa-solid fa-xmark" role="button" tabindex="0" onclick={(e) => { e.preventDefault(); cancelReplyTo(); }} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cancelReplyTo(); } }}></i>
 					</div>
 				{/if}
 				{#if composeMode === 'note'}
@@ -706,9 +700,9 @@
 						class="entry"
 						bind:this={composeDiv}
 						contenteditable="true"
-						on:input={detectTagsAndMentions}
+						oninput={detectTagsAndMentions}
 						bind:innerText={markdownNote}
-					/>
+					></div>
 				{:else}
 					<div class="question-form">
 						<div class="question-content">
@@ -717,8 +711,8 @@
 								id="question-content"
 								bind:value={questionContent}
 								placeholder="Enter your question description..."
-								on:input={detectTagsAndMentions}
-							/>
+								oninput={detectTagsAndMentions}
+							></textarea>
 						</div>
 						
 						<div class="poll-type">
@@ -748,7 +742,8 @@
 									{#if pollOptions.length > 2}
 										<button 
 											type="button" 
-											on:click={() => pollOptions = pollOptions.filter((_, i) => i !== index)}
+											aria-label="Remove option"
+											onclick={() => pollOptions = pollOptions.filter((_, i) => i !== index)}
 										>
 											<i class="fa-solid fa-trash"></i>
 										</button>
@@ -758,7 +753,7 @@
 							<button 
 								type="button" 
 								class="add-option"
-								on:click={() => pollOptions = [...pollOptions, '']}
+								onclick={() => pollOptions = [...pollOptions, '']}
 							>
 								<i class="fa-solid fa-plus"></i> Add Option
 							</button>
@@ -776,27 +771,33 @@
 				{/if}
 
 				<div class="drawer">
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<div class="pull{showDrawerContent ? ' open' : ''}" on:click={toggleDrawerContent}>
-						<i class="fa-solid fa-caret-up" />
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="pull{showDrawerContent ? ' open' : ''}" role="button" tabindex="0" onclick={toggleDrawerContent} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleDrawerContent(); } }}>
+						<i class="fa-solid fa-caret-up"></i>
 					</div>
 
 									<div class="drawer-content{showDrawerContent ? ' open' : ''}">
 							<div class="tabs">
-								<!-- svelte-ignore a11y-click-events-have-key-events -->
-								<!-- svelte-ignore a11y-no-static-element-interactions -->
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<span
 									class={activeTab === 'attachments' ? 'selected' : ''}
-									on:click={() => switchTab('attachments')}
+									role="button"
+									tabindex="0"
+									onclick={() => switchTab('attachments')}
+									onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab('attachments'); } }}
 								>
 									Attachments
 								</span>
-								<!-- svelte-ignore a11y-click-events-have-key-events -->
-								<!-- svelte-ignore a11y-no-static-element-interactions -->
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<span
 									class={activeTab === 'tags' ? 'selected' : ''}
-									on:click={() => switchTab('tags')}
+									role="button"
+									tabindex="0"
+									onclick={() => switchTab('tags')}
+									onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab('tags'); } }}
 								>
 									Tags
 								</span>
@@ -805,20 +806,24 @@
 								<div class="attachments">
 									{#if Array.from(attachments.values()).length > 0}
 										{#each Array.from(attachments.values()) as attachment}
-											<!-- svelte-ignore a11y-missing-attribute -->
+											<!-- svelte-ignore a11y_missing_attribute -->
 											<div>
 												<img
 													src={attachment.url}
 													width={attachment.width}
 													height={attachment.height}
+													alt="Attachment preview"
 												/>
-												<!-- svelte-ignore a11y-click-events-have-key-events -->
-												<!-- svelte-ignore a11y-no-static-element-interactions -->
+												<!-- svelte-ignore a11y_click_events_have_key_events -->
+												<!-- svelte-ignore a11y_no_static_element_interactions -->
 												<i
 													class="fa-solid fa-xmark"
+													role="button"
+													tabindex="0"
 													data-url={attachment.url}
-													on:click|preventDefault={removeAttachment}
-												/>
+													onclick={(e) => { e.preventDefault(); removeAttachment(e); }}
+													onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); removeAttachment(e); } }}
+												></i>
 											</div>
 										{/each}
 									{:else}
@@ -868,76 +873,87 @@
 				</div>
 			</div>
 
-			<form method="POST" on:submit|preventDefault={handleComposeSubmit}>
+			<form method="POST" onsubmit={(e) => { e.preventDefault(); handleComposeSubmit(e); }}>
 				<div>
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<i
 						class="fa-solid fa-paperclip"
-						on:keyup={() => {
-							imageFileInput.click();
+						role="button"
+						tabindex="0"
+						onkeyup={() => {
+							imageFileInput?.click();
 						}}
-						on:click={() => {
-							imageFileInput.click();
+						onclick={() => {
+							imageFileInput?.click();
 						}}
-					/>
+					></i>
 					<input
 						style="display:none"
 						type="file"
 						accept=".jpg, .jpeg, .png"
-						on:change={(e) => onImageSelected(e)}
+						onchange={(e) => onImageSelected(e)}
 						bind:this={imageFileInput}
 					/>
 				</div>
 				<div class="mode-toggle">
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<i 
 						class="fa-solid fa-note-sticky {composeMode === 'note' ? 'active' : ''}" 
-						on:click|preventDefault={() => composeMode = 'note'}
+						role="button"
+						tabindex="0"
+						onclick={(e) => { e.preventDefault(); composeMode = 'note'; }}
+						onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); composeMode = 'note'; } }}
 						title="Create Note"
-					/>
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					></i>
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<i 
 						class="fa-solid fa-square-poll-horizontal {composeMode === 'question' ? 'active' : ''}" 
-						on:click|preventDefault={() => composeMode = 'question'}
+						role="button"
+						tabindex="0"
+						onclick={(e) => { e.preventDefault(); composeMode = 'question'; }}
+						onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); composeMode = 'question'; } }}
 						title="Create Question"
-					/>
+					></i>
 				</div>
 				<div>
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<i class="fa-regular fa-paper-plane" on:click|preventDefault={handlePublish} />
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<i class="fa-regular fa-paper-plane" role="button" tabindex="0" onclick={(e) => { e.preventDefault(); handlePublish(); }} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handlePublish(); } }}></i>
 				</div>
 
-				<!-- svelte-ignore a11y-click-events-have-key-events -->
-				<!-- svelte-ignore a11y-no-static-element-interactions -->
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					class={privacyOpen ? 'privacy' : ''}
-					on:click={() => {
+					role="button"
+					tabindex="0"
+					onclick={() => {
 						privacyOpen = !privacyOpen;
 					}}
+					onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); privacyOpen = !privacyOpen; } }}
 				>
 					{#if direct}
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
-						<i class="fa-solid fa-at" />
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<i class="fa-solid fa-at"></i>
 					{:else}
-						<!-- svelte-ignore a11y-click-events-have-key-events -->
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
-						<i class="fa-solid fa-earth-americas" />
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<i class="fa-solid fa-earth-americas"></i>
 					{/if}
 					<div>
 						<ul>
-							<!-- svelte-ignore a11y-click-events-have-key-events -->
-							<!-- svelte-ignore a11y-no-static-element-interactions -->
-							<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 							<li
-								on:click={() => {
+								onclick={() => {
 									direct = true;
 								}}
 							>
-								<i class="fa-solid fa-at" />
+								<i class="fa-solid fa-at"></i>
 								<div>
 									<h1>Direct</h1>
 									<span
@@ -948,15 +964,15 @@
 								</div>
 							</li>
 
-							<!-- svelte-ignore a11y-click-events-have-key-events -->
-							<!-- svelte-ignore a11y-no-static-element-interactions -->
-							<!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 							<li
-								on:click={() => {
+								onclick={() => {
 									direct = false;
 								}}
 							>
-								<i class="fa-solid fa-earth-americas" />
+								<i class="fa-solid fa-earth-americas"></i>
 								<div>
 									<h1>Public</h1>
 									<span>This note will be visible to all viewers.</span>
@@ -975,10 +991,10 @@
 {/if}
 
 {#if username}
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
-	<div class="compose" on:click={openAside}>
-		<i class="fa-solid fa-pencil" />
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="compose" role="button" tabindex="0" onclick={openAside} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openAside(); } }}>
+		<i class="fa-solid fa-pencil"></i>
 	</div>
 {/if}
 
@@ -1103,29 +1119,6 @@
 				padding: 45px 10px 0 10px;
 			}
 
-			> span {
-				display: inline-block;
-				background: #efefef;
-				border: 1px solid #ccc;
-				padding: 4px;
-				margin: 5px 0;
-				font-family: 'Open Sans';
-
-				position: fixed;
-				top: 5px;
-				left: 10px;
-				z-index: 30;
-				opacity: 0.9;
-			}
-
-			> i.fa-lock {
-				position: absolute;
-				left: 10px;
-				top: 5px;
-				font-size: 14px;
-				pointer-events: none;
-				color: red;
-			}
 
 			label {
 				color: #777;
@@ -1266,13 +1259,6 @@
 				background-color: #333;
 			}
 
-			section {
-				display: block;
-				width: 100%;
-				display: flex;
-				flex-direction: row;
-				flex-wrap: wrap;
-			}
 
 			form {
 				display: flex;
@@ -1672,14 +1658,6 @@
 					color: red;
 				}
 
-				> span {
-					position: fixed;
-					top: 10px;
-					left: 10px;
-					z-index: 30;
-					opacity: 0.7;
-				}
-
 				label {
 					margin: 5px;
 					font-size: 14px;
@@ -1703,13 +1681,6 @@
 					border: 1px solid #aaa;
 					max-height: unset;
 					min-height: unset;
-				}
-
-				section {
-					position: absolute;
-					bottom: 70px;
-					left: 10px;
-					width: calc(100% - 20px);
 				}
 
 				form {
@@ -1781,19 +1752,6 @@
 					}
 				}
 
-				section {
-					div {
-						i {
-							background: #444;
-							color: #aaa;
-
-							&:hover {
-								background: #333;
-								color: #bbb;
-							}
-						}
-					}
-				}
 
 				.compose-container {
 					.drawer {
@@ -2067,9 +2025,26 @@
 				label {
 					color: #eee;
 				}
+			}
 
-				input,
+			.question-content {
 				textarea {
+					background: #444;
+					border-color: #555;
+					color: #eee;
+				}
+			}
+
+			.poll-options {
+				input {
+					background: #444;
+					border-color: #555;
+					color: #eee;
+				}
+			}
+
+			.end-date-time {
+				input {
 					background: #444;
 					border-color: #555;
 					color: #eee;
